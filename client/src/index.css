@@ -14147,7 +14147,7 @@ input:focus {
     display: none;
   }
 
-  /* 터치 타겟 — 데스크톱 30px 잔버튼을 40px 칩으로 */
+  /* 터치 타겟 — 40px로 키우되 구글식 플랫 (테두리·배경 없음) */
   .doc-tools button {
     flex-shrink: 0;
     white-space: nowrap;
@@ -14155,9 +14155,9 @@ input:focus {
     height: 40px;
     padding: 0 12px;
     font-size: 14.5px;
-    border: 1px solid var(--border);
+    border: none;
     border-radius: 9px;
-    background: var(--surface);
+    background: transparent;
   }
 
   .doc-tool-sep {
@@ -14189,9 +14189,9 @@ input:focus {
     height: 40px;
     padding: 0 12px;
     font-size: 14px;
-    border: 1px solid var(--border);
+    border: none;
     border-radius: 9px;
-    background: var(--surface);
+    background: transparent;
   }
 
   .sheet-toolbar .sht-sep {
