@@ -76,6 +76,7 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
   const user = useAuthStore((s) => s.user);
   const [files, setFiles] = useState<CollabFile[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
+  const [editorFull, setEditorFull] = useState(false); // 에디터 전체화면 (화면이 작을 때)
   const [openedIds, setOpenedIds] = useState<number[]>([]); // 마운트 유지용
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   // 생성 플로우: 타입 선택 → 이름 입력
@@ -286,6 +287,20 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
     () => [...selectedIds].map((id) => byId.get(id)).filter((f): f is CollabFile => !!f),
     [selectedIds, byId],
   );
+
+  // 전체화면 Esc 종료 — 입력 중이거나 발표 모드가 떠 있으면 양보
+  useEffect(() => {
+    if (!editorFull) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+      if (document.querySelector('.slide-present')) return; // 발표 모드 Esc가 우선
+      setEditorFull(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editorFull]);
 
   // ── 파일 열기 ──
   function openFile(f: CollabFile) {
@@ -1533,10 +1548,20 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
       )}
 
       {/* 에디터 — 파일을 열면 전체 화면, ← 로 탐색기 복귀 */}
-      <div className="cf-editor" style={{ display: active ? undefined : 'none' }}>
+      <div
+        className={`cf-editor${editorFull && active ? ' full' : ''}`}
+        style={{ display: active ? undefined : 'none' }}
+      >
         {active && (
           <div className="cf-editor-bar">
-            <button className="cf-back" title="파일 목록으로" onClick={() => setActiveId(null)}>
+            <button
+              className="cf-back"
+              title="파일 목록으로"
+              onClick={() => {
+                setActiveId(null);
+                setEditorFull(false);
+              }}
+            >
               ←
             </button>
             {/* 경로 › [타입 아이콘] 파일명 — 아이콘은 파일명 바로 옆에 */}
@@ -1557,6 +1582,13 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
               <TypeIcon type={active.type} />
             </span>
             <Marquee className="cf-editor-name">{active.name}</Marquee>
+            <button
+              className={`cf-fullscreen${editorFull ? ' on' : ''}`}
+              title={editorFull ? '창 크기로 (Esc)' : '전체화면'}
+              onClick={() => setEditorFull((v) => !v)}
+            >
+              {editorFull ? '⤡ 창으로' : '⛶ 전체화면'}
+            </button>
           </div>
         )}
         {openedFiles.map((f) => (

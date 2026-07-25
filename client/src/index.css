@@ -10124,6 +10124,34 @@ input:focus {
   flex-direction: column;
 }
 
+/* 에디터 전체화면 — 앱 UI 전체를 덮음 (작은 화면·임베드 대비) */
+.cf-editor.full {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: var(--surface);
+}
+
+.cf-fullscreen {
+  margin-left: auto;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cf-fullscreen:hover,
+.cf-fullscreen.on {
+  border-color: var(--green);
+  color: var(--green);
+}
+
 .cf-editor-host {
   flex: 1;
   min-height: 0;
