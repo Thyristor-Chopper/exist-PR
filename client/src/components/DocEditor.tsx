@@ -165,11 +165,14 @@ export default function DocEditor({
   roomId,
   code,
   fileId,
+  active = true,
 }: {
   roomId: string;
   code?: string;
   fileId?: number;
   fileName?: string;
+  /** false면 숨김 상태 — awareness를 내려서 프레즌스에서 빠짐 (연결은 유지) */
+  active?: boolean;
 }) {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
@@ -285,6 +288,20 @@ export default function DocEditor({
   const color = CARET_COLORS[(user?.id ?? 0) % CARET_COLORS.length];
   const activeDoc = docs.find((d) => d.id === activeId) ?? null;
   const displayName = user?.name || user?.username || '익명';
+
+  // 숨김(비활성) 동안 awareness를 내림 — 파일 목록 프레즌스·N명 참여에서 빠짐. 연결·문서 동기화는 유지
+  // 주의: setLocalState(null) 후에는 setLocalStateField가 no-op이라 복귀는 setLocalState로 해야 함
+  useEffect(() => {
+    const p = conn?.provider;
+    if (!p) return;
+    if (active) {
+      const cur = p.awareness.getLocalState();
+      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.username ?? '익명', color } });
+    } else {
+      p.awareness.setLocalState(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, conn]);
 
   // 문서별 댓글·버전 맵 바인딩
   useEffect(() => {

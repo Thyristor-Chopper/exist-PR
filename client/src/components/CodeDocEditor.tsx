@@ -194,11 +194,14 @@ export default function CodeDocEditor({
   siblings,
   currentSibId,
   onOpenSibling,
+  active = true,
 }: {
   roomId: string;
   siblings?: SiblingDoc[];
   currentSibId?: number;
   onOpenSibling?: (id: number) => void;
+  /** false면 숨김 상태 — awareness를 내려서 프레즌스에서 빠짐 (연결은 유지) */
+  active?: boolean;
 }) {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
@@ -210,6 +213,24 @@ export default function CodeDocEditor({
   const [conn, setConn] = useState<{ ydoc: Y.Doc; provider: WebsocketProvider } | null>(null);
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // 숨김(비활성) 동안 awareness를 내림 — 프레즌스·N명 참여에서 빠짐 (연결은 유지)
+  // 주의: setLocalState(null) 후에는 setLocalStateField가 no-op이라 복귀는 setLocalState로 해야 함
+  useEffect(() => {
+    const p = conn?.provider;
+    if (!p) return;
+    if (active) {
+      const color = CURSOR_COLORS[(user?.id ?? 0) % CURSOR_COLORS.length];
+      const cur = p.awareness.getLocalState();
+      p.awareness.setLocalState({
+        ...(cur ?? {}),
+        user: { name: user?.username ?? '익명', color, colorLight: color + '33' },
+      });
+    } else {
+      p.awareness.setLocalState(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, conn]);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [peers, setPeers] = useState(1);

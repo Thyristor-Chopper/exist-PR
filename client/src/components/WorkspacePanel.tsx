@@ -415,6 +415,7 @@ function WorkspacePanel({ meetingRequest }: Props) {
               <MeetingHub
                 code={t.code}
                 expanded={isExpanded}
+                visible={isActive || isExpanded}
                 onToggleExpand={toggleExpandFor(t.code)}
                 gotoTab={
                   meetingRequest && meetingRequest.code === t.code && meetingRequest.tab

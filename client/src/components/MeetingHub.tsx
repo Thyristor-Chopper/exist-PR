@@ -174,6 +174,8 @@ interface Props {
   onToggleExpand?: () => void;
   /** 열 때 이동할 세부 탭 (최근회의 버튼 등) */
   gotoTab?: { tab: string; ts: number };
+  /** 이 그룹 탭이 화면에 보이는지 — 숨김 탭의 에디터가 프레즌스에 잡히지 않게 */
+  visible?: boolean;
 }
 
 /** PiP 한 칸(영상 패널) 기준 크기 — 16:9. 리사이즈는 이 단위로 스냅된다 */
@@ -181,7 +183,7 @@ const PIP_TILE_W = 320;
 const PIP_TILE_H = 180;
 
 /** 회의 탭 = 대시보드(메인) + 통화/채팅 서브탭 */
-function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
+function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }: Props) {
   const user = useAuthStore((s) => s.user);
   const presence = usePresence();
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
@@ -1529,7 +1531,11 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
             className="hub-editor-pane"
             style={{ display: subtab === 'files' ? 'block' : 'none' }}
           >
-            <CollabFiles code={code} isHost={!!(detail?.isHost || detail?.canManage)} />
+            <CollabFiles
+              code={code}
+              isHost={!!(detail?.isHost || detail?.canManage)}
+              visible={visible && subtab === 'files'}
+            />
           </div>
         )}
 

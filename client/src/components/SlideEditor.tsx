@@ -81,9 +81,10 @@ const GAlign = ({ a }: { a: 'left' | 'center' | 'right' }) => (
 );
 
 /** Yjs 기반 협업 슬라이드(PowerPoint형) — roomId 단위 공유 */
-export default function SlideEditor({ roomId, fileName }: { roomId: string; fileName?: string }) {
+export default function SlideEditor({ roomId, fileName, active = true }: { roomId: string; fileName?: string; active?: boolean }) {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
+  const providerRef = useRef<WebsocketProvider | null>(null);
   const ydocRef = useRef<Y.Doc | null>(null);
   const slidesMapRef = useRef<Y.Map<SlideValue> | null>(null);
   const elsRef = useRef<Y.Map<ElData> | null>(null);
@@ -118,6 +119,7 @@ export default function SlideEditor({ roomId, fileName }: { roomId: string; file
     });
     const slidesMap = ydoc.getMap<SlideValue>('slides');
     ydocRef.current = ydoc;
+    providerRef.current = provider;
     slidesMapRef.current = slidesMap;
     setStatus(provider.wsconnected ? 'connected' : 'connecting');
 
@@ -150,6 +152,7 @@ export default function SlideEditor({ roomId, fileName }: { roomId: string; file
       provider.destroy();
       ydoc.destroy();
       ydocRef.current = null;
+      providerRef.current = null;
       slidesMapRef.current = null;
       elsRef.current = null;
     };
@@ -175,6 +178,21 @@ export default function SlideEditor({ roomId, fileName }: { roomId: string; file
       undoRef.current = null;
     };
   }, [activeSlideId]);
+
+  // 숨김(비활성) 동안 awareness를 내림 — 프레즌스·N명 참여에서 빠짐 (연결은 유지)
+  // 주의: setLocalState(null) 후에는 setLocalStateField가 no-op이라 복귀는 setLocalState로 해야 함
+  useEffect(() => {
+    const p = providerRef.current;
+    if (!p) return;
+    if (active) {
+      const color = COLORS[(user?.id ?? 0) % COLORS.length];
+      const cur = p.awareness.getLocalState();
+      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.username ?? '익명', color } });
+    } else {
+      p.awareness.setLocalState(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, roomId]);
 
   function elsOf(slideId: string): [string, ElData][] {
     const m = ydocRef.current?.getMap<ElData>(`slide-els:${slideId}`);

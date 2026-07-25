@@ -511,9 +511,10 @@ const SheetCell = memo(function SheetCell({
 });
 
 /** Yjs 기반 협업 스프레드시트 — 여러 시트(하단 탭), roomId 단위 공유 */
-export default function SheetEditor({ roomId }: { roomId: string }) {
+export default function SheetEditor({ roomId, active = true }: { roomId: string; active?: boolean }) {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
+  const providerRef = useRef<WebsocketProvider | null>(null);
   const ydocRef = useRef<Y.Doc | null>(null);
   const sheetsMapRef = useRef<Y.Map<{ name: string; ord: number; cellsKey: string }> | null>(null);
   const cellsRef = useRef<Y.Map<unknown> | null>(null);
@@ -579,6 +580,21 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
     setSel({ r, c });
   }
 
+  // 숨김(비활성) 동안 awareness를 내림 — 프레즌스·N명 참여에서 빠짐 (연결은 유지)
+  // 주의: setLocalState(null) 후에는 setLocalStateField가 no-op이라 복귀는 setLocalState로 해야 함
+  useEffect(() => {
+    const p = providerRef.current;
+    if (!p) return;
+    if (active) {
+      const color = COLORS[(user?.id ?? 0) % COLORS.length];
+      const cur = p.awareness.getLocalState();
+      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.username ?? '익명', color } });
+    } else {
+      p.awareness.setLocalState(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, roomId]);
+
   useEffect(() => {
     const ydoc = new Y.Doc();
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -587,6 +603,7 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
     });
     const sheetsMap = ydoc.getMap<{ name: string; ord: number; cellsKey: string }>('sheets');
     ydocRef.current = ydoc;
+    providerRef.current = provider;
     sheetsMapRef.current = sheetsMap;
     setStatus(provider.wsconnected ? 'connected' : 'connecting');
 
@@ -627,6 +644,7 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
       provider.destroy();
       ydoc.destroy();
       ydocRef.current = null;
+      providerRef.current = null;
       sheetsMapRef.current = null;
       cellsRef.current = null;
     };

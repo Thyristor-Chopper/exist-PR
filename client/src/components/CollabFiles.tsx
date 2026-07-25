@@ -87,7 +87,16 @@ function toast(message: string) {
   window.dispatchEvent(new CustomEvent('app:error', { detail: message }));
 }
 
-export default function CollabFiles({ code, isHost }: { code: string; isHost: boolean }) {
+export default function CollabFiles({
+  code,
+  isHost,
+  visible = true,
+}: {
+  code: string;
+  isHost: boolean;
+  /** 공동편집 화면이 실제로 보이는지 — 숨김 상태의 열린 에디터가 프레즌스에 잡히지 않게 */
+  visible?: boolean;
+}) {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const [files, setFiles] = useState<CollabFile[]>([]);
@@ -1738,6 +1747,7 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
             {f.type === 'code' && (
               <CodeDocEditor
                 roomId={f.room!}
+                active={visible && f.id === activeId}
                 // 같은 폴더의 이웃 문서 — 에디터 사이드바에서 바로 전환
                 siblings={(byParent.get(f.parent_id) ?? [])
                   .filter((s) => s.type !== 'folder')
@@ -1749,10 +1759,12 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
                 }}
               />
             )}
-            {f.type === 'doc' && <DocEditor roomId={f.room!} code={code} fileId={f.id} fileName={f.name} />}
-            {f.type === 'sheet' && <SheetEditor roomId={f.room!} />}
-            {f.type === 'slide' && <SlideEditor roomId={f.room!} fileName={f.name} />}
-            {f.type === 'canvas' && <CanvasBoard roomId={f.room!} />}
+            {f.type === 'doc' && (
+              <DocEditor roomId={f.room!} code={code} fileId={f.id} fileName={f.name} active={visible && f.id === activeId} />
+            )}
+            {f.type === 'sheet' && <SheetEditor roomId={f.room!} active={visible && f.id === activeId} />}
+            {f.type === 'slide' && <SlideEditor roomId={f.room!} fileName={f.name} active={visible && f.id === activeId} />}
+            {f.type === 'canvas' && <CanvasBoard roomId={f.room!} active={visible && f.id === activeId} />}
           </div>
         ))}
       </div>
