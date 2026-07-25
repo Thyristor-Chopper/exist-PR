@@ -77,13 +77,13 @@ export async function parseXlsx(buf: Buffer): Promise<{ name: string; grid: stri
   // 공유 문자열
   const sstXml = (await zip.file('xl/sharedStrings.xml')?.async('string')) ?? '';
   const shared: string[] = [];
-  for (const m of sstXml.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
-    const texts = [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => decodeEntities(t[1]));
+  for (const m of sstXml.matchAll(/<(?:\w+:)?si(?: [^>]*)?>([\s\S]*?)<\/(?:\w+:)?si>/g)) {
+    const texts = [...m[1].matchAll(/<(?:\w+:)?t(?:[ >][^>]*)?>([\s\S]*?)<\/(?:\w+:)?t>/g)].map((t) => decodeEntities(t[1]));
     shared.push(texts.join(''));
   }
   const out: { name: string; grid: string[][] }[] = [];
   // 속성 순서는 생성기마다 달라서 개별 추출 (엑셀·한셀·구글시트 호환)
-  const sheetTags = [...wbXml.matchAll(/<sheet\b([^>]*?)\/?>/g)];
+  const sheetTags = [...wbXml.matchAll(/<(?:\w+:)?sheet\b([^>]*?)\/?>/g)];
   for (let si = 0; si < sheetTags.length; si++) {
     const attrs = sheetTags[si][1];
     const name = decodeEntities(/name="([^"]*)"/.exec(attrs)?.[1] ?? `시트${si + 1}`);
@@ -92,7 +92,7 @@ export async function parseXlsx(buf: Buffer): Promise<{ name: string; grid: stri
     const xml = await zip.file(target)?.async('string');
     if (!xml) continue;
     const grid: string[][] = [];
-    for (const c of xml.matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    for (const c of xml.matchAll(/<(?:\w+:)?c ([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g)) {
       const attrs = c[1];
       const inner = c[2] ?? '';
       const refM = /r="([A-Z]+)(\d+)"/.exec(attrs);
@@ -104,10 +104,10 @@ export async function parseXlsx(buf: Buffer): Promise<{ name: string; grid: stri
       if (col >= MAX_COLS || row >= MAX_ROWS || row < 0) continue;
       const type = /t="([^"]+)"/.exec(attrs)?.[1] ?? 'n';
       let val = '';
-      const v = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1];
+      const v = /<(?:\w+:)?v>([\s\S]*?)<\/(?:\w+:)?v>/.exec(inner)?.[1];
       if (type === 's') val = shared[Number(v)] ?? '';
       else if (type === 'inlineStr')
-        val = [...inner.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => decodeEntities(t[1])).join('');
+        val = [...inner.matchAll(/<(?:\w+:)?t(?:[ >][^>]*)?>([\s\S]*?)<\/(?:\w+:)?t>/g)].map((t) => decodeEntities(t[1])).join('');
       else val = v != null ? decodeEntities(v) : '';
       if (val === '') continue;
       while (grid.length <= row) grid.push([]);

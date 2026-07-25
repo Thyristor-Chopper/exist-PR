@@ -43,7 +43,8 @@ export default function NotificationCenter() {
       .catch(() => {});
   }, []);
 
-  // 실시간 수신 — 목록 맨 위에 추가, 안읽음 +1
+  // 실시간 수신 — 목록 맨 위에 추가, 안읽음 +1, 알림음 (연타 방지 2.5초)
+  const lastSoundRef = useRef(0);
   useEffect(() => {
     const socket = getSocket();
     function onNotify(n: Notification & { created_at?: string }) {
@@ -53,6 +54,14 @@ export default function NotificationCenter() {
         prev.some((x) => x.id === n.id) ? prev : [{ ...n, ts, read: false }, ...prev],
       );
       setUnread((u) => u + 1);
+      const now = Date.now();
+      if (now - lastSoundRef.current > 2500) {
+        lastSoundRef.current = now;
+        const audio = new Audio('/sounds/notify.wav');
+        audio.volume = 0.6;
+        // 페이지 상호작용 전엔 자동재생이 막힐 수 있음 — 조용히 무시
+        void audio.play().catch(() => {});
+      }
     }
     socket.on('agent:notify', onNotify);
     return () => {
