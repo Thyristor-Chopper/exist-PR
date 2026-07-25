@@ -393,6 +393,25 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
     e.preventDefault();
   }
 
+  // 편집 키보드 — Delete/Backspace로 선택 요소 삭제, Esc 선택 해제 (입력 중엔 무시)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (present || printing) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+      if (!selEl || editingEl) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteEl(selEl);
+      } else if (e.key === 'Escape') {
+        setSelEl(null);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selEl, editingEl, present, printing]);
+
   // 발표 모드 키보드
   useEffect(() => {
     if (!present) return;

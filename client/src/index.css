@@ -8401,6 +8401,7 @@ input:focus {
   height: 20px;
   border-radius: 50%;
   cursor: pointer;
+  z-index: 60; /* 겹친 도형 위에서도 항상 클릭 가능 */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8417,7 +8418,7 @@ input:focus {
   border: 2px solid #fff;
   border-radius: 50%;
   cursor: nwse-resize;
-  z-index: 2;
+  z-index: 60;
 }
 
 /* 도형 드롭다운 */
