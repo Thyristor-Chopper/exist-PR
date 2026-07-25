@@ -52,11 +52,25 @@ export function createApp() {
   app.use('/api/push', pushRouter);
 
   // 프로덕션: 빌드된 클라이언트 정적 서빙 + SPA 폴백
+  // ⚠️ index.html·sw.js는 no-cache 필수 — 헤더 없이 내보내면 브라우저 휴리스틱 캐시가
+  // 옛 index.html(=옛 해시 번들 참조)을 물고 있어 배포해도 사용자 화면이 안 바뀐다.
+  // 해시 붙은 /assets/* 는 내용이 곧 주소라 1년 immutable로 캐시.
   const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');
   if (isProd && fs.existsSync(clientDist)) {
-    app.use(express.static(clientDist));
+    app.use(
+      express.static(clientDist, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html') || filePath.endsWith('sw.js')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      }),
+    );
     app.use((req, res, next) => {
       if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.join(clientDist, 'index.html'));
     });
     console.log(`[static] serving client from ${clientDist}`);
