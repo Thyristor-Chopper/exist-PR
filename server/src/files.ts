@@ -6,7 +6,14 @@ import { fileURLToPath } from 'node:url';
 import db from './db.js';
 import type { AuthedRequest } from './auth.js';
 import { ydocExists, deleteYdoc, copyYdoc, readYdocSnapshot, writeYdoc } from './ydoc.js';
-import { parseCsv, parseXlsx, parseDocx, buildSheetYdoc, buildDocYdoc } from './importFile.js';
+import {
+  parseCsv,
+  parseXlsx,
+  parseDocx,
+  buildSheetYdoc,
+  buildDocYdoc,
+  buildDocYdocFromMarkdown,
+} from './importFile.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** 업로드 파일(blob) 저장소 — DATA_DIR/uploads-files */
@@ -259,11 +266,16 @@ async function finishUpload(
       writeYdoc(f.room, (doc) => buildDocYdoc(doc, p.base, paras));
       return res.json({ id: f.id, parent_id: p.parentId, name: p.base, type: 'doc', imported: true });
     }
-    if (p.ext === '.txt' || p.ext === '.md') {
+    if (p.ext === '.md') {
+      const f = insertTyped('doc');
+      writeYdoc(f.room, (doc) => buildDocYdocFromMarkdown(doc, p.base, p.buf.toString('utf8')));
+      return res.json({ id: f.id, parent_id: p.parentId, name: f.name, type: 'doc', imported: true });
+    }
+    if (p.ext === '.txt') {
       const paras = p.buf.toString('utf8').replace(/^﻿/, '').split(/\r?\n/);
       const f = insertTyped('doc');
       writeYdoc(f.room, (doc) => buildDocYdoc(doc, p.base, paras));
-      return res.json({ id: f.id, parent_id: p.parentId, name: p.base, type: 'doc', imported: true });
+      return res.json({ id: f.id, parent_id: p.parentId, name: f.name, type: 'doc', imported: true });
     }
   } catch {
     /* 파싱 실패 → 그냥 파일로 보관 */

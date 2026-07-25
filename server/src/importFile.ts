@@ -125,7 +125,7 @@ export async function parseDocx(buf: Buffer): Promise<string[]> {
   const xml = await zip.file('word/document.xml')?.async('string');
   if (!xml) throw new Error('본문 없음');
   const paras: string[] = [];
-  for (const p of xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)) {
+  for (const p of xml.matchAll(/<w:p(?:[ >][\s\S]*?<\/w:p>|\/>)/g)) {
     const text = [...p[0].matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)]
       .map((t) => decodeEntities(t[1]))
       .join('');
@@ -165,5 +165,58 @@ export function buildDocYdoc(doc: Y.Doc, docName: string, paragraphs: string[]) 
     if (t) p.insert(0, [new Y.XmlText(t)]);
     return p;
   });
+  frag.insert(0, nodes);
+}
+
+/** 마크다운 기본 구조 임포트 — #/## 제목, -/* 목록, 나머지는 문단 */
+export function buildDocYdocFromMarkdown(doc: Y.Doc, docName: string, md: string) {
+  const docsMap = doc.getMap<{ name: string; ord: number }>('docs');
+  const id = crypto.randomUUID();
+  docsMap.set(id, { name: docName || '문서 1', ord: 1 });
+  const frag = doc.getXmlFragment(`doc:${id}`);
+
+  const para = (text: string, nodeName = 'paragraph', level?: number) => {
+    const el = new Y.XmlElement(nodeName);
+    if (level != null) el.setAttribute('level', level as unknown as string);
+    const clean = text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1');
+    if (clean) el.insert(0, [new Y.XmlText(clean)]);
+    return el;
+  };
+
+  const nodes: Y.XmlElement[] = [];
+  let listItems: string[] = [];
+  const flushList = () => {
+    if (!listItems.length) return;
+    const ul = new Y.XmlElement('bulletList');
+    ul.insert(
+      0,
+      listItems.map((item) => {
+        const li = new Y.XmlElement('listItem');
+        li.insert(0, [para(item)]);
+        return li;
+      }),
+    );
+    nodes.push(ul);
+    listItems = [];
+  };
+
+  for (const raw of md.replace(/^﻿/, '').split(/\r?\n/)) {
+    const line = raw.trimEnd();
+    const h = /^(#{1,6})\s+(.*)$/.exec(line);
+    const li = /^[-*]\s+(.*)$/.exec(line);
+    if (h) {
+      flushList();
+      nodes.push(para(h[2], 'heading', h[1].length === 1 ? 1 : 2));
+    } else if (li) {
+      listItems.push(li[1]);
+    } else if (line.trim() === '') {
+      flushList();
+    } else {
+      flushList();
+      nodes.push(para(line));
+    }
+  }
+  flushList();
+  if (!nodes.length) nodes.push(para(''));
   frag.insert(0, nodes);
 }
