@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
+import { getSocket } from '../lib/socket';
 import { useAuthStore } from '../store';
 import CodeDocEditor from './CodeDocEditor';
 import DocEditor from './DocEditor';
@@ -170,7 +171,7 @@ export default function CollabFiles({
 
   useEffect(load, [load]);
 
-  // 파일별 편집 중인 사람 (awareness) — 8초 폴링
+  // 파일별 편집 중인 사람 (awareness) — 서버가 입장/퇴장 시 소켓으로 알려주면 즉시 재조회, 폴링은 폴백
   const [presence, setPresence] = useState<Record<number, { username: string; avatar: string | null }[]>>({});
   useEffect(() => {
     let alive = true;
@@ -182,10 +183,16 @@ export default function CollabFiles({
         .catch(() => {});
     };
     tick();
-    const t = setInterval(tick, 8000);
+    const t = setInterval(tick, 15000);
+    const socket = getSocket();
+    const onPresence = (p: { code?: string }) => {
+      if (p?.code === code) tick();
+    };
+    socket.on('files:presence', onPresence);
     return () => {
       alive = false;
       clearInterval(t);
+      socket.off('files:presence', onPresence);
     };
   }, [code]);
 

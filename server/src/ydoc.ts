@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import db from './db.js';
+import { emitToUser } from './notify.js';
 
 /*
  * Yjs 텍스트 동시편집 백엔드 (코드/문서 공동편집).
@@ -23,6 +24,35 @@ fs.mkdirSync(YDOCS_DIR, { recursive: true });
 
 const messageSync = 0;
 const messageAwareness = 1;
+
+/* 프레즌스 변경 푸시 — awareness가 바뀌면(입장/퇴장/복귀) 해당 그룹 참가자들에게
+ * 'files:presence' 소켓 이벤트를 보내 클라가 즉시 재조회하게 한다 (폴링은 폴백).
+ * 룸당 300ms 디바운스 — 커서 이동 같은 잦은 갱신으로 소켓이 넘치지 않게. */
+const presenceTimers = new Map<string, NodeJS.Timeout>();
+function pingPresence(room: string) {
+  if (presenceTimers.has(room)) return;
+  presenceTimers.set(
+    room,
+    setTimeout(() => {
+      presenceTimers.delete(room);
+      try {
+        const row = db
+          .prepare(
+            `SELECT m.code, f.meeting_id FROM collab_files f JOIN meetings m ON m.id = f.meeting_id
+             WHERE f.room = ? AND f.deleted_at IS NULL`,
+          )
+          .get(room) as { code: string; meeting_id: number } | undefined;
+        if (!row) return;
+        const parts = db
+          .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+          .all(row.meeting_id) as { user_id: number }[];
+        for (const p of parts) emitToUser(p.user_id, 'files:presence', { code: row.code });
+      } catch {
+        /* 프레즌스 푸시는 best effort */
+      }
+    }, 300),
+  );
+}
 
 class SharedDoc extends Y.Doc {
   name: string;
@@ -50,6 +80,8 @@ class SharedDoc extends Y.Doc {
       encoding.writeVarUint8Array(enc, awarenessProtocol.encodeAwarenessUpdate(this.awareness, changed));
       const buf = encoding.toUint8Array(enc);
       this.conns.forEach((_, c) => send(this, c, buf));
+      // 입장/퇴장(추가·제거)일 때만 프레즌스 푸시 — 커서 이동(updated)은 제외
+      if (added.length || removed.length) pingPresence(this.name);
     });
 
     this.on('update', (update: Uint8Array, _origin: unknown, doc: Y.Doc) => {
