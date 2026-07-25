@@ -184,9 +184,24 @@ router.post('/', (req: AuthedRequest, res) => {
 router.post('/join', (req: AuthedRequest, res) => {
   const { code } = req.body ?? {};
   const meeting = db.prepare('SELECT * FROM meetings WHERE code = ?').get((code ?? '').toUpperCase()) as
-    | { id: number; code: string; title: string }
+    | { id: number; code: string; title: string; settings: string | null }
     | undefined;
   if (!meeting) return res.status(404).json({ error: '존재하지 않는 회의 코드입니다' });
+
+  // 입장 잠금 — 새로운 사람만 차단 (기존 참가자의 재입장은 허용)
+  const already = db
+    .prepare('SELECT 1 FROM meeting_participants WHERE meeting_id = ? AND user_id = ?')
+    .get(meeting.id, req.userId);
+  if (!already) {
+    try {
+      const settings = meeting.settings ? (JSON.parse(meeting.settings) as { locked?: boolean }) : null;
+      if (settings?.locked) {
+        return res.status(403).json({ error: '입장이 잠긴 그룹이에요 — 호스트에게 요청하세요' });
+      }
+    } catch {
+      /* settings 파싱 실패 시 잠금 없음으로 취급 */
+    }
+  }
 
   db.prepare(
     'INSERT OR IGNORE INTO meeting_participants (meeting_id, user_id) VALUES (?, ?)',
