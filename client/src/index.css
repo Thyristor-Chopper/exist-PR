@@ -4356,8 +4356,18 @@ input:focus {
   flex-shrink: 0;
 }
 
+/* 이번 달 아닌 날짜 — 숫자·내용 모두 흐리게 (라이트/다크 공통) */
 .msched-day.out .msched-day-num {
-  color: #c4c4c4;
+  color: var(--text-sub);
+  opacity: 0.45;
+}
+
+.msched-day.out .msched-day-events {
+  opacity: 0.45;
+}
+
+.msched-day.out {
+  background: var(--surface-2);
 }
 
 .msched-day-num.today {
