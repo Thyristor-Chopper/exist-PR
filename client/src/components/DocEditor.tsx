@@ -16,6 +16,7 @@ import { useAuthStore } from '../store';
 import Marquee from './Marquee';
 import { PlusIcon, CloseIcon, DownloadIcon } from './Icons';
 import ColorGrid from './ColorGrid';
+import OverflowToolbar from './OverflowToolbar';
 
 const CARET_COLORS = ['#30a46c', '#e5484d', '#f76808', '#4f7cff', '#8e4ec6', '#0091ff', '#d6409f'];
 
@@ -676,381 +677,340 @@ export default function DocEditor({ roomId }: { roomId: string }) {
       </div>
 
       <div className="doc-editor-bar">
-        <div className="doc-tools">
-          {/* 실행취소·다시실행·서식지우기 (독스식) */}
-          <button className={btn(false)} title="실행 취소 (Ctrl+Z)" onClick={() => editor?.chain().focus().undo().run()}>
-            <UndoSvg />
-          </button>
-          <button className={btn(false)} title="다시 실행 (Ctrl+Y)" onClick={() => editor?.chain().focus().redo().run()}>
-            <RedoSvg />
-          </button>
-          <button className={btn(false)} title="서식 지우기" onClick={clearFormatting}>
-            <EraserSvg />
-          </button>
-          <span className="doc-tool-sep" />
-          {/* 스타일 드롭다운 (일반 텍스트/제목) */}
-          <div className="doc-dd-wrap">
-            <button
-              className={`doc-tool doc-style-btn${menu === 'style' ? ' on' : ''}`}
-              title="텍스트 스타일"
-              onClick={() => setMenu(menu === 'style' ? null : 'style')}
-            >
-              {editor?.isActive('heading', { level: 1 })
-                ? '제목 1'
-                : editor?.isActive('heading', { level: 2 })
-                  ? '제목 2'
-                  : '일반 텍스트'}
-              <span className="doc-style-caret">▾</span>
-            </button>
-            {menu === 'style' && (
-              <>
-                <div className="doc-dd-back" onClick={() => setMenu(null)} />
-                <div className="doc-dd">
-                  <button
-                    className={`item${!editor?.isActive('heading') ? ' on' : ''}`}
-                    onClick={() => {
-                      editor?.chain().focus().setParagraph().run();
-                      setMenu(null);
-                    }}
-                  >
-                    일반 텍스트
-                  </button>
-                  <button
-                    className={`item${editor?.isActive('heading', { level: 1 }) ? ' on' : ''}`}
-                    style={{ fontSize: 17, fontWeight: 700 }}
-                    onClick={() => {
-                      editor?.chain().focus().setHeading({ level: 1 }).run();
-                      setMenu(null);
-                    }}
-                  >
-                    제목 1
-                  </button>
-                  <button
-                    className={`item${editor?.isActive('heading', { level: 2 }) ? ' on' : ''}`}
-                    style={{ fontSize: 15, fontWeight: 700 }}
-                    onClick={() => {
-                      editor?.chain().focus().setHeading({ level: 2 }).run();
-                      setMenu(null);
-                    }}
-                  >
-                    제목 2
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-          <span className="doc-tool-sep" />
-          {/* 글자 크기 − n + (독스식) */}
-          <button className={btn(false)} title="글자 작게" onClick={() => applyFontPx(curFontPx() - 1)}>
-            −
-          </button>
-          <input
-            key={curFontPx()}
-            className="doc-size-input"
-            defaultValue={curFontPx()}
-            inputMode="numeric"
-            title="글자 크기"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                applyFontPx(parseInt((e.target as HTMLInputElement).value, 10) || 15);
-              }
-            }}
-            onBlur={(e) => {
-              const n = parseInt(e.target.value, 10);
-              if (n && n !== curFontPx()) applyFontPx(n);
-            }}
-          />
-          <button className={btn(false)} title="글자 크게" onClick={() => applyFontPx(curFontPx() + 1)}>
-            ＋
-          </button>
-          <span className="doc-tool-sep" />
-          <button
-            className={btn(!!editor?.isActive('bold'))}
-            onClick={() => editor?.chain().focus().toggleBold().run()}
-            title="굵게"
-          >
-            <b>B</b>
-          </button>
-          <button
-            className={btn(!!editor?.isActive('italic'))}
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
-            title="기울임"
-          >
-            <i>I</i>
-          </button>
-          <button
-            className={btn(!!editor?.isActive('underline'))}
-            onClick={() => editor?.chain().focus().toggleUnderline().run()}
-            title="밑줄"
-          >
-            <u>U</u>
-          </button>
-          <button
-            className={btn(!!editor?.isActive('strike'))}
-            onClick={() => editor?.chain().focus().toggleStrike().run()}
-            title="취소선"
-          >
-            <s>S</s>
-          </button>
-          {/* 글자색 */}
-          <div className="doc-dd-wrap">
-            <button
-              className={btn(!!editor?.getAttributes('textStyle').color)}
-              title="글자색"
-              onClick={() => setMenu(menu === 'color' ? null : 'color')}
-            >
-              <span className="doc-colorA" style={{ ['--c' as string]: curColor }}>
-                A
-              </span>
-            </button>
-            {menu === 'color' && (
-              <>
-                <div className="doc-dd-back" onClick={() => setMenu(null)} />
-                <div className="doc-dd sw">
-                  <ColorGrid
-                    value={editor?.getAttributes('textStyle').color as string | undefined}
-                    noneLabel="기본"
-                    onPick={(c) => {
-                      if (c) editor?.chain().focus().setColor(c).run();
-                      else editor?.chain().focus().unsetColor().run();
-                      setMenu(null);
-                    }}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          {/* 형광펜 */}
-          <div className="doc-dd-wrap">
-            <button
-              className={btn(!!editor?.isActive('highlight'))}
-              title="형광펜"
-              onClick={() => setMenu(menu === 'hl' ? null : 'hl')}
-            >
-              <span className="doc-hl-ico">가</span>
-            </button>
-            {menu === 'hl' && (
-              <>
-                <div className="doc-dd-back" onClick={() => setMenu(null)} />
-                <div className="doc-dd sw">
-                  <ColorGrid
-                    value={editor?.getAttributes('highlight').color as string | undefined}
-                    noneLabel="형광펜 없음"
-                    onPick={(c) => {
-                      if (c) editor?.chain().focus().setHighlight({ color: c }).run();
-                      else editor?.chain().focus().unsetHighlight().run();
-                      setMenu(null);
-                    }}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          <span className="doc-tool-sep" />
-          {(['left', 'center', 'right'] as const).map((m) => (
-            <button
-              key={m}
-              className={btn(!!editor?.isActive({ textAlign: m }))}
-              onClick={() => editor?.chain().focus().setTextAlign(m).run()}
-              title={m === 'left' ? '왼쪽 정렬' : m === 'center' ? '가운데 정렬' : '오른쪽 정렬'}
-            >
-              <AlignSvg mode={m} />
-            </button>
-          ))}
-          <span className="doc-tool-sep" />
-          <button
-            className={btn(!!editor?.isActive('bulletList'))}
-            onClick={() => editor?.chain().focus().toggleBulletList().run()}
-            title="글머리 목록"
-          >
-            <UlSvg />
-          </button>
-          <button
-            className={btn(!!editor?.isActive('orderedList'))}
-            onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-            title="번호 목록"
-          >
-            <OlSvg />
-          </button>
-          <button
-            className={btn(!!editor?.isActive('taskList'))}
-            onClick={() => editor?.chain().focus().toggleTaskList().run()}
-            title="체크리스트"
-          >
-            <CheckSvg />
-          </button>
-          <button
-            className={btn(!!editor?.isActive('blockquote'))}
-            onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-            title="인용"
-          >
-            ❝
-          </button>
-          <button
-            className={btn(!!editor?.isActive('codeBlock'))}
-            onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-            title="코드 블록"
-          >
-            <CodeSvg />
-          </button>
-          <span className="doc-tool-sep" />
-          {/* 링크 */}
-          <div className="doc-dd-wrap">
-            <button className={btn(!!editor?.isActive('link'))} title="링크" onClick={openLinkMenu}>
-              <LinkSvg />
-            </button>
-            {menu === 'link' && (
-              <>
-                <div className="doc-dd-back" onClick={() => setMenu(null)} />
-                <div className="doc-find">
-                  <input
-                    autoFocus
-                    placeholder="https://…"
-                    value={linkUrl}
-                    onChange={(e) => setLinkUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && applyLink()}
-                  />
-                  <div className="doc-find-btns">
-                    <button className="doc-find-go" onClick={applyLink}>
-                      적용
-                    </button>
-                    {!!editor?.isActive('link') && (
-                      <button
-                        onClick={() => {
-                          editor?.chain().focus().extendMarkRange('link').unsetLink().run();
-                          setMenu(null);
-                        }}
-                      >
-                        링크 제거
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-          {/* 이미지 */}
-          <button className={btn(false)} title="이미지 삽입" onClick={() => fileInputRef.current?.click()}>
-            <ImageSvg />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) insertImageFile(f);
-              e.target.value = '';
-            }}
-          />
-          {/* 표 */}
-          <div className="doc-dd-wrap">
-            <button
-              className={btn(inTable)}
-              title="표"
-              onClick={() => setMenu(menu === 'table' ? null : 'table')}
-            >
-              <TableSvg />
-            </button>
-            {menu === 'table' && (
-              <>
-                <div className="doc-dd-back" onClick={() => setMenu(null)} />
-                <div className="doc-dd">
-                  {!inTable ? (
+        <OverflowToolbar
+          className="doc-tools"
+          items={[
+            <button key="undo" className={btn(false)} title="실행 취소 (Ctrl+Z)" onClick={() => editor?.chain().focus().undo().run()}>
+              <UndoSvg />
+            </button>,
+            <button key="redo" className={btn(false)} title="다시 실행 (Ctrl+Y)" onClick={() => editor?.chain().focus().redo().run()}>
+              <RedoSvg />
+            </button>,
+            <button key="eraser" className={btn(false)} title="서식 지우기" onClick={clearFormatting}>
+              <EraserSvg />
+            </button>,
+            <span key="s1" className="doc-tool-sep" />,
+            <div key="style" className="doc-dd-wrap">
+              <button
+                className={`doc-tool doc-style-btn${menu === 'style' ? ' on' : ''}`}
+                title="텍스트 스타일"
+                onClick={() => setMenu(menu === 'style' ? null : 'style')}
+              >
+                {editor?.isActive('heading', { level: 1 })
+                  ? '제목 1'
+                  : editor?.isActive('heading', { level: 2 })
+                    ? '제목 2'
+                    : '일반 텍스트'}
+                <span className="doc-style-caret">▾</span>
+              </button>
+              {menu === 'style' && (
+                <>
+                  <div className="doc-dd-back" onClick={() => setMenu(null)} />
+                  <div className="doc-dd">
                     <button
-                      className="item"
+                      className={`item${!editor?.isActive('heading') ? ' on' : ''}`}
                       onClick={() => {
-                        editor
-                          ?.chain()
-                          .focus()
-                          .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-                          .run();
+                        editor?.chain().focus().setParagraph().run();
                         setMenu(null);
                       }}
                     >
-                      3×3 표 삽입
+                      일반 텍스트
                     </button>
-                  ) : (
-                    <>
-                      <button className="item" onClick={() => editor?.chain().focus().addRowAfter().run()}>
-                        행 추가
+                    <button
+                      className={`item${editor?.isActive('heading', { level: 1 }) ? ' on' : ''}`}
+                      style={{ fontSize: 17, fontWeight: 700 }}
+                      onClick={() => {
+                        editor?.chain().focus().setHeading({ level: 1 }).run();
+                        setMenu(null);
+                      }}
+                    >
+                      제목 1
+                    </button>
+                    <button
+                      className={`item${editor?.isActive('heading', { level: 2 }) ? ' on' : ''}`}
+                      style={{ fontSize: 15, fontWeight: 700 }}
+                      onClick={() => {
+                        editor?.chain().focus().setHeading({ level: 2 }).run();
+                        setMenu(null);
+                      }}
+                    >
+                      제목 2
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>,
+            <span key="s2" className="doc-tool-sep" />,
+            <button key="szm" className={btn(false)} title="글자 작게" onClick={() => applyFontPx(curFontPx() - 1)}>
+              −
+            </button>,
+            <input
+              key={`szi-${curFontPx()}`}
+              className="doc-size-input"
+              defaultValue={curFontPx()}
+              inputMode="numeric"
+              title="글자 크기"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  applyFontPx(parseInt((e.target as HTMLInputElement).value, 10) || 15);
+                }
+              }}
+              onBlur={(e) => {
+                const n = parseInt(e.target.value, 10);
+                if (n && n !== curFontPx()) applyFontPx(n);
+              }}
+            />,
+            <button key="szp" className={btn(false)} title="글자 크게" onClick={() => applyFontPx(curFontPx() + 1)}>
+              ＋
+            </button>,
+            <span key="s3" className="doc-tool-sep" />,
+            <button key="b" className={btn(!!editor?.isActive('bold'))} onClick={() => editor?.chain().focus().toggleBold().run()} title="굵게">
+              <b>B</b>
+            </button>,
+            <button key="i" className={btn(!!editor?.isActive('italic'))} onClick={() => editor?.chain().focus().toggleItalic().run()} title="기울임">
+              <i>I</i>
+            </button>,
+            <button key="u" className={btn(!!editor?.isActive('underline'))} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="밑줄">
+              <u>U</u>
+            </button>,
+            <button key="st" className={btn(!!editor?.isActive('strike'))} onClick={() => editor?.chain().focus().toggleStrike().run()} title="취소선">
+              <s>S</s>
+            </button>,
+            <div key="color" className="doc-dd-wrap">
+              <button
+                className={btn(!!editor?.getAttributes('textStyle').color)}
+                title="글자색"
+                onClick={() => setMenu(menu === 'color' ? null : 'color')}
+              >
+                <span className="doc-colorA" style={{ ['--c' as string]: curColor }}>
+                  A
+                </span>
+              </button>
+              {menu === 'color' && (
+                <>
+                  <div className="doc-dd-back" onClick={() => setMenu(null)} />
+                  <div className="doc-dd sw">
+                    <ColorGrid
+                      value={editor?.getAttributes('textStyle').color as string | undefined}
+                      noneLabel="기본"
+                      onPick={(c) => {
+                        if (c) editor?.chain().focus().setColor(c).run();
+                        else editor?.chain().focus().unsetColor().run();
+                        setMenu(null);
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+            </div>,
+            <div key="hl" className="doc-dd-wrap">
+              <button
+                className={btn(!!editor?.isActive('highlight'))}
+                title="형광펜"
+                onClick={() => setMenu(menu === 'hl' ? null : 'hl')}
+              >
+                <span className="doc-hl-ico">가</span>
+              </button>
+              {menu === 'hl' && (
+                <>
+                  <div className="doc-dd-back" onClick={() => setMenu(null)} />
+                  <div className="doc-dd sw">
+                    <ColorGrid
+                      value={editor?.getAttributes('highlight').color as string | undefined}
+                      noneLabel="형광펜 없음"
+                      onPick={(c) => {
+                        if (c) editor?.chain().focus().setHighlight({ color: c }).run();
+                        else editor?.chain().focus().unsetHighlight().run();
+                        setMenu(null);
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+            </div>,
+            <span key="s4" className="doc-tool-sep" />,
+            ...(['left', 'center', 'right'] as const).map((m) => (
+              <button
+                key={`al-${m}`}
+                className={btn(!!editor?.isActive({ textAlign: m }))}
+                onClick={() => editor?.chain().focus().setTextAlign(m).run()}
+                title={m === 'left' ? '왼쪽 정렬' : m === 'center' ? '가운데 정렬' : '오른쪽 정렬'}
+              >
+                <AlignSvg mode={m} />
+              </button>
+            )),
+            <span key="s5" className="doc-tool-sep" />,
+            <button key="ul" className={btn(!!editor?.isActive('bulletList'))} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="글머리 목록">
+              <UlSvg />
+            </button>,
+            <button key="ol" className={btn(!!editor?.isActive('orderedList'))} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="번호 목록">
+              <OlSvg />
+            </button>,
+            <button key="task" className={btn(!!editor?.isActive('taskList'))} onClick={() => editor?.chain().focus().toggleTaskList().run()} title="체크리스트">
+              <CheckSvg />
+            </button>,
+            <button key="quote" className={btn(!!editor?.isActive('blockquote'))} onClick={() => editor?.chain().focus().toggleBlockquote().run()} title="인용">
+              ❝
+            </button>,
+            <button key="code" className={btn(!!editor?.isActive('codeBlock'))} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} title="코드 블록">
+              <CodeSvg />
+            </button>,
+            <span key="s6" className="doc-tool-sep" />,
+            <div key="link" className="doc-dd-wrap">
+              <button className={btn(!!editor?.isActive('link'))} title="링크" onClick={openLinkMenu}>
+                <LinkSvg />
+              </button>
+              {menu === 'link' && (
+                <>
+                  <div className="doc-dd-back" onClick={() => setMenu(null)} />
+                  <div className="doc-find">
+                    <input
+                      autoFocus
+                      placeholder="https://…"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && applyLink()}
+                    />
+                    <div className="doc-find-btns">
+                      <button className="doc-find-go" onClick={applyLink}>
+                        적용
                       </button>
-                      <button className="item" onClick={() => editor?.chain().focus().deleteRow().run()}>
-                        행 삭제
-                      </button>
-                      <button className="item" onClick={() => editor?.chain().focus().addColumnAfter().run()}>
-                        열 추가
-                      </button>
-                      <button className="item" onClick={() => editor?.chain().focus().deleteColumn().run()}>
-                        열 삭제
-                      </button>
-                      <button className="item" onClick={() => editor?.chain().focus().toggleHeaderRow().run()}>
-                        머리글 행 전환
-                      </button>
+                      {!!editor?.isActive('link') && (
+                        <button
+                          onClick={() => {
+                            editor?.chain().focus().extendMarkRange('link').unsetLink().run();
+                            setMenu(null);
+                          }}
+                        >
+                          링크 제거
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>,
+            <button key="img" className={btn(false)} title="이미지 삽입" onClick={() => fileInputRef.current?.click()}>
+              <ImageSvg />
+            </button>,
+            <div key="table" className="doc-dd-wrap">
+              <button
+                className={btn(inTable)}
+                title="표"
+                onClick={() => setMenu(menu === 'table' ? null : 'table')}
+              >
+                <TableSvg />
+              </button>
+              {menu === 'table' && (
+                <>
+                  <div className="doc-dd-back" onClick={() => setMenu(null)} />
+                  <div className="doc-dd">
+                    {!inTable ? (
                       <button
-                        className="item danger"
+                        className="item"
                         onClick={() => {
-                          editor?.chain().focus().deleteTable().run();
+                          editor
+                            ?.chain()
+                            .focus()
+                            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                            .run();
                           setMenu(null);
                         }}
                       >
-                        표 삭제
+                        3×3 표 삽입
                       </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-          {/* 찾기/바꾸기 */}
-          <div className="doc-dd-wrap">
-            <button
-              className={btn(menu === 'find')}
-              title="찾기/바꾸기"
-              onClick={() => {
-                setFindCount(null);
-                setMenu(menu === 'find' ? null : 'find');
-              }}
-            >
-              <SearchSvg />
-            </button>
-            {menu === 'find' && (
-              <>
-                <div className="doc-dd-back" onClick={() => setMenu(null)} />
-                <div className="doc-find">
-                  <input
-                    autoFocus
-                    placeholder="찾을 내용"
-                    value={findText}
-                    onChange={(e) => {
-                      setFindText(e.target.value);
-                      setFindCount(null);
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && findNext()}
-                  />
-                  <input
-                    placeholder="바꿀 내용"
-                    value={replaceText}
-                    onChange={(e) => setReplaceText(e.target.value)}
-                  />
-                  <div className="doc-find-btns">
-                    <button className="doc-find-go" onClick={findNext}>
-                      다음
-                    </button>
-                    <button onClick={replaceOne}>바꾸기</button>
-                    <button onClick={replaceAll}>모두 바꾸기</button>
+                    ) : (
+                      <>
+                        <button className="item" onClick={() => editor?.chain().focus().addRowAfter().run()}>
+                          행 추가
+                        </button>
+                        <button className="item" onClick={() => editor?.chain().focus().deleteRow().run()}>
+                          행 삭제
+                        </button>
+                        <button className="item" onClick={() => editor?.chain().focus().addColumnAfter().run()}>
+                          열 추가
+                        </button>
+                        <button className="item" onClick={() => editor?.chain().focus().deleteColumn().run()}>
+                          열 삭제
+                        </button>
+                        <button className="item" onClick={() => editor?.chain().focus().toggleHeaderRow().run()}>
+                          머리글 행 전환
+                        </button>
+                        <button
+                          className="item danger"
+                          onClick={() => {
+                            editor?.chain().focus().deleteTable().run();
+                            setMenu(null);
+                          }}
+                        >
+                          표 삭제
+                        </button>
+                      </>
+                    )}
                   </div>
-                  {findCount !== null && (
-                    <span className="doc-find-count">
-                      {findCount === 0 ? '결과 없음' : `${findCount}개 일치`}
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+                </>
+              )}
+            </div>,
+            <div key="find" className="doc-dd-wrap">
+              <button
+                className={btn(menu === 'find')}
+                title="찾기/바꾸기"
+                onClick={() => {
+                  setFindCount(null);
+                  setMenu(menu === 'find' ? null : 'find');
+                }}
+              >
+                <SearchSvg />
+              </button>
+              {menu === 'find' && (
+                <>
+                  <div className="doc-dd-back" onClick={() => setMenu(null)} />
+                  <div className="doc-find">
+                    <input
+                      autoFocus
+                      placeholder="찾을 내용"
+                      value={findText}
+                      onChange={(e) => {
+                        setFindText(e.target.value);
+                        setFindCount(null);
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && findNext()}
+                    />
+                    <input
+                      placeholder="바꿀 내용"
+                      value={replaceText}
+                      onChange={(e) => setReplaceText(e.target.value)}
+                    />
+                    <div className="doc-find-btns">
+                      <button className="doc-find-go" onClick={findNext}>
+                        다음
+                      </button>
+                      <button onClick={replaceOne}>바꾸기</button>
+                      <button onClick={replaceAll}>모두 바꾸기</button>
+                    </div>
+                    {findCount !== null && (
+                      <span className="doc-find-count">
+                        {findCount === 0 ? '결과 없음' : `${findCount}개 일치`}
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>,
+          ]}
+        />
+        {/* 이미지 파일 입력 — 항상 렌더돼야 해서 items 밖 */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) insertImageFile(f);
+            e.target.value = '';
+          }}
+        />
         <div className="doc-editor-right">
           <span className="code-doc-peers">{peers}명 참여</span>
           <span className={`code-doc-status ${status}`}>

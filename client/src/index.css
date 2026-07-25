@@ -1495,9 +1495,11 @@ input:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.nowbar-sidebar-toggle:hover {
-  background: var(--surface-2);
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .nowbar-sidebar-toggle:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
 }
 
 .dashboard aside {
@@ -7604,7 +7606,9 @@ input:focus {
 /* 오버플로 툴바 — 폭 부족 시 ⋮ 뒤로 접힘 (구글 시트식) */
 .tb-row {
   flex-wrap: nowrap;
-  overflow: hidden;
+  /* 가로만 잘라냄 — 세로는 열어둬야 스트립 안 드롭다운(.sht-pop, .doc-dd)이 보임 */
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .tb-more-wrap {
@@ -11839,9 +11843,11 @@ input:focus {
   transition: background 0.15s;
 }
 
-.nb-current.clickable:hover,
-.nb-next-row.clickable:hover {
-  background: rgba(33, 200, 24, 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .nb-current.clickable:hover,
+  .nb-next-row.clickable:hover {
+    background: rgba(33, 200, 24, 0.08);
+  }
 }
 
 /* 통화 서브탭 — 라이브 인원 수 */
