@@ -36,12 +36,17 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
   // 첫 onChange가 와야 켜져서, 초당 수십 번 오는 원격 커서 이벤트가 pointerdown 직후
   // 그 틈에 끼어들어 그리기를 깨뜨린다(도형이 점으로 뭉개짐·드래그 안 풀림).
   const pointerActiveRef = useRef(false);
-  const pendingRemoteRef = useRef(false); // 그리는 중 보류된 원격 변경
-  const pendingAwarenessRef = useRef(false); // 그리는 중 보류된 원격 커서 갱신
+  // 마지막 포인터 활동 시각 — updateScene(elements)은 릴리즈 "직후"에도 위험하다
+  // (Excalidraw의 드래그 종료 처리와 경합해 놓아도 커서를 따라다니는 상태로 굳음).
+  // 원격 요소 반영은 포인터가 350ms 이상 완전히 쉰 뒤에만 한다.
+  const lastPointerRef = useRef(0);
+  const pendingRemoteRef = useRef(false); // 보류된 원격 요소 변경
+  const pendingAwarenessRef = useRef(false); // 보류된 원격 커서 갱신
   const applyRemoteRef = useRef<(() => void) | null>(null);
   const pushCollaboratorsRef = useRef<(() => void) | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const interacting = () => pointerActiveRef.current || drawingRef.current;
+  const pointerBusy = () => interacting() || Date.now() - lastPointerRef.current < 350;
   // applyRemote가 주입한 요소의 (version, versionNonce) — onChange가 이걸 진짜 변경으로
   // 착각해 Yjs에 되쓰면(에코) 다른 사람이 그리는 중인 도형을 스테일 상태로 덮어쓴다.
   // 주입본과 완전히 같은 요소는 내 변경이 아니므로 절대 되쓰지 않는다.
@@ -76,14 +81,38 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
     const color = CURSOR_COLORS[(user?.id ?? 0) % CURSOR_COLORS.length];
     provider.awareness.setLocalStateField('user', { name: user?.username ?? '익명', color });
 
+    // 보류분 적용 스케줄러 — 포인터가 350ms 이상 쉰 뒤에만 updateScene을 허용.
+    // 릴리즈 직후(수십 ms)에 쏘면 Excalidraw 드래그 종료 처리와 경합해
+    // "놓아도 커서를 따라다니는" 상태로 굳는다 (실측 재현됨).
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleFlush = () => {
+      if (flushTimer) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        if (pointerBusy()) {
+          scheduleFlush();
+          return;
+        }
+        if (pendingRemoteRef.current) {
+          pendingRemoteRef.current = false;
+          applyRemote();
+        }
+        if (pendingAwarenessRef.current) {
+          pendingAwarenessRef.current = false;
+          pushCollaborators();
+        }
+      }, 200);
+    };
+
     // 원격 변경 → Excalidraw 반영
     const applyRemote = () => {
       const api = apiRef.current;
       if (!api) return;
-      // 그리는/이동하는 중(포인터 down)엔 원격 적용을 보류한다 — updateScene이
-      // 진행 중인 내 입력을 덮어써 도형이 점으로 깨지는 것 방지. 끝나면 적용.
-      if (interacting()) {
+      // 포인터 사용 중(드래그·직후 350ms)엔 보류 — updateScene이 진행 중인 내 입력을
+      // 덮어써 도형이 점으로 깨지거나 드래그가 안 풀리는 것 방지.
+      if (pointerBusy()) {
         pendingRemoteRef.current = true;
+        scheduleFlush();
         return;
       }
       const elements = Array.from(yEls.values());
@@ -147,18 +176,18 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
     // updateScene이 돌아 렌더 낭비 + 내 입력과 경합한다.
     let collabTimer: ReturnType<typeof setTimeout> | null = null;
     const onAwareness = () => {
-      // 내가 그리는/이동하는 중에 updateScene이 끼어들면 Excalidraw 포인터 상태가
-      // 깨져 드래그가 안 풀린다(놓아도 커서를 따라다님) — 요소 반영(applyRemote)과
-      // 동일하게 보류했다가 포인터를 놓는 순간 적용.
-      if (interacting()) {
+      // 내가 포인터를 쓰는 중(드래그·직후)엔 updateScene이 끼어들면 안 됨 — 보류.
+      if (pointerBusy()) {
         pendingAwarenessRef.current = true;
+        scheduleFlush();
         return;
       }
       if (collabTimer) return;
       collabTimer = setTimeout(() => {
         collabTimer = null;
-        if (interacting()) {
+        if (pointerBusy()) {
           pendingAwarenessRef.current = true;
+          scheduleFlush();
           return;
         }
         pushCollaborators();
@@ -166,30 +195,34 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
     };
     provider.awareness.on('change', onAwareness);
 
-    // 실제 포인터 상태 추적 + 놓는 순간 보류분 flush (onChange보다 믿을 수 있는 신호)
+    // 실제 포인터 상태 추적 (onChange보다 믿을 수 있는 신호) — flush는 스케줄러가 담당
     const onPointerDown = (e: PointerEvent) => {
       // 이 캔버스 안에서 시작한 포인터만 (다른 UI 클릭·다른 에디터는 무관)
-      if (wrapRef.current && wrapRef.current.contains(e.target as Node)) pointerActiveRef.current = true;
+      if (wrapRef.current && wrapRef.current.contains(e.target as Node)) {
+        pointerActiveRef.current = true;
+        lastPointerRef.current = Date.now();
+      }
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      // 드래그 중엔 창 전체, 아니면 캔버스 위에서만 활동으로 기록
+      if (pointerActiveRef.current || (wrapRef.current && wrapRef.current.contains(e.target as Node))) {
+        lastPointerRef.current = Date.now();
+      }
     };
     const onPointerUp = () => {
       if (!pointerActiveRef.current && !drawingRef.current) return;
       pointerActiveRef.current = false;
+      lastPointerRef.current = Date.now();
       setTimeout(() => {
         if (pointerActiveRef.current) return; // 그 사이 새 드래그 시작
         // 포인터가 떨어졌으면 그리기는 끝난 것 — 빈 선택 드래그처럼 Excalidraw가
         // 마지막 onChange를 안 쏘면 drawingRef가 true로 남아 원격 반영이 영영 멈춘다.
         drawingRef.current = false;
-        if (pendingRemoteRef.current) {
-          pendingRemoteRef.current = false;
-          applyRemote();
-        }
-        if (pendingAwarenessRef.current) {
-          pendingAwarenessRef.current = false;
-          pushCollaborators();
-        }
-      }, 50);
+        if (pendingRemoteRef.current || pendingAwarenessRef.current) scheduleFlush();
+      }, 60);
     };
     window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointermove', onPointerMove, true);
     window.addEventListener('pointerup', onPointerUp, true);
     window.addEventListener('pointercancel', onPointerUp, true);
 
@@ -198,7 +231,9 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
       yFiles.unobserve(onRemote);
       provider.awareness.off('change', onAwareness);
       if (collabTimer) clearTimeout(collabTimer);
+      if (flushTimer) clearTimeout(flushTimer);
       window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointermove', onPointerMove, true);
       window.removeEventListener('pointerup', onPointerUp, true);
       window.removeEventListener('pointercancel', onPointerUp, true);
       pushCollaboratorsRef.current = null;
