@@ -6565,14 +6565,25 @@ input:focus {
 }
 
 .doc-page {
-  max-width: 820px;
+  /* A4 (96dpi: 210×297mm = 794×1123px) + 워드 기본 여백 1인치(96px) */
+  width: 794px;
+  max-width: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.05);
-  padding: 56px 64px;
-  min-height: 700px;
+  padding: 96px;
+  min-height: 1123px;
+}
+
+/* 모바일·태블릿 — 종이 여백은 화면 낭비라 축소 */
+@media (max-width: 1023px) {
+  .doc-page {
+    padding: 40px 28px;
+    min-height: 60dvh;
+  }
 }
 
 .doc-prose {
