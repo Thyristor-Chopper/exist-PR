@@ -269,6 +269,8 @@ export default function ProfileDashboard() {
       </div>
 
       <div className="pd-quad">
+        {/* 좌우 컬럼을 분리 — 한쪽 카드가 길어져도 반대쪽 높이에 영향 없음 */}
+        <div className="pd-quad-col">
         <div style={cellCard}>
           <div style={sectionHead}><span style={headIcon}><SparklesIcon size={16} /></span> 오늘 브리핑</div>
           {/* AI 총무의 하루 세팅 문단 — 오늘 일정 + 놓친 것 + 급한 할 일 */}
@@ -310,6 +312,13 @@ export default function ProfileDashboard() {
         </div>
 
         <div style={cellCard}>
+          <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
+          <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
+        </div>
+        </div>
+
+        <div className="pd-quad-col">
+        <div style={cellCard}>
           <div style={sectionHead}><span style={headIcon}><ListIcon size={16} /></span> 전체 할 일</div>
           {todos.length === 0 ? (
             <div style={emptyRow}>할 일이 없어요</div>
@@ -344,13 +353,9 @@ export default function ProfileDashboard() {
         </div>
 
         <div style={cellCard}>
-          <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
-          <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
-        </div>
-
-        <div style={cellCard}>
           <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>
           <UnifiedInbox scope={org} />
+        </div>
         </div>
       </div>
 

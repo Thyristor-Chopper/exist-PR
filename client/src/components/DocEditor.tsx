@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
+import { Mark } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
@@ -28,6 +29,91 @@ interface DocMeta {
 }
 
 type Menu = 'export' | 'size' | 'color' | 'hl' | 'table' | 'link' | 'find' | null;
+
+// ── 댓글 ──
+interface CommentReply {
+  author: string;
+  ts: number;
+  text: string;
+}
+interface CommentThread {
+  author: string;
+  ts: number;
+  text: string;
+  replies: CommentReply[];
+  resolved?: boolean;
+  anchor?: string; // 달린 본문 일부 (미리보기용)
+}
+
+/** 본문에 댓글 위치를 잡아두는 마크 — 스레드 내용은 Y.Map(comments:{docId})에 */
+const CommentMark = Mark.create({
+  name: 'comment',
+  inclusive: false,
+  addAttributes() {
+    return {
+      id: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).getAttribute('data-comment-id'),
+        renderHTML: (attrs) => (attrs.id ? { 'data-comment-id': attrs.id } : {}),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-comment-id]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', { ...HTMLAttributes, class: 'doc-comment-mark' }, 0];
+  },
+});
+
+// ── 변경이력 ──
+interface VersionEntry {
+  id: string;
+  ts: number;
+  author: string;
+  label: string; // '수동' | '자동' | '복원 전'
+  html: string;
+}
+
+/** 단어 단위 LCS diff — 큰 문서는 비용 때문에 건너뜀 */
+function wordDiff(aText: string, bText: string): { t: 'same' | 'del' | 'add'; s: string }[] | null {
+  const a = aText.split(/\s+/).filter(Boolean);
+  const b = bText.split(/\s+/).filter(Boolean);
+  if (a.length > 2500 || b.length > 2500) return null;
+  const n = a.length;
+  const m = b.length;
+  const dp: Uint16Array[] = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out: { t: 'same' | 'del' | 'add'; s: string }[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      out.push({ t: 'same', s: a[i] });
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      out.push({ t: 'del', s: a[i] });
+      i++;
+    } else {
+      out.push({ t: 'add', s: b[j] });
+      j++;
+    }
+  }
+  while (i < n) out.push({ t: 'del', s: a[i++] });
+  while (j < m) out.push({ t: 'add', s: b[j++] });
+  return out;
+}
+
+function fmtTs(ts: number): string {
+  const d = new Date(ts);
+  const h = d.getHours();
+  const ampm = h < 12 ? '오전' : '오후';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${d.getMonth() + 1}/${d.getDate()} ${ampm} ${h12}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 function AlignSvg({ mode }: { mode: 'left' | 'center' | 'right' }) {
   const mid = mode === 'left' ? [1, 8.5] : mode === 'center' ? [3.2, 10.8] : [5.5, 13];
@@ -58,6 +144,21 @@ export default function DocEditor({ roomId }: { roomId: string }) {
   const [findCount, setFindCount] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<Editor | null>(null);
+  // 댓글
+  const commentsMapRef = useRef<Y.Map<CommentThread> | null>(null);
+  const [comments, setComments] = useState<Record<string, CommentThread>>({});
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [pendingNew, setPendingNew] = useState<{ from: number; to: number } | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  // 변경이력
+  const versionsRef = useRef<Y.Array<VersionEntry> | null>(null);
+  const [versions, setVersions] = useState<VersionEntry[]>([]);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [previewVer, setPreviewVer] = useState<VersionEntry | null>(null);
+  const [diffMode, setDiffMode] = useState(false);
+  const lastAutoHtmlRef = useRef('');
 
   useEffect(() => {
     const ydoc = new Y.Doc();
@@ -105,6 +206,32 @@ export default function DocEditor({ roomId }: { roomId: string }) {
 
   const color = CARET_COLORS[(user?.id ?? 0) % CARET_COLORS.length];
   const activeDoc = docs.find((d) => d.id === activeId) ?? null;
+  const displayName = user?.name || user?.username || '익명';
+
+  // 문서별 댓글·버전 맵 바인딩
+  useEffect(() => {
+    if (!conn || !activeId) return;
+    const cMap = conn.ydoc.getMap<CommentThread>(`comments:${activeId}`);
+    const vArr = conn.ydoc.getArray<VersionEntry>(`versions:${activeId}`);
+    commentsMapRef.current = cMap;
+    versionsRef.current = vArr;
+    const syncC = () => setComments(Object.fromEntries(cMap.entries()));
+    const syncV = () => setVersions(vArr.toArray());
+    cMap.observe(syncC);
+    vArr.observe(syncV);
+    syncC();
+    syncV();
+    setActiveCommentId(null);
+    setPendingNew(null);
+    setPreviewVer(null);
+    return () => {
+      cMap.unobserve(syncC);
+      vArr.unobserve(syncV);
+      commentsMapRef.current = null;
+      versionsRef.current = null;
+    };
+  }, [conn, activeId]);
+
 
   const baseExtensions = [
     StarterKit.configure({ undoRedo: false, link: { openOnClick: false, autolink: true } }),
@@ -117,6 +244,7 @@ export default function DocEditor({ roomId }: { roomId: string }) {
     FontSize,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    CommentMark,
   ];
 
   const editor = useEditor(
@@ -134,6 +262,15 @@ export default function DocEditor({ roomId }: { roomId: string }) {
           : baseExtensions,
       editorProps: {
         attributes: { class: 'doc-prose' },
+        handleClick: (view, pos) => {
+          const node = view.state.doc.nodeAt(pos);
+          const mark = node?.marks.find((m) => m.type.name === 'comment');
+          if (mark?.attrs.id) {
+            setActiveCommentId(mark.attrs.id as string);
+            setCommentsOpen(true);
+          }
+          return false;
+        },
         handlePaste: (_view, event) => {
           const file = Array.from(event.clipboardData?.files ?? []).find((f) =>
             f.type.startsWith('image/'),
@@ -160,6 +297,122 @@ export default function DocEditor({ roomId }: { roomId: string }) {
     [conn, activeId],
   );
   editorRef.current = editor;
+
+  // 자동 버전 — 5분마다, 내용이 바뀌었을 때만
+  useEffect(() => {
+    if (!editor) return;
+    const t = setInterval(() => {
+      const html = editorRef.current?.getHTML();
+      if (!html || html === lastAutoHtmlRef.current) return;
+      lastAutoHtmlRef.current = html;
+      pushVersion('자동');
+    }, 5 * 60 * 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
+
+  // ── 댓글 동작 ──
+  function startComment() {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      setCommentsOpen((v) => !v);
+      return;
+    }
+    setPendingNew({ from, to });
+    setCommentDraft('');
+    setCommentsOpen(true);
+  }
+  function addComment() {
+    const map = commentsMapRef.current;
+    if (!editor || !map || !pendingNew || !commentDraft.trim()) return;
+    const id = crypto.randomUUID();
+    const anchor = editor.state.doc.textBetween(pendingNew.from, pendingNew.to).slice(0, 40);
+    editor.chain().focus().setTextSelection(pendingNew).setMark('comment', { id }).run();
+    map.set(id, {
+      author: displayName,
+      ts: Date.now(),
+      text: commentDraft.trim(),
+      replies: [],
+      resolved: false,
+      anchor,
+    });
+    setPendingNew(null);
+    setCommentDraft('');
+    setActiveCommentId(id);
+  }
+  function removeCommentMark(id: string) {
+    if (!editor) return;
+    const { state } = editor;
+    const type = state.schema.marks.comment;
+    const tr = state.tr;
+    state.doc.descendants((node, pos) => {
+      if (!node.isText) return;
+      for (const m of node.marks) {
+        if (m.type === type && m.attrs.id === id) tr.removeMark(pos, pos + node.nodeSize, type);
+      }
+    });
+    if (tr.docChanged) editor.view.dispatch(tr);
+  }
+  function resolveComment(id: string) {
+    const map = commentsMapRef.current;
+    const cur = map?.get(id);
+    if (!map || !cur) return;
+    removeCommentMark(id);
+    map.set(id, { ...cur, resolved: true });
+    if (activeCommentId === id) setActiveCommentId(null);
+  }
+  function deleteComment(id: string) {
+    removeCommentMark(id);
+    commentsMapRef.current?.delete(id);
+    if (activeCommentId === id) setActiveCommentId(null);
+  }
+  function addReply(id: string) {
+    const map = commentsMapRef.current;
+    const cur = map?.get(id);
+    const text = (replyDrafts[id] ?? '').trim();
+    if (!map || !cur || !text) return;
+    map.set(id, { ...cur, replies: [...cur.replies, { author: displayName, ts: Date.now(), text }] });
+    setReplyDrafts((d) => ({ ...d, [id]: '' }));
+  }
+  function jumpToComment(id: string) {
+    if (!editor) return;
+    let found: { from: number; to: number } | null = null;
+    editor.state.doc.descendants((node, pos) => {
+      if (found || !node.isText) return;
+      const m = node.marks.find((mk) => mk.type.name === 'comment' && mk.attrs.id === id);
+      if (m) found = { from: pos, to: pos + node.nodeSize };
+    });
+    setActiveCommentId(id);
+    if (found) editor.chain().focus().setTextSelection(found).scrollIntoView().run();
+  }
+
+  // ── 변경이력 동작 ──
+  function pushVersion(label: string) {
+    const arr = versionsRef.current;
+    const html = editorRef.current?.getHTML();
+    if (!arr || !html) return;
+    const last = arr.length ? arr.get(arr.length - 1) : null;
+    if (last && last.html === html) return; // 내용 동일하면 중복 저장 안 함
+    arr.push([{ id: crypto.randomUUID(), ts: Date.now(), author: displayName, label, html }]);
+    if (arr.length > 50) arr.delete(0, arr.length - 50);
+  }
+  function restoreVersion(v: VersionEntry) {
+    if (!editor) return;
+    if (!confirm(`${fmtTs(v.ts)} 버전으로 되돌릴까요? (현재 상태는 이력에 저장됩니다)`)) return;
+    pushVersion('복원 전');
+    editor.commands.setContent(v.html);
+    setPreviewVer(null);
+    setVersionsOpen(false);
+  }
+  function diffAgainstCurrent(v: VersionEntry) {
+    const div = document.createElement('div');
+    // 블록 닫힘마다 공백을 끼워 textContent에서 문단이 붙어버리는 것 방지
+    div.innerHTML = v.html.replace(/<\/(p|h\d|li|td|th|blockquote|pre|div)>/gi, '</$1> ');
+    const oldText = div.textContent ?? '';
+    const curText = editor?.getText() ?? '';
+    return wordDiff(oldText, curText);
+  }
 
   function newDoc() {
     const map = docsMapRef.current;
@@ -729,6 +982,32 @@ export default function DocEditor({ roomId }: { roomId: string }) {
               </>
             )}
           </div>
+          <span className="doc-tool-sep" />
+          {/* 댓글 */}
+          <button
+            className={btn(commentsOpen)}
+            title="댓글 (텍스트를 선택하고 누르면 새 댓글)"
+            onClick={startComment}
+          >
+            댓글
+            {Object.values(comments).filter((c) => !c.resolved).length > 0 && (
+              <span className="doc-cbadge">
+                {Object.values(comments).filter((c) => !c.resolved).length}
+              </span>
+            )}
+          </button>
+          {/* 변경이력 */}
+          <button
+            className={btn(versionsOpen)}
+            title="변경이력"
+            onClick={() => {
+              setPreviewVer(null);
+              setDiffMode(false);
+              setVersionsOpen(true);
+            }}
+          >
+            이력
+          </button>
         </div>
         <div className="doc-editor-right">
           <span className="code-doc-peers">{peers}명 참여</span>
@@ -737,11 +1016,193 @@ export default function DocEditor({ roomId }: { roomId: string }) {
           </span>
         </div>
       </div>
-      <div className="doc-editor-scroll">
-        <div className="doc-page">
-          <EditorContent editor={editor} />
+      <div className="doc-editor-body">
+        <div className="doc-editor-scroll">
+          <div className="doc-page">
+            <EditorContent editor={editor} />
+          </div>
         </div>
+
+        {/* 댓글 패널 */}
+        {commentsOpen && (
+          <aside className="doc-comments-panel">
+            <div className="doc-cpanel-head">
+              <b>댓글</b>
+              <button className="doc-cpanel-close" onClick={() => setCommentsOpen(false)}>
+                <CloseIcon size={12} />
+              </button>
+            </div>
+            <div className="doc-cpanel-list">
+              {pendingNew && (
+                <div className="doc-cthread new">
+                  <div className="doc-cthread-anchor">
+                    “{editor?.state.doc.textBetween(pendingNew.from, pendingNew.to).slice(0, 40)}”
+                  </div>
+                  <textarea
+                    autoFocus
+                    placeholder="댓글 입력…"
+                    value={commentDraft}
+                    onChange={(e) => setCommentDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        addComment();
+                      }
+                    }}
+                  />
+                  <div className="doc-cthread-btns">
+                    <button className="primary" onClick={addComment}>등록</button>
+                    <button onClick={() => setPendingNew(null)}>취소</button>
+                  </div>
+                </div>
+              )}
+              {Object.entries(comments)
+                .filter(([, c]) => !c.resolved)
+                .sort((a, b) => a[1].ts - b[1].ts)
+                .map(([id, c]) => (
+                  <div
+                    key={id}
+                    className={`doc-cthread${activeCommentId === id ? ' active' : ''}`}
+                    onClick={() => jumpToComment(id)}
+                  >
+                    {c.anchor && <div className="doc-cthread-anchor">“{c.anchor}”</div>}
+                    <div className="doc-cthread-meta">
+                      <b>{c.author}</b> <span>{fmtTs(c.ts)}</span>
+                    </div>
+                    <div className="doc-cthread-text">{c.text}</div>
+                    {c.replies.map((r, i) => (
+                      <div key={i} className="doc-creply">
+                        <div className="doc-cthread-meta">
+                          <b>{r.author}</b> <span>{fmtTs(r.ts)}</span>
+                        </div>
+                        <div className="doc-cthread-text">{r.text}</div>
+                      </div>
+                    ))}
+                    <div className="doc-creply-row" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        placeholder="답글…"
+                        value={replyDrafts[id] ?? ''}
+                        onChange={(e) => setReplyDrafts((d) => ({ ...d, [id]: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && addReply(id)}
+                      />
+                      <button onClick={() => addReply(id)}>등록</button>
+                    </div>
+                    <div className="doc-cthread-btns" onClick={(e) => e.stopPropagation()}>
+                      <button className="primary" onClick={() => resolveComment(id)}>✓ 해결</button>
+                      <button className="danger" onClick={() => deleteComment(id)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              {Object.values(comments).filter((c) => c.resolved).length > 0 && (
+                <details className="doc-cresolved">
+                  <summary>
+                    해결됨 {Object.values(comments).filter((c) => c.resolved).length}개
+                  </summary>
+                  {Object.entries(comments)
+                    .filter(([, c]) => c.resolved)
+                    .sort((a, b) => b[1].ts - a[1].ts)
+                    .map(([id, c]) => (
+                      <div key={id} className="doc-cthread resolved">
+                        {c.anchor && <div className="doc-cthread-anchor">“{c.anchor}”</div>}
+                        <div className="doc-cthread-meta">
+                          <b>{c.author}</b> <span>{fmtTs(c.ts)}</span>
+                        </div>
+                        <div className="doc-cthread-text">{c.text}</div>
+                        <div className="doc-cthread-btns">
+                          <button className="danger" onClick={() => deleteComment(id)}>삭제</button>
+                        </div>
+                      </div>
+                    ))}
+                </details>
+              )}
+              {!pendingNew && Object.keys(comments).length === 0 && (
+                <div className="doc-cpanel-empty">
+                  본문에서 텍스트를 선택하고 [댓글]을 누르면 여기에 스레드가 생겨요
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
       </div>
+
+      {/* 선택된 댓글 본문 강조 */}
+      {activeCommentId && (
+        <style>{`.doc-prose [data-comment-id="${activeCommentId}"]{background:rgba(245,165,36,0.45);}`}</style>
+      )}
+
+      {/* 변경이력 모달 */}
+      {versionsOpen && (
+        <div className="modal-overlay" onClick={() => setVersionsOpen(false)}>
+          <div className="modal-card doc-vers-card" onClick={(e) => e.stopPropagation()}>
+            {!previewVer ? (
+              <>
+                <div className="modal-head">변경이력</div>
+                <button className="doc-vers-save" onClick={() => pushVersion('수동')}>
+                  ＋ 현재 상태를 버전으로 저장
+                </button>
+                <div className="doc-vers-list">
+                  {[...versions].reverse().map((v) => (
+                    <button
+                      key={v.id}
+                      className="doc-vers-row"
+                      onClick={() => {
+                        setDiffMode(false);
+                        setPreviewVer(v);
+                      }}
+                    >
+                      <b>{fmtTs(v.ts)}</b>
+                      <span className="doc-vers-author">{v.author}</span>
+                      <span className={`doc-vers-label${v.label === '자동' ? ' auto' : ''}`}>
+                        {v.label}
+                      </span>
+                    </button>
+                  ))}
+                  {versions.length === 0 && (
+                    <div className="doc-cpanel-empty">
+                      아직 저장된 버전이 없어요. 5분마다 자동 저장되고, 위 버튼으로 직접 저장할 수도 있어요.
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="modal-head doc-vers-phead">
+                  <button className="doc-vers-back" onClick={() => setPreviewVer(null)}>←</button>
+                  {fmtTs(previewVer.ts)} · {previewVer.author}
+                </div>
+                <div className="doc-vers-pbtns">
+                  <button className={diffMode ? 'on' : ''} onClick={() => setDiffMode((v) => !v)}>
+                    현재와 비교
+                  </button>
+                  <button className="primary" onClick={() => restoreVersion(previewVer)}>
+                    이 버전으로 복원
+                  </button>
+                </div>
+                <div className="doc-vers-preview">
+                  {diffMode ? (
+                    (() => {
+                      const d = diffAgainstCurrent(previewVer);
+                      if (!d) return <div className="doc-cpanel-empty">문서가 너무 커서 비교를 건너뛰어요</div>;
+                      if (d.every((x) => x.t === 'same')) return <div className="doc-cpanel-empty">텍스트 차이가 없어요</div>;
+                      return (
+                        <div className="doc-vers-diff">
+                          {d.map((x, i) => (
+                            <span key={i} className={x.t === 'same' ? '' : x.t === 'add' ? 'add' : 'del'}>
+                              {x.s}{' '}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="doc-prose" dangerouslySetInnerHTML={{ __html: previewVer.html }} />
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
