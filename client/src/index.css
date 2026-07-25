@@ -4366,8 +4366,24 @@ input:focus {
   opacity: 0.45;
 }
 
-.msched-day.out {
+/* 다른 달 셀들을 끊김 없이 한 덩어리 회색으로 — 음수 마진으로 그리드 gap을 메움 */
+.msched-day.out:not(.sel) {
   background: var(--surface-2);
+  border-radius: 0;
+  margin: -2px;
+}
+
+/* 덩어리 양 끝만 둥글게 */
+.msched-day.out:not(.sel):first-of-type,
+.msched-day:not(.out) + .msched-day.out:not(.sel) {
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+.msched-day.out:not(.sel):last-of-type,
+.msched-day.out:not(.sel):has(+ .msched-day:not(.out)) {
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
 }
 
 .msched-day-num.today {
