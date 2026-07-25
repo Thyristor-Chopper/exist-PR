@@ -19,3 +19,4 @@ docs/outreach-hkinnoen.md
 *.tsbuildinfo
 
 server/uploads-files/
+server/*.db
