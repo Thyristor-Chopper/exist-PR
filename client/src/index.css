@@ -4302,6 +4302,7 @@ input:focus {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: auto; /* 요일 헤더 행은 내용 높이만 — 아래 공백 방지 */
   grid-auto-rows: 1fr;
   gap: 4px;
   min-height: 0;
