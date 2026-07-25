@@ -7643,6 +7643,11 @@ input:focus {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
 }
 
+.sht-pop-right {
+  left: auto;
+  right: 0;
+}
+
 /* 수식줄 fx 라벨 */
 .sheet-fx {
   flex: none;

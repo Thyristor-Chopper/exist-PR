@@ -660,8 +660,12 @@ export default function DocEditor({ roomId }: { roomId: string }) {
             <HistorySvg />
           </button>
           <div className="doc-dd-wrap">
-            <button className="doc-export" onClick={() => setMenu(menu === 'export' ? null : 'export')}>
-              <DownloadIcon size={14} /> 내보내기
+            <button
+              className="doc-top-ico"
+              title="내보내기"
+              onClick={() => setMenu(menu === 'export' ? null : 'export')}
+            >
+              <DownloadIcon size={16} />
             </button>
             {menu === 'export' && (
               <>

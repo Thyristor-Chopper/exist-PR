@@ -531,7 +531,9 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
   const [cfForm, setCfForm] = useState<{ op: CFRule['op']; value: string; color: string } | null>(null);
   const [chart, setChart] = useState<{ type: 'bar' | 'line' | 'pie' } | null>(null);
   const [merges, setMerges] = useState<MergeRange[]>([]);
-  const [menu, setMenu] = useState<'fill' | 'text' | 'border' | 'merge' | 'rowcol' | 'sort' | null>(null);
+  const [menu, setMenu] = useState<
+    'fill' | 'text' | 'border' | 'merge' | 'rowcol' | 'sort' | 'export' | null
+  >(null);
   const [, bump] = useState(0);
   const [contentVer, setContentVer] = useState(0); // 셀 값 변경 버전 (값 메모이즈용)
   const rafRef = useRef(0);
@@ -1472,12 +1474,24 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
           }}
         />
         <div className="sheet-right">
-          <button className="sheet-csv" onClick={exportCsv} title="CSV로 내보내기">
-            <DownloadIcon size={15} /> CSV
-          </button>
-          <button className="sheet-csv" onClick={() => void exportXlsx()} title="엑셀 파일로 내보내기">
-            <DownloadIcon size={15} /> XLSX
-          </button>
+          <div className="sht-pop-wrap">
+            <button
+              className="doc-top-ico"
+              title="내보내기"
+              onClick={() => setMenu(menu === 'export' ? null : 'export')}
+            >
+              <DownloadIcon size={16} />
+            </button>
+            {menu === 'export' && (
+              <>
+                <div className="sht-back" onClick={() => setMenu(null)} />
+                <div className="sht-pop sht-pop-border sht-pop-right">
+                  <button onClick={() => { exportCsv(); setMenu(null); }}>CSV (.csv)</button>
+                  <button onClick={() => { void exportXlsx(); setMenu(null); }}>엑셀 (.xlsx)</button>
+                </div>
+              </>
+            )}
+          </div>
           <span className="code-doc-peers">{peers}명 참여</span>
           <span className={`code-doc-status ${status}`}>
             <i /> {statusLabel}
