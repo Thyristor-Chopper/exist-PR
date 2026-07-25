@@ -337,11 +337,14 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
 
   function onHubPointerUp(e: React.PointerEvent) {
     if (subtab === 'dash') return;
-    e.stopPropagation();
     const s = swipeRef.current;
     swipeRef.current = null;
     setSwipeDx(null);
     if (!s || s.skip) return;
+    // ⚠️ stopPropagation은 스와이프가 실제 진행 중일 때만 — 무조건 걸면 Excalidraw처럼
+    // window 레벨 pointerup으로 인터랙션을 끝내는 라이브러리가 '뗌'을 영영 못 받아
+    // 캔버스 도형이 커서를 따라다니는 지옥이 열린다 (7/25 밤 그 버그의 진범).
+    e.stopPropagation();
     const dx = e.clientX - s.x;
     const dy = e.clientY - s.y;
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;

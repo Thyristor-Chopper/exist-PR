@@ -219,10 +219,22 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
         if (st?.cursorButton === 'down') {
           const now = Date.now();
           if (!wedgeSince) wedgeSince = now;
-          else if (now - wedgeSince > 250) {
+          else if (now - wedgeSince > 150) {
             wedgeSince = 0;
             try {
-              api.setActiveTool({ type: st.activeTool?.type ?? 'selection' });
+              // 같은 도구로 리셋하면 no-op이라 안 풀림 — selection으로 강제 전환해
+              // 진행 중이라 착각한 인터랙션을 확정시키고, 원래 도구로 복귀시킨다.
+              const tool = st.activeTool?.type;
+              api.setActiveTool({ type: 'selection' });
+              if (tool && tool !== 'selection') {
+                setTimeout(() => {
+                  try {
+                    api.setActiveTool({ type: tool });
+                  } catch {
+                    /* 무시 */
+                  }
+                }, 0);
+              }
             } catch {
               /* 무시 */
             }
