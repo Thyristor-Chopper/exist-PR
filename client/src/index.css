@@ -4366,11 +4366,16 @@ input:focus {
   opacity: 0.45;
 }
 
-/* 다른 달 셀들을 끊김 없이 한 덩어리 회색으로 — 음수 마진으로 그리드 gap을 메움 */
+/* 다른 달 셀들을 끊김 없이 한 덩어리 회색으로 — 셀 크기는 그대로 두고
+   옆 out 셀과의 gap만 그림자로 메움 (음수 마진은 셀이 커져 보여서 금지) */
 .msched-day.out {
   background: var(--surface-2);
   border-radius: 0;
-  margin: -2px;
+}
+
+/* 같은 줄에서 왼쪽 이웃도 out이면 사이 4px gap을 회색으로 (줄 첫 칸은 제외) */
+.msched-day.out + .msched-day.out:not(:nth-of-type(7n + 1)) {
+  box-shadow: -4px 0 0 var(--surface-2);
 }
 
 /* 덩어리 양 끝만 둥글게 */
@@ -4386,7 +4391,7 @@ input:focus {
   border-bottom-right-radius: 10px;
 }
 
-/* 다른 달 셀 선택 — 밴드 모양은 그대로, 그 자리만 살짝 진하게 */
+/* 다른 달 셀 선택 — 밴드는 유지, 그 자리만 살짝 진하게 */
 .msched-day.out.sel {
   background: color-mix(in srgb, var(--text) 9%, var(--surface-2));
 }
