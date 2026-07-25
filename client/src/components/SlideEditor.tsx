@@ -837,6 +837,7 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
       </div>
 
       {/* PDF 인쇄 전용 렌더 — 화면에선 숨김, 인쇄 시 슬라이드만 한 장씩 */}
+      {printing && <style>{`@page { size: A4 landscape; margin: 8mm; }`}</style>}
       {printing && (
         <div className="slide-print">
           {slides.map((s) => (

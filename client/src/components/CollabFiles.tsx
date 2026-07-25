@@ -1749,7 +1749,7 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
                 }}
               />
             )}
-            {f.type === 'doc' && <DocEditor roomId={f.room!} />}
+            {f.type === 'doc' && <DocEditor roomId={f.room!} code={code} fileId={f.id} fileName={f.name} />}
             {f.type === 'sheet' && <SheetEditor roomId={f.room!} />}
             {f.type === 'slide' && <SlideEditor roomId={f.room!} />}
             {f.type === 'canvas' && <CanvasBoard roomId={f.room!} />}

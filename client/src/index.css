@@ -7133,6 +7133,178 @@ input:focus {
   cursor: col-resize;
 }
 
+/* 단어 수 */
+.doc-wordcount {
+  font-size: 12px;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* 개요 사이드바 */
+.doc-outline {
+  width: 220px;
+  flex: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.doc-outline-head {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-sub);
+  padding: 0 8px 8px;
+}
+
+.doc-outline-item {
+  border: none;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-size: 13px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-outline-item:hover {
+  background: var(--surface-3);
+}
+
+.doc-outline-item.lv1 {
+  font-weight: 700;
+}
+
+.doc-outline-item.lv2 {
+  padding-left: 20px;
+}
+
+.doc-outline-item.lv3 {
+  padding-left: 32px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+.doc-outline-empty {
+  font-size: 12px;
+  color: var(--text-sub);
+  padding: 4px 8px;
+  line-height: 1.5;
+}
+
+@media (max-width: 767px) {
+  .doc-outline {
+    display: none; /* 모바일은 화면이 좁아 개요 생략 */
+  }
+}
+
+/* @멘션 */
+.doc-mention {
+  background: rgba(79, 124, 255, 0.14);
+  color: #4f7cff;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+
+.doc-mention-pop {
+  position: fixed;
+  z-index: 900;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+}
+
+.doc-mention-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.doc-mention-row:hover,
+.doc-mention-row.on {
+  background: var(--surface-3);
+}
+
+.doc-mention-av {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  overflow: hidden;
+  flex: none;
+}
+
+.doc-mention-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.doc-mention-empty {
+  font-size: 12.5px;
+  color: var(--text-sub);
+  padding: 8px 10px;
+}
+
+/* 문서 인쇄 — 활성 문서 페이지만 */
+@media print {
+  body.doc-printing * {
+    visibility: hidden;
+  }
+  body.doc-printing .doc-page,
+  body.doc-printing .doc-page * {
+    visibility: visible;
+  }
+  body.doc-printing .doc-page {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    min-height: auto;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    background: #fff;
+  }
+  body.doc-printing .doc-prose {
+    color: #1c2024;
+  }
+}
+
+/* 문서 본문 h3 */
+.doc-prose h3 {
+  font-size: 1.2em;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 0.6em;
+}
+
 /* ── 문서 댓글 ── */
 .doc-editor-body {
   display: flex;
@@ -8527,10 +8699,7 @@ input:focus {
   }
 }
 
-@page {
-  size: A4 landscape;
-  margin: 8mm;
-}
+/* @page는 전역이라 CSS에 두지 않음 — 발표/문서가 인쇄 시점에 <style>로 주입 (가로/세로 충돌 방지) */
 
 .slide-canvas {
   width: 100%;

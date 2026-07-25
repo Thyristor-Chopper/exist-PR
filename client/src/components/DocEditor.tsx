@@ -10,9 +10,14 @@ import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { Color, FontSize, TextStyle } from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
+import Mention, { type MentionNodeAttrs } from '@tiptap/extension-mention';
+import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
+import { FontFamily, LineHeight } from '@tiptap/extension-text-style';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
+import { api } from '../api';
 import { useAuthStore } from '../store';
+import { exportDocx } from '../lib/docx';
 import Marquee from './Marquee';
 import { PlusIcon, CloseIcon, DownloadIcon } from './Icons';
 import ColorGrid from './ColorGrid';
@@ -27,7 +32,15 @@ interface DocMeta {
   ord: number;
 }
 
-type Menu = 'export' | 'style' | 'color' | 'hl' | 'table' | 'link' | 'find' | null;
+type Menu = 'export' | 'style' | 'color' | 'hl' | 'table' | 'link' | 'find' | 'font' | 'lh' | null;
+
+const FONT_FAMILIES: { label: string; value: string | null; css?: string }[] = [
+  { label: '기본', value: null },
+  { label: '명조', value: "'Nanum Myeongjo', 'Noto Serif KR', Georgia, serif" },
+  { label: '고정폭', value: "ui-monospace, Consolas, 'Nanum Gothic Coding', monospace" },
+  { label: '필기체', value: "'Nanum Pen Script', 'Segoe Script', cursive" },
+];
+const LINE_HEIGHTS = ['1.15', '1.5', '1.8', '2.2'];
 
 // ── 댓글 ──
 interface CommentReply {
@@ -146,7 +159,18 @@ const CommentSvg = () => <I><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 
 const HistorySvg = () => <I><path d="M8 4.5V8l2.5 1.5" /><path d="M2.5 8a5.5 5.5 0 1 1 1.6 3.9" /><path d="M2.5 12V8.8h3.2" /></I>;
 
 /** Yjs 기반 리치텍스트 공동편집 — 여러 문서(탭), roomId 단위 공유 */
-export default function DocEditor({ roomId }: { roomId: string }) {
+type MItem = { id: string; label: string; avatar: string | null };
+
+export default function DocEditor({
+  roomId,
+  code,
+  fileId,
+}: {
+  roomId: string;
+  code?: string;
+  fileId?: number;
+  fileName?: string;
+}) {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
@@ -178,6 +202,41 @@ export default function DocEditor({ roomId }: { roomId: string }) {
   const [previewVer, setPreviewVer] = useState<VersionEntry | null>(null);
   const [diffMode, setDiffMode] = useState(false);
   const lastAutoHtmlRef = useRef('');
+  // 개요 사이드바 / 인쇄
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [docPrinting, setDocPrinting] = useState(false);
+  // @멘션 — 그룹 참가자 목록 (suggestion에서 ref로 참조)
+  const participantsRef = useRef<{ username: string; name: string | null; avatar: string | null }[]>([]);
+  const mentionCtxRef = useRef<{ code?: string; fileId?: number }>({});
+  mentionCtxRef.current = { code, fileId };
+
+  useEffect(() => {
+    if (!code) return;
+    void api<{ participants?: { username: string; name?: string | null; avatar?: string | null }[] }>(
+      `/api/meetings/${code}`,
+    )
+      .then((d) => {
+        participantsRef.current = (d.participants ?? []).map((p) => ({
+          username: p.username,
+          name: p.name ?? null,
+          avatar: p.avatar ?? null,
+        }));
+      })
+      .catch(() => {});
+  }, [code]);
+
+  useEffect(() => {
+    if (!docPrinting) return;
+    const t = setTimeout(() => window.print(), 150);
+    const done = () => setDocPrinting(false);
+    window.addEventListener('afterprint', done);
+    document.body.classList.add('doc-printing');
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('afterprint', done);
+      document.body.classList.remove('doc-printing');
+    };
+  }, [docPrinting]);
 
   useEffect(() => {
     const ydoc = new Y.Doc();
@@ -261,9 +320,137 @@ export default function DocEditor({ roomId }: { roomId: string }) {
     TextStyle,
     Color,
     FontSize,
+    FontFamily,
+    LineHeight,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     CommentMark,
+    // @멘션 — 그룹 참가자, 선택 시 상대에게 알림
+    Mention.configure({
+      HTMLAttributes: { class: 'doc-mention' },
+      suggestion: {
+        char: '@',
+        items: ({ query }: { query: string }): MItem[] => {
+          const q = query.toLowerCase();
+          return participantsRef.current
+            .filter(
+              (p) =>
+                p.username.toLowerCase().includes(q) || (p.name ?? '').toLowerCase().includes(q),
+            )
+            .slice(0, 6)
+            .map((p) => ({
+              id: p.username,
+              label: p.name || p.username,
+              avatar: p.avatar,
+            }));
+        },
+        command: ({ editor: ed, range, props }) => {
+          ed
+            .chain()
+            .focus()
+            .insertContentAt(range, [
+              { type: 'mention', attrs: { id: props.id, label: props.label } },
+              { type: 'text', text: ' ' },
+            ])
+            .run();
+          const ctx = mentionCtxRef.current;
+          if (ctx.code && ctx.fileId && props.id) {
+            void api(`/api/meetings/${ctx.code}/files/${ctx.fileId}/mention`, {
+              method: 'POST',
+              body: { username: props.id },
+            }).catch(() => {});
+          }
+        },
+        render: () => {
+          let popup: HTMLDivElement | null = null;
+          let selected = 0;
+          let curItems: MItem[] = [];
+          let curCommand: (attrs: MentionNodeAttrs) => void = () => {};
+          const draw = (rect: DOMRect | null) => {
+            if (!popup) return;
+            popup.innerHTML = '';
+            curItems.forEach((p, i) => {
+              const row = document.createElement('button');
+              row.type = 'button';
+              row.className = `doc-mention-row${i === selected ? ' on' : ''}`;
+              const av = document.createElement('span');
+              av.className = 'doc-mention-av';
+              const isImg = p.avatar && (p.avatar.startsWith('/api') || p.avatar.startsWith('http'));
+              if (isImg) {
+                const img = document.createElement('img');
+                img.src = p.avatar!;
+                av.appendChild(img);
+              } else {
+                av.textContent = p.avatar || '🙂';
+              }
+              row.appendChild(av);
+              const nm = document.createElement('span');
+              nm.textContent = p.label !== p.id ? `${p.label} (@${p.id})` : `@${p.id}`;
+              row.appendChild(nm);
+              row.onmousedown = (e) => {
+                e.preventDefault();
+                curCommand({ id: p.id, label: p.label });
+              };
+              popup!.appendChild(row);
+            });
+            if (!curItems.length) {
+              const empty = document.createElement('div');
+              empty.className = 'doc-mention-empty';
+              empty.textContent = '참가자 없음';
+              popup.appendChild(empty);
+            }
+            if (rect) {
+              popup.style.left = `${Math.min(rect.left, window.innerWidth - 260)}px`;
+              popup.style.top = `${rect.bottom + 4}px`;
+            }
+          };
+          return {
+            onStart: (props: SuggestionProps<MItem, MentionNodeAttrs>) => {
+              curItems = props.items;
+              curCommand = props.command;
+              selected = 0;
+              popup = document.createElement('div');
+              popup.className = 'doc-mention-pop';
+              document.body.appendChild(popup);
+              draw(props.clientRect?.() ?? null);
+            },
+            onUpdate: (props: SuggestionProps<MItem, MentionNodeAttrs>) => {
+              curItems = props.items;
+              curCommand = props.command;
+              if (selected >= curItems.length) selected = 0;
+              draw(props.clientRect?.() ?? null);
+            },
+            onKeyDown: (props: SuggestionKeyDownProps) => {
+              if (props.event.key === 'ArrowDown') {
+                selected = (selected + 1) % Math.max(1, curItems.length);
+                draw(null);
+                return true;
+              }
+              if (props.event.key === 'ArrowUp') {
+                selected = (selected - 1 + Math.max(1, curItems.length)) % Math.max(1, curItems.length);
+                draw(null);
+                return true;
+              }
+              if (props.event.key === 'Enter') {
+                if (curItems[selected])
+                  curCommand({ id: curItems[selected].id, label: curItems[selected].label });
+                return true;
+              }
+              if (props.event.key === 'Escape') {
+                popup?.remove();
+                popup = null;
+                return true;
+              }
+              return false;
+            },
+            onExit: () => {
+              popup?.remove();
+              popup = null;
+            },
+          };
+        },
+      },
+    }),
   ];
 
   const editor = useEditor(
@@ -635,6 +822,21 @@ export default function DocEditor({ roomId }: { roomId: string }) {
           </button>
         </div>
         <div className="doc-tabbar-right">
+          {/* 개요 (제목 목차) */}
+          <button
+            className={`doc-top-ico${outlineOpen ? ' on' : ''}`}
+            title="문서 개요"
+            onClick={() => setOutlineOpen((v) => !v)}
+          >
+            <I>
+              <line x1="6" y1="3.5" x2="14" y2="3.5" />
+              <line x1="6" y1="8" x2="14" y2="8" />
+              <line x1="6" y1="12.5" x2="14" y2="12.5" />
+              <circle cx="3" cy="3.5" r="1.1" fill="currentColor" stroke="none" />
+              <circle cx="3" cy="8" r="1.1" fill="currentColor" stroke="none" />
+              <circle cx="3" cy="12.5" r="1.1" fill="currentColor" stroke="none" />
+            </I>
+          </button>
           {/* 댓글·이력 — 독스처럼 우상단 */}
           <button
             className={`doc-top-ico${commentsOpen ? ' on' : ''}`}
@@ -671,6 +873,24 @@ export default function DocEditor({ roomId }: { roomId: string }) {
               <>
                 <div className="doc-dd-back" onClick={() => setMenu(null)} />
                 <div className="doc-dd right">
+                  <button
+                    className="item"
+                    onClick={() => {
+                      setMenu(null);
+                      setDocPrinting(true);
+                    }}
+                  >
+                    PDF / 인쇄
+                  </button>
+                  <button
+                    className="item"
+                    onClick={() => {
+                      if (editor && activeDoc) void exportDocx(activeDoc.name, editor.getJSON());
+                      setMenu(null);
+                    }}
+                  >
+                    Word (.docx)
+                  </button>
                   <button className="item" onClick={() => exportAs('html')}>HTML (.html)</button>
                   <button className="item" onClick={() => exportAs('txt')}>텍스트 (.txt)</button>
                 </div>
@@ -704,7 +924,9 @@ export default function DocEditor({ roomId }: { roomId: string }) {
                   ? '제목 1'
                   : editor?.isActive('heading', { level: 2 })
                     ? '제목 2'
-                    : '일반 텍스트'}
+                    : editor?.isActive('heading', { level: 3 })
+                      ? '제목 3'
+                      : '일반 텍스트'}
                 <span className="doc-style-caret">▾</span>
               </button>
               {menu === 'style' && (
@@ -740,6 +962,89 @@ export default function DocEditor({ roomId }: { roomId: string }) {
                     >
                       제목 2
                     </button>
+                    <button
+                      className={`item${editor?.isActive('heading', { level: 3 }) ? ' on' : ''}`}
+                      style={{ fontSize: 14, fontWeight: 700 }}
+                      onClick={() => {
+                        editor?.chain().focus().setHeading({ level: 3 }).run();
+                        setMenu(null);
+                      }}
+                    >
+                      제목 3
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>,
+            <div key="font" className="doc-dd-wrap">
+              <button
+                className={`doc-tool doc-style-btn${menu === 'font' ? ' on' : ''}`}
+                title="글꼴"
+                onClick={() => setMenu(menu === 'font' ? null : 'font')}
+              >
+                {FONT_FAMILIES.find((f) => f.value && (editor?.getAttributes('textStyle').fontFamily as string | undefined) === f.value)?.label ?? '글꼴'}
+                <span className="doc-style-caret">▾</span>
+              </button>
+              {menu === 'font' && (
+                <>
+                  <div className="doc-dd-back" onClick={() => setMenu(null)} />
+                  <div className="doc-dd">
+                    {FONT_FAMILIES.map((f) => (
+                      <button
+                        key={f.label}
+                        className="item"
+                        style={f.value ? { fontFamily: f.value } : undefined}
+                        onClick={() => {
+                          if (f.value) editor?.chain().focus().setFontFamily(f.value).run();
+                          else editor?.chain().focus().unsetFontFamily().run();
+                          setMenu(null);
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>,
+            <div key="lh" className="doc-dd-wrap">
+              <button
+                className={`doc-tool${menu === 'lh' ? ' on' : ''}`}
+                title="줄 간격"
+                onClick={() => setMenu(menu === 'lh' ? null : 'lh')}
+              >
+                <I>
+                  <path d="M3 2.5v11M3 2.5 1.5 4M3 2.5 4.5 4M3 13.5 1.5 12M3 13.5 4.5 12" />
+                  <line x1="7" y1="4" x2="14.5" y2="4" />
+                  <line x1="7" y1="8" x2="14.5" y2="8" />
+                  <line x1="7" y1="12" x2="14.5" y2="12" />
+                </I>
+              </button>
+              {menu === 'lh' && (
+                <>
+                  <div className="doc-dd-back" onClick={() => setMenu(null)} />
+                  <div className="doc-dd">
+                    <button
+                      className="item"
+                      onClick={() => {
+                        editor?.chain().focus().unsetLineHeight().run();
+                        setMenu(null);
+                      }}
+                    >
+                      기본
+                    </button>
+                    {LINE_HEIGHTS.map((lh) => (
+                      <button
+                        key={lh}
+                        className="item"
+                        onClick={() => {
+                          editor?.chain().focus().setLineHeight(lh).run();
+                          setMenu(null);
+                        }}
+                      >
+                        {lh}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
@@ -858,6 +1163,9 @@ export default function DocEditor({ roomId }: { roomId: string }) {
             </button>,
             <button key="code" className={btn(!!editor?.isActive('codeBlock'))} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} title="코드 블록">
               <CodeSvg />
+            </button>,
+            <button key="hr" className={btn(false)} onClick={() => editor?.chain().focus().setHorizontalRule().run()} title="구분선">
+              <I><line x1="2" y1="8" x2="14" y2="8" /></I>
             </button>,
             <span key="s6" className="doc-tool-sep" />,
             <div key="link" className="doc-dd-wrap">
@@ -1017,12 +1325,46 @@ export default function DocEditor({ roomId }: { roomId: string }) {
         />
         <div className="doc-editor-right">
           <span className="code-doc-peers">{peers}명 참여</span>
+          <span className="doc-wordcount" title="글자 수(공백 제외) · 단어 수">
+            {(() => {
+              const t = editor?.getText() ?? '';
+              const chars = t.replace(/\s/g, '').length;
+              const words = t.trim() ? t.trim().split(/\s+/).length : 0;
+              return `${chars.toLocaleString()}자 · ${words.toLocaleString()}단어`;
+            })()}
+          </span>
           <span className={`code-doc-status ${status}`}>
             <i /> {statusLabel}
           </span>
         </div>
       </div>
       <div className="doc-editor-body">
+        {/* 개요 사이드바 — 제목 기반 목차 */}
+        {outlineOpen && (
+          <aside className="doc-outline">
+            <div className="doc-outline-head">개요</div>
+            {(() => {
+              const heads: { level: number; text: string; pos: number }[] = [];
+              editor?.state.doc.descendants((node, pos) => {
+                if (node.type.name === 'heading')
+                  heads.push({ level: node.attrs.level as number, text: node.textContent, pos });
+              });
+              if (!heads.length)
+                return <div className="doc-outline-empty">제목 1·2·3을 추가하면 목차가 생겨요</div>;
+              return heads.map((h, i) => (
+                <button
+                  key={i}
+                  className={`doc-outline-item lv${h.level}`}
+                  onClick={() =>
+                    editor?.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run()
+                  }
+                >
+                  {h.text || '(빈 제목)'}
+                </button>
+              ));
+            })()}
+          </aside>
+        )}
         <div className="doc-editor-scroll">
           <div className="doc-page">
             <EditorContent editor={editor} />
@@ -1135,6 +1477,9 @@ export default function DocEditor({ roomId }: { roomId: string }) {
       {activeCommentId && (
         <style>{`.doc-prose [data-comment-id="${activeCommentId}"]{background:rgba(245,165,36,0.45);}`}</style>
       )}
+
+      {/* 인쇄(PDF) — 문서는 세로 A4 */}
+      {docPrinting && <style>{`@page { size: A4 portrait; margin: 14mm; }`}</style>}
 
       {/* 변경이력 모달 */}
       {versionsOpen && (

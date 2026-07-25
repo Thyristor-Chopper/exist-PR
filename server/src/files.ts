@@ -14,6 +14,7 @@ import {
   buildDocYdoc,
   buildDocYdocFromMarkdown,
 } from './importFile.js';
+import { notifyUser } from './notify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** 업로드 파일(blob) 저장소 — DATA_DIR/uploads-files */
@@ -192,6 +193,33 @@ router.get('/presence', (req: AuthedRequest, res) => {
     if (list.length) out[f.id] = list;
   }
   res.json(out);
+});
+
+/** 문서 @멘션 알림 — 멘션된 참가자에게 알림 (본인 제외) */
+router.post('/:fileId/mention', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare('SELECT name FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
+    .get(req.params.fileId, r.meeting.id) as { name: string } | undefined;
+  if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  const username = String(req.body?.username ?? '');
+  const target = db
+    .prepare(
+      `SELECT u.id FROM users u JOIN meeting_participants mp ON mp.user_id = u.id
+       WHERE mp.meeting_id = ? AND u.username = ?`,
+    )
+    .get(r.meeting.id, username) as { id: number } | undefined;
+  if (!target) return res.status(404).json({ error: '이 그룹 참가자가 아니에요' });
+  if (target.id !== req.userId) {
+    notifyUser(target.id, {
+      from: req.username ?? '누군가',
+      text: `"${f.name}" 문서에서 회원님을 멘션했어요`,
+      kind: 'mention',
+      meetingCode: r.meeting.code,
+    });
+  }
+  res.json({ ok: true });
 });
 
 /** 파일 업로드 — raw body, ?name=원본이름&parent_id= (중복 이름은 " (n)" 자동) */
