@@ -31,11 +31,21 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
   const yFilesRef = useRef<Y.Map<BinaryFile> | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
   const applyingRemote = useRef(false);
-  const drawingRef = useRef(false); // 포인터로 그리는/이동하는 중인지
+  const drawingRef = useRef(false); // 포인터로 그리는/이동하는 중인지 (onChange 기반 — 늦게 켜짐)
+  // 실제 포인터 눌림 상태 — DOM 캡처 단계에서 직접 추적. drawingRef는 Excalidraw의
+  // 첫 onChange가 와야 켜져서, 초당 수십 번 오는 원격 커서 이벤트가 pointerdown 직후
+  // 그 틈에 끼어들어 그리기를 깨뜨린다(도형이 점으로 뭉개짐·드래그 안 풀림).
+  const pointerActiveRef = useRef(false);
   const pendingRemoteRef = useRef(false); // 그리는 중 보류된 원격 변경
   const pendingAwarenessRef = useRef(false); // 그리는 중 보류된 원격 커서 갱신
   const applyRemoteRef = useRef<(() => void) | null>(null);
   const pushCollaboratorsRef = useRef<(() => void) | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const interacting = () => pointerActiveRef.current || drawingRef.current;
+  // applyRemote가 주입한 요소의 (version, versionNonce) — onChange가 이걸 진짜 변경으로
+  // 착각해 Yjs에 되쓰면(에코) 다른 사람이 그리는 중인 도형을 스테일 상태로 덮어쓴다.
+  // 주입본과 완전히 같은 요소는 내 변경이 아니므로 절대 되쓰지 않는다.
+  const injectedRef = useRef(new Map<string, { v: number; n: number | undefined }>());
 
   // 앱 다크모드(html.dark) 추종
   const [dark, setDark] = useState(
@@ -71,8 +81,8 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
       const api = apiRef.current;
       if (!api) return;
       // 그리는/이동하는 중(포인터 down)엔 원격 적용을 보류한다 — updateScene이
-      // 진행 중인 내 입력을 덮어써 도형이 점으로 깨지는 것 방지. 끝나면 onChange에서 적용.
-      if (drawingRef.current) {
+      // 진행 중인 내 입력을 덮어써 도형이 점으로 깨지는 것 방지. 끝나면 적용.
+      if (interacting()) {
         pendingRemoteRef.current = true;
         return;
       }
@@ -86,7 +96,12 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
         localVer.set(e.id, e.version ?? 0);
       const reconciled = elements.map((el) => {
         const lv = localVer.get(el.id);
-        return lv === undefined || (el.version ?? 0) > lv ? el : { ...el, version: lv + 1 };
+        if (lv === undefined || (el.version ?? 0) > lv) {
+          injectedRef.current.set(el.id, { v: el.version ?? 0, n: el.versionNonce });
+          return el;
+        }
+        injectedRef.current.set(el.id, { v: lv + 1, n: el.versionNonce });
+        return { ...el, version: lv + 1 };
       });
       applyingRemote.current = true;
       try {
@@ -128,22 +143,64 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
       api.updateScene({ collaborators });
     };
     pushCollaboratorsRef.current = pushCollaborators;
+    // 원격 커서는 40ms로 묶어서 반영 — 상대가 마우스를 흔들면 초당 수십 번
+    // updateScene이 돌아 렌더 낭비 + 내 입력과 경합한다.
+    let collabTimer: ReturnType<typeof setTimeout> | null = null;
     const onAwareness = () => {
       // 내가 그리는/이동하는 중에 updateScene이 끼어들면 Excalidraw 포인터 상태가
       // 깨져 드래그가 안 풀린다(놓아도 커서를 따라다님) — 요소 반영(applyRemote)과
-      // 동일하게 보류했다가 드래그가 끝나는 순간 적용.
-      if (drawingRef.current) {
+      // 동일하게 보류했다가 포인터를 놓는 순간 적용.
+      if (interacting()) {
         pendingAwarenessRef.current = true;
         return;
       }
-      pushCollaborators();
+      if (collabTimer) return;
+      collabTimer = setTimeout(() => {
+        collabTimer = null;
+        if (interacting()) {
+          pendingAwarenessRef.current = true;
+          return;
+        }
+        pushCollaborators();
+      }, 40);
     };
     provider.awareness.on('change', onAwareness);
+
+    // 실제 포인터 상태 추적 + 놓는 순간 보류분 flush (onChange보다 믿을 수 있는 신호)
+    const onPointerDown = (e: PointerEvent) => {
+      // 이 캔버스 안에서 시작한 포인터만 (다른 UI 클릭·다른 에디터는 무관)
+      if (wrapRef.current && wrapRef.current.contains(e.target as Node)) pointerActiveRef.current = true;
+    };
+    const onPointerUp = () => {
+      if (!pointerActiveRef.current && !drawingRef.current) return;
+      pointerActiveRef.current = false;
+      setTimeout(() => {
+        if (pointerActiveRef.current) return; // 그 사이 새 드래그 시작
+        // 포인터가 떨어졌으면 그리기는 끝난 것 — 빈 선택 드래그처럼 Excalidraw가
+        // 마지막 onChange를 안 쏘면 drawingRef가 true로 남아 원격 반영이 영영 멈춘다.
+        drawingRef.current = false;
+        if (pendingRemoteRef.current) {
+          pendingRemoteRef.current = false;
+          applyRemote();
+        }
+        if (pendingAwarenessRef.current) {
+          pendingAwarenessRef.current = false;
+          pushCollaborators();
+        }
+      }, 50);
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('pointercancel', onPointerUp, true);
 
     return () => {
       yEls.unobserve(onRemote);
       yFiles.unobserve(onRemote);
       provider.awareness.off('change', onAwareness);
+      if (collabTimer) clearTimeout(collabTimer);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerUp, true);
       pushCollaboratorsRef.current = null;
       provider.destroy();
       ydoc.destroy();
@@ -207,10 +264,16 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
           // version을 거의 안 올리고 versionNonce(난수)만 갱신하므로, version만
           // 비교하면 드래그한 크기 변화가 누락돼 시작점(w=0)만 저장됨.
           // 에코는 onChange의 applyingRemote 가드 + observe의 txn.local 가드로 방지.
-          if (!cur || (cur.version ?? 0) < (el.version ?? 0) || cur.versionNonce !== el.versionNonce)
+          if (!cur || (cur.version ?? 0) < (el.version ?? 0) || cur.versionNonce !== el.versionNonce) {
+            // applyRemote가 주입한 그대로면 내 변경이 아니라 에코 — 되쓰면 상대가
+            // 그리는 중인 도형을 스테일 상태로 덮어써 뭉개진다. 스킵.
+            const inj = injectedRef.current.get(el.id);
+            if (inj && inj.v === (el.version ?? 0) && inj.n === el.versionNonce) continue;
+            injectedRef.current.delete(el.id);
             // Excalidraw element는 Object.freeze로 동결돼 있어 그대로 넘기면
             // Yjs가 저장/직렬화를 못 함. 동결 해제된 깊은 사본을 저장한다.
             yEls.set(el.id, structuredClone(el) as SceneElement);
+          }
         }
         if (files) {
           for (const id of Object.keys(files)) {
@@ -233,7 +296,7 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
   );
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
       <Excalidraw
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         excalidrawAPI={(api: any) => {
