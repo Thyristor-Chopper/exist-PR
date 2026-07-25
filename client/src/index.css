@@ -8240,11 +8240,18 @@ input:focus {
 
 .slide-tools {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap; /* 좁은 화면(모바일·태블릿)에서 줄바꿈 */
+  align-items: center;
+  gap: 3px;
+  /* 구글 슬라이드식 알약 스트립 (버튼은 sht-btn 플랫 재사용, 넘치면 ⋮) */
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-2);
+  border-radius: 22px;
+  padding: 4px 10px;
 }
 
-.slide-tools button {
+/* 도형 팝업 메뉴 안 버튼만 칩 스타일 유지 */
+.slide-shape-menu button {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 7px;

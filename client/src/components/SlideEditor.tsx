@@ -4,6 +4,7 @@ import { WebsocketProvider } from 'y-websocket';
 import { useAuthStore } from '../store';
 import { PlusIcon, CloseIcon, PlayIcon } from './Icons';
 import ColorGrid from './ColorGrid';
+import OverflowToolbar from './OverflowToolbar';
 
 interface SlideMeta {
   id: string;
@@ -33,6 +34,22 @@ interface ElData {
 }
 
 const COLORS = ['#30a46c', '#e5484d', '#f76808', '#4f7cff', '#8e4ec6', '#0091ff', '#d6409f'];
+
+/* 구글 슬라이드식 툴바 아이콘 */
+const GI = ({ children }: { children: React.ReactNode }) => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    {children}
+  </svg>
+);
+const GUndo = () => <GI><path d="M6 3 3 6l3 3" /><path d="M3 6h6.5a3.5 3.5 0 0 1 0 7H6" /></GI>;
+const GRedo = () => <GI><path d="m10 3 3 3-3 3" /><path d="M13 6H6.5a3.5 3.5 0 0 0 0 7H10" /></GI>;
+const GTitle = () => <GI><path d="M2.5 4V2.5h11V4" /><path d="M8 2.5v11" /><path d="M6 13.5h4" /></GI>;
+const GTextBox = () => <GI><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M5 6V5h6v1" /><path d="M8 5v6" /><path d="M7 11h2" /></GI>;
+const GImage = () => <GI><rect x="2" y="3" width="12" height="10" rx="1.5" /><circle cx="5.5" cy="6.5" r="1" fill="currentColor" stroke="none" /><path d="m4 12 3.5-3.5 2 2L12 8l2 2" /></GI>;
+const GShape = () => <GI><rect x="2" y="2" width="8.5" height="8.5" rx="1" /><circle cx="10.5" cy="10.5" r="3.8" /></GI>;
+const GDup = () => <GI><rect x="5" y="5" width="9" height="9" rx="1.5" /><path d="M11 2.5H3.5A1.5 1.5 0 0 0 2 4v7.5" /></GI>;
+const GFront = () => <GI><rect x="2" y="6" width="8" height="8" rx="1" opacity="0.45" /><rect x="6" y="2" width="8" height="8" rx="1" fill="var(--surface)" /></GI>;
+const GBack = () => <GI><rect x="6" y="2" width="8" height="8" rx="1" opacity="0.45" /><rect x="2" y="6" width="8" height="8" rx="1" fill="var(--surface)" /></GI>;
 
 /** Yjs 기반 협업 슬라이드(PowerPoint형) — roomId 단위 공유 */
 export default function SlideEditor({ roomId }: { roomId: string }) {
@@ -105,16 +122,23 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, token]);
 
-  // 활성 슬라이드 요소 바인딩
+  // 활성 슬라이드 요소 바인딩 (+ 실행취소)
+  const undoRef = useRef<Y.UndoManager | null>(null);
   useEffect(() => {
     const ydoc = ydocRef.current;
     if (!ydoc || !activeSlideId) return;
     const els = ydoc.getMap<ElData>(`slide-els:${activeSlideId}`);
     elsRef.current = els;
+    const um = new Y.UndoManager([els], { captureTimeout: 350 });
+    undoRef.current = um;
     bump((n) => n + 1);
     const onEls = () => bump((n) => n + 1);
     els.observe(onEls);
-    return () => els.unobserve(onEls);
+    return () => {
+      els.unobserve(onEls);
+      um.destroy();
+      undoRef.current = null;
+    };
   }, [activeSlideId]);
 
   function elsOf(slideId: string): [string, ElData][] {
@@ -407,8 +431,25 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
         setSelEl(null);
       }
     }
+    function onUndoKey(e: KeyboardEvent) {
+      if (present || printing) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) undoRef.current?.redo();
+        else undoRef.current?.undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        undoRef.current?.redo();
+      }
+    }
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onUndoKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onUndoKey);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selEl, editingEl, present, printing]);
 
@@ -533,54 +574,62 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
   return (
     <div className="slide-editor">
       <div className="slide-bar">
-        <div className="slide-tools">
-          <button onClick={addTitle}>＋ 제목</button>
-          <button onClick={addText}>＋ 텍스트</button>
-          <div className="slide-shape-wrap">
-            <button onClick={() => setShapeMenu((v) => !v)}>＋ 도형 ▾</button>
-            {shapeMenu && (
-              <>
-                <div className="slide-shape-back" onClick={() => setShapeMenu(false)} />
-                <div className="slide-shape-menu">
-                  <button onClick={() => addShape('rect')}>▭ 사각형</button>
-                  <button onClick={() => addShape('ellipse')}>◯ 원</button>
-                  <button onClick={() => addShape('triangle')}>△ 삼각형</button>
-                  <button onClick={() => addShape('line')}>— 선</button>
-                  <button onClick={() => addShape('arrow')}>→ 화살표</button>
-                </div>
-              </>
-            )}
-          </div>
-          <button onClick={() => fileRef.current?.click()}>＋ 그림</button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void addImage(f);
-              e.target.value = '';
-            }}
-          />
-          {/* 선택 요소 속성 */}
-          {selElData && (
-            <div className="slide-props">
-              <span className="sht-sep" />
-              <button className="slide-prop-btn" onClick={() => duplicateEl(selEl!)} title="복제">
-                ⧉
+        <OverflowToolbar
+          className="slide-tools"
+          items={[
+            <button key="undo" className="sht-btn" title="실행 취소 (Ctrl+Z)" onClick={() => undoRef.current?.undo()}>
+              <GUndo />
+            </button>,
+            <button key="redo" className="sht-btn" title="다시 실행 (Ctrl+Y)" onClick={() => undoRef.current?.redo()}>
+              <GRedo />
+            </button>,
+            <span key="s1" className="sht-sep" />,
+            <button key="title" className="sht-btn" title="제목 추가" onClick={addTitle}>
+              <GTitle />
+            </button>,
+            <button key="text" className="sht-btn" title="텍스트 상자" onClick={addText}>
+              <GTextBox />
+            </button>,
+            <button key="img" className="sht-btn" title="그림 넣기" onClick={() => fileRef.current?.click()}>
+              <GImage />
+            </button>,
+            <div key="shape" className="slide-shape-wrap">
+              <button className="sht-btn" title="도형" onClick={() => setShapeMenu((v) => !v)}>
+                <GShape />
               </button>
-              <button className="slide-prop-btn" onClick={() => bringFront(selEl!)} title="맨 앞으로">
-                ⬆앞
-              </button>
-              <button className="slide-prop-btn" onClick={() => sendBack(selEl!)} title="맨 뒤로">
-                ⬇뒤
-              </button>
-              {selElData.type === 'shape' && (
+              {shapeMenu && (
                 <>
-                  <div className="slide-shape-wrap">
+                  <div className="slide-shape-back" onClick={() => setShapeMenu(false)} />
+                  <div className="slide-shape-menu">
+                    <button onClick={() => addShape('rect')}>▭ 사각형</button>
+                    <button onClick={() => addShape('ellipse')}>◯ 원</button>
+                    <button onClick={() => addShape('triangle')}>△ 삼각형</button>
+                    <button onClick={() => addShape('line')}>— 선</button>
+                    <button onClick={() => addShape('arrow')}>→ 화살표</button>
+                  </div>
+                </>
+              )}
+            </div>,
+            ...(selElData
+              ? [
+                  <span key="s2" className="sht-sep" />,
+                  <button key="dup" className="sht-btn" title="복제" onClick={() => duplicateEl(selEl!)}>
+                    <GDup />
+                  </button>,
+                  <button key="front" className="sht-btn" title="맨 앞으로" onClick={() => bringFront(selEl!)}>
+                    <GFront />
+                  </button>,
+                  <button key="back" className="sht-btn" title="맨 뒤로" onClick={() => sendBack(selEl!)}>
+                    <GBack />
+                  </button>,
+                ]
+              : []),
+            ...(selElData && selElData.type === 'shape'
+              ? [
+                  <div key="fill" className="slide-shape-wrap">
                     <button
-                      className="slide-prop-btn cbtn"
+                      className="sht-btn cbtn"
+                      title="채우기 색"
                       onClick={() => setColorMenu(colorMenu === 'fill' ? null : 'fill')}
                     >
                       <span className="cbtn-chip" style={{ background: selElData.fill || 'transparent' }} />
@@ -601,10 +650,11 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
                         </div>
                       </>
                     )}
-                  </div>
-                  <div className="slide-shape-wrap">
+                  </div>,
+                  <div key="stroke" className="slide-shape-wrap">
                     <button
-                      className="slide-prop-btn cbtn"
+                      className="sht-btn cbtn"
+                      title="선 색"
                       onClick={() => setColorMenu(colorMenu === 'stroke' ? null : 'stroke')}
                     >
                       <span className="cbtn-chip" style={{ background: selElData.stroke || 'transparent' }} />
@@ -625,36 +675,44 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
                         </div>
                       </>
                     )}
-                  </div>
-                </>
-              )}
-              {(selElData.type ?? 'text') === 'text' && (
-                <>
-                  <button className="slide-prop-btn" onClick={() => updateEl(selEl!, { bold: !selElData.bold })}>
-                    <b>B</b>
-                  </button>
+                  </div>,
+                ]
+              : []),
+            ...(selElData && (selElData.type ?? 'text') === 'text'
+              ? [
                   <button
-                    className="slide-prop-btn"
+                    key="bold"
+                    className={`sht-btn${selElData.bold ? ' on' : ''}`}
+                    title="굵게"
+                    onClick={() => updateEl(selEl!, { bold: !selElData.bold })}
+                  >
+                    <b>B</b>
+                  </button>,
+                  <button
+                    key="szm"
+                    className="sht-btn"
                     title="글자 작게"
                     onClick={() => updateEl(selEl!, { size: Math.max(10, (selElData.size ?? 22) - 2) })}
                   >
                     A−
-                  </button>
-                  <span className="slide-prop-label">{selElData.size ?? 22}</span>
+                  </button>,
+                  <span key="szv" className="slide-prop-label">{selElData.size ?? 22}</span>,
                   <button
-                    className="slide-prop-btn"
+                    key="szp"
+                    className="sht-btn"
                     title="글자 크게"
                     onClick={() => updateEl(selEl!, { size: Math.min(80, (selElData.size ?? 22) + 2) })}
                   >
                     A＋
-                  </button>
-                  <div className="slide-shape-wrap">
+                  </button>,
+                  <div key="tcolor" className="slide-shape-wrap">
                     <button
-                      className="slide-prop-btn cbtn"
+                      className="sht-btn cbtn"
+                      title="글자색"
                       onClick={() => setColorMenu(colorMenu === 'text' ? null : 'text')}
                     >
                       <span className="cbtn-chip" style={{ background: selElData.color || '#1c2024' }} />
-                      글자색 ▾
+                      A ▾
                     </button>
                     {colorMenu === 'text' && (
                       <>
@@ -671,12 +729,22 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
                         </div>
                       </>
                     )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+                  </div>,
+                ]
+              : []),
+          ]}
+        />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void addImage(f);
+            e.target.value = '';
+          }}
+        />
         <div className="slide-right">
           <button className="slide-pdf-btn" onClick={() => setPrinting(true)} title="PDF로 저장 (인쇄)">
             PDF
