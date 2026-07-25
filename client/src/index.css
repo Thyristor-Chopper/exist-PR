@@ -7591,11 +7591,25 @@ input:focus {
   display: flex;
   align-items: center;
   gap: 3px;
-  padding: 5px 12px;
+  /* 구글 시트식 알약 스트립 */
+  margin: 6px 12px;
+  padding: 4px 10px;
   background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  border-radius: 22px;
   flex: none;
   flex-wrap: wrap;
+}
+
+/* 수식줄 fx 라벨 */
+.sheet-fx {
+  flex: none;
+  font-size: 12.5px;
+  font-style: italic;
+  font-weight: 700;
+  color: var(--text-sub);
+  font-family: Georgia, serif;
+  padding: 0 2px;
+  user-select: none;
 }
 
 .sht-btn {

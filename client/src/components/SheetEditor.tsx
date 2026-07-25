@@ -222,6 +222,25 @@ function evalCell(
 
 const COLORS = ['#30a46c', '#e5484d', '#f76808', '#4f7cff', '#8e4ec6', '#0091ff', '#d6409f'];
 
+/* 구글 시트식 툴바 아이콘 — 16px stroke 미니 세트 */
+const SI = ({ children }: { children: React.ReactNode }) => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    {children}
+  </svg>
+);
+const SUndo = () => <SI><path d="M6 3 3 6l3 3" /><path d="M3 6h6.5a3.5 3.5 0 0 1 0 7H6" /></SI>;
+const SRedo = () => <SI><path d="m10 3 3 3-3 3" /><path d="M13 6H6.5a3.5 3.5 0 0 0 0 7H10" /></SI>;
+const SPaint = () => <SI><path d="M10.5 1.5 3.6 8.4a1.2 1.2 0 0 0 0 1.7l2.3 2.3a1.2 1.2 0 0 0 1.7 0L14.5 5.5z" /><path d="m8 4 4 4" /><path d="M13.8 10.5s1.2 1.6 1.2 2.5a1.2 1.2 0 0 1-2.4 0c0-.9 1.2-2.5 1.2-2.5Z" fill="currentColor" stroke="none" /></SI>;
+const SBorder = () => <SI><rect x="2" y="2" width="12" height="12" rx="1" /><line x1="8" y1="2" x2="8" y2="14" /><line x1="2" y1="8" x2="14" y2="8" /></SI>;
+const SMerge = () => <SI><rect x="1.5" y="3" width="13" height="10" rx="1" /><path d="m5.5 6 2 2-2 2" /><path d="m10.5 6-2 2 2 2" /></SI>;
+const SSearch = () => <SI><circle cx="7" cy="7" r="4.2" /><path d="m10.2 10.2 3.3 3.3" /></SI>;
+const SSort = () => <SI><path d="M5 3v10M5 13l-2-2M5 13l2-2" /><path d="M11 13V3M11 3 9 5M11 3l2 2" /></SI>;
+const SFilter = () => <SI><path d="M2 3h12l-4.5 5.2V13l-3 1.5V8.2Z" /></SI>;
+const SCf = () => <SI><rect x="2" y="2" width="12" height="12" rx="1.5" /><path d="M2 2h6v12H2z" fill="currentColor" stroke="none" opacity="0.5" /></SI>;
+const SChart = () => <SI><line x1="4" y1="13" x2="4" y2="8" /><line x1="8" y1="13" x2="8" y2="4" /><line x1="12" y1="13" x2="12" y2="10" /><line x1="2" y1="14" x2="14" y2="14" /></SI>;
+const SFreeze = () => <SI><rect x="2" y="2" width="12" height="12" rx="1" /><path d="M2 6h12" /><rect x="2.6" y="2.6" width="10.8" height="2.9" fill="currentColor" stroke="none" opacity="0.55" /></SI>;
+const SRowCol = () => <SI><rect x="2" y="2" width="12" height="12" rx="1" /><line x1="8" y1="2" x2="8" y2="14" /><line x1="2" y1="8" x2="14" y2="8" /><path d="M8 8h6v6H8z" fill="currentColor" stroke="none" opacity="0.4" /></SI>;
+
 interface SheetMeta {
   id: string;
   name: string;
@@ -511,7 +530,7 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
   const [cfForm, setCfForm] = useState<{ op: CFRule['op']; value: string; color: string } | null>(null);
   const [chart, setChart] = useState<{ type: 'bar' | 'line' | 'pie' } | null>(null);
   const [merges, setMerges] = useState<MergeRange[]>([]);
-  const [menu, setMenu] = useState<'fill' | 'text' | 'border' | 'fmt' | null>(null);
+  const [menu, setMenu] = useState<'fill' | 'text' | 'border' | 'merge' | 'rowcol' | 'sort' | null>(null);
   const [, bump] = useState(0);
   const [contentVer, setContentVer] = useState(0); // 셀 값 변경 버전 (값 메모이즈용)
   const rafRef = useRef(0);
@@ -1437,6 +1456,7 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
         <div className="sheet-cellref">
           {multi ? `${cellKey(r1, c1)}:${cellKey(r2, c2)}` : cellKey(sel.r, sel.c)}
         </div>
+        <span className="sheet-fx" aria-hidden>fx</span>
         <input
           className="sheet-formula"
           value={editing ? editing.value : activeRaw}
@@ -1464,57 +1484,41 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
         </div>
       </div>
 
-      {/* 서식 툴바 (엑셀형) */}
+      {/* 서식 툴바 — 구글 시트식 알약 스트립 */}
       <div className="sheet-toolbar">
-        <button
-          className={`sht-btn${styleOf(sel.r, sel.c).b ? ' on' : ''}`}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => toggleBI('b')}
-          title="굵게"
-        >
+        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => undoRef.current?.undo()} title="실행 취소 (Ctrl+Z)">
+          <SUndo />
+        </button>
+        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => undoRef.current?.redo()} title="다시 실행 (Ctrl+Y)">
+          <SRedo />
+        </button>
+        <span className="sht-sep" />
+        {/* 숫자 서식 — 시트처럼 직접 버튼 */}
+        <button className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'won' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'won' ? 'clear' : 'won')} title="통화 서식">
+          ₩
+        </button>
+        <button className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'pct' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'pct' ? 'clear' : 'pct')} title="백분율 서식">
+          %
+        </button>
+        <button className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'comma' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'comma' ? 'clear' : 'comma')} title="천 단위 콤마">
+          ,
+        </button>
+        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt('dec-')} title="소수점 줄이기">
+          .0−
+        </button>
+        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt('dec+')} title="소수점 늘리기">
+          .00＋
+        </button>
+        <span className="sht-sep" />
+        <button className={`sht-btn${styleOf(sel.r, sel.c).b ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => toggleBI('b')} title="굵게">
           <b>B</b>
         </button>
-        <button
-          className={`sht-btn${styleOf(sel.r, sel.c).i ? ' on' : ''}`}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => toggleBI('i')}
-          title="기울임"
-        >
+        <button className={`sht-btn${styleOf(sel.r, sel.c).i ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => toggleBI('i')} title="기울임">
           <i>I</i>
         </button>
-        <span className="sht-sep" />
-        {(['left', 'center', 'right'] as const).map((a) => (
-          <button
-            key={a}
-            className={`sht-btn${styleOf(sel.r, sel.c).align === a ? ' on' : ''}`}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setAlign(a)}
-            title={`정렬 ${a}`}
-          >
-            {a === 'left' ? '⬅' : a === 'center' ? '↔' : '➡'}
-          </button>
-        ))}
-        <span className="sht-sep" />
-        <div className="sht-pop-wrap">
-          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'fill' ? null : 'fill')} title="채우기 색">
-            🎨
-          </button>
-          {menu === 'fill' && (
-            <>
-              <div className="sht-back" onClick={() => setMenu(null)} />
-              <div className="sht-pop">
-                <ColorGrid
-                  value={styleOf(sel.r, sel.c).bg}
-                  noneLabel="채우기 없음"
-                  onPick={(c) => setFill(c)}
-                />
-              </div>
-            </>
-          )}
-        </div>
         <div className="sht-pop-wrap">
           <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'text' ? null : 'text')} title="글자 색">
-            <span style={{ color: '#e03131', fontWeight: 800 }}>A</span>
+            <span className="doc-colorA" style={{ ['--c' as string]: styleOf(sel.r, sel.c).color ?? 'var(--text)' }}>A</span>
           </button>
           {menu === 'text' && (
             <>
@@ -1530,8 +1534,25 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
           )}
         </div>
         <div className="sht-pop-wrap">
+          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'fill' ? null : 'fill')} title="채우기 색">
+            <SPaint />
+          </button>
+          {menu === 'fill' && (
+            <>
+              <div className="sht-back" onClick={() => setMenu(null)} />
+              <div className="sht-pop">
+                <ColorGrid
+                  value={styleOf(sel.r, sel.c).bg}
+                  noneLabel="채우기 없음"
+                  onPick={(c) => setFill(c)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+        <div className="sht-pop-wrap">
           <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'border' ? null : 'border')} title="테두리">
-            ▦
+            <SBorder />
           </button>
           {menu === 'border' && (
             <>
@@ -1545,82 +1566,80 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
           )}
         </div>
         <div className="sht-pop-wrap">
-          <button
-            className={`sht-btn wide${styleOf(sel.r, sel.c).fmt || styleOf(sel.r, sel.c).dec !== undefined ? ' on' : ''}`}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setMenu(menu === 'fmt' ? null : 'fmt')}
-            title="숫자 서식"
-          >
-            123
+          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'merge' ? null : 'merge')} title="셀 병합">
+            <SMerge />
           </button>
-          {menu === 'fmt' && (
+          {menu === 'merge' && (
             <>
               <div className="sht-back" onClick={() => setMenu(null)} />
               <div className="sht-pop sht-pop-border">
-                <button onClick={() => setNumFmt('clear')}>일반</button>
-                <button onClick={() => setNumFmt('won')}>₩ 통화</button>
-                <button onClick={() => setNumFmt('pct')}>% 백분율</button>
-                <button onClick={() => setNumFmt('comma')}>1,000 콤마</button>
-                <button onClick={() => setNumFmt('dec+')}>소수점 늘리기 .0+</button>
-                <button onClick={() => setNumFmt('dec-')}>소수점 줄이기 .0−</button>
+                <button onClick={() => { mergeSel(); setMenu(null); }}>선택 영역 병합</button>
+                <button onClick={() => { unmergeSel(); setMenu(null); }}>병합 해제</button>
               </div>
             </>
           )}
         </div>
         <span className="sht-sep" />
-        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={mergeSel} title="선택 영역 병합">
-          병합
-        </button>
-        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={unmergeSel} title="병합 해제">
-          병합 해제
-        </button>
+        {(['left', 'center', 'right'] as const).map((a) => (
+          <button
+            key={a}
+            className={`sht-btn${styleOf(sel.r, sel.c).align === a ? ' on' : ''}`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setAlign(a)}
+            title={a === 'left' ? '왼쪽 정렬' : a === 'center' ? '가운데 정렬' : '오른쪽 정렬'}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <line x1="1" y1="3" x2="13" y2="3" />
+              <line x1={a === 'left' ? 1 : a === 'center' ? 3.2 : 5.5} y1="7" x2={a === 'left' ? 8.5 : a === 'center' ? 10.8 : 13} y2="7" />
+              <line x1="1" y1="11" x2="13" y2="11" />
+            </svg>
+          </button>
+        ))}
         <span className="sht-sep" />
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => undoRef.current?.undo()} title="실행 취소 (Ctrl+Z)">
-          ↶
-        </button>
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => undoRef.current?.redo()} title="다시 실행 (Ctrl+Y)">
-          ↷
-        </button>
-        <span className="sht-sep" />
-        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => structural('row', sel.r, 1)} title="위에 행 삽입">
-          행+
-        </button>
-        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => structural('row', sel.r, -1)} title="행 삭제">
-          행−
-        </button>
-        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => structural('col', sel.c, 1)} title="왼쪽에 열 삽입">
-          열+
-        </button>
-        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => structural('col', sel.c, -1)} title="열 삭제">
-          열−
-        </button>
-        <span className="sht-sep" />
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setFindOpen((v) => !v)} title="찾기·바꾸기 (Ctrl+F)">
-          🔍
-        </button>
-        <span className="sht-sep" />
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => sortRange(false)} title="오름차순 정렬">
-          ↑정렬
-        </button>
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => sortRange(true)} title="내림차순 정렬">
-          ↓정렬
-        </button>
+        <div className="sht-pop-wrap">
+          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'rowcol' ? null : 'rowcol')} title="행·열 삽입/삭제">
+            <SRowCol />
+          </button>
+          {menu === 'rowcol' && (
+            <>
+              <div className="sht-back" onClick={() => setMenu(null)} />
+              <div className="sht-pop sht-pop-border">
+                <button onClick={() => { structural('row', sel.r, 1); setMenu(null); }}>위에 행 삽입</button>
+                <button onClick={() => { structural('row', sel.r, -1); setMenu(null); }}>행 삭제</button>
+                <button onClick={() => { structural('col', sel.c, 1); setMenu(null); }}>왼쪽에 열 삽입</button>
+                <button onClick={() => { structural('col', sel.c, -1); setMenu(null); }}>열 삭제</button>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="sht-pop-wrap">
+          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'sort' ? null : 'sort')} title="정렬">
+            <SSort />
+          </button>
+          {menu === 'sort' && (
+            <>
+              <div className="sht-back" onClick={() => setMenu(null)} />
+              <div className="sht-pop sht-pop-border">
+                <button onClick={() => { sortRange(false); setMenu(null); }}>오름차순 정렬</button>
+                <button onClick={() => { sortRange(true); setMenu(null); }}>내림차순 정렬</button>
+              </div>
+            </>
+          )}
+        </div>
         <button className={`sht-btn${filter ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => { setFilterOpen((v) => !v); if (!filterOpen) setFilter({ col: sel.c, text: '' }); }} title="필터">
-          ⛃ 필터
+          <SFilter />
         </button>
         <button className={`sht-btn${cfRules.length ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setCfForm(cfForm ? null : { op: '>', value: '', color: '#ffc9c9' })} title="조건부 서식">
-          🎯 조건부
+          <SCf />
         </button>
         <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setChart({ type: 'bar' })} title="차트 만들기">
-          📊 차트
+          <SChart />
         </button>
-        <button
-          className={`sht-btn wide${freeze ? ' on' : ''}`}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setFreeze((v) => !v)}
-          title="첫 행 틀 고정"
-        >
-          🧊 틀고정
+        <button className={`sht-btn${freeze ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setFreeze((v) => !v)} title="첫 행 틀 고정">
+          <SFreeze />
+        </button>
+        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setFindOpen((v) => !v)} title="찾기·바꾸기 (Ctrl+F)">
+          <SSearch />
         </button>
       </div>
 
