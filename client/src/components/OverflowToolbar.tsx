@@ -21,7 +21,8 @@ export default function OverflowToolbar({
   const widthCache = useRef<number[]>([]);
   const histRef = useRef<number[]>([]);
   const [cut, setCut] = useState(items.length);
-  const [moreOpen, setMoreOpen] = useState(false);
+  // tb-row가 overflow:hidden이라 패널은 fixed로 띄움 (열 때 버튼 위치 기억)
+  const [moreOpen, setMoreOpen] = useState<{ top: number; right: number } | null>(null);
 
   useLayoutEffect(() => {
     histRef.current = [];
@@ -98,14 +99,23 @@ export default function OverflowToolbar({
             className={`sht-btn tb-more${moreOpen ? ' on' : ''}`}
             title="더보기"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setMoreOpen((v) => !v)}
+            onClick={(e) => {
+              if (moreOpen) {
+                setMoreOpen(null);
+                return;
+              }
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              setMoreOpen({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+            }}
           >
             ⋮
           </button>
           {moreOpen && (
             <>
-              <div className="tb-more-back" onClick={() => setMoreOpen(false)} />
-              <div className="tb-more-panel">{hidden}</div>
+              <div className="tb-more-back" onClick={() => setMoreOpen(null)} />
+              <div className="tb-more-panel" style={{ top: moreOpen.top, right: moreOpen.right }}>
+                {hidden}
+              </div>
             </>
           )}
         </div>

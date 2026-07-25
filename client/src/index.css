@@ -3497,6 +3497,7 @@ input:focus {
 
 .hub-todo-add input {
   flex: 1;
+  min-width: 0; /* 좁은 카드에서 버튼 밀어내지 않게 */
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 11px;
@@ -7619,14 +7620,13 @@ input:focus {
 .tb-more-back {
   position: fixed;
   inset: 0;
-  z-index: 55;
+  z-index: 690;
 }
 
 .tb-more-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 60;
+  /* tb-row overflow:hidden에 잘리지 않게 fixed (좌표는 인라인으로) */
+  position: fixed;
+  z-index: 700;
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
@@ -10837,7 +10837,8 @@ input:focus {
 
 .hub-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  /* min(240px, 100%) — 좁은 컬럼(1000~1199px 구간)에서 240px 강제로 카드가 삐져나가는 것 방지 */
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 8px;
 }
 
