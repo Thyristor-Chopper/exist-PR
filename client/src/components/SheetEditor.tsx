@@ -5,6 +5,7 @@ import { WebsocketProvider } from 'y-websocket';
 import { useAuthStore } from '../store';
 import { DownloadIcon } from './Icons';
 import ColorGrid from './ColorGrid';
+import OverflowToolbar from './OverflowToolbar';
 
 const COLS = 26; // A..Z
 const ROWS = 60;
@@ -1484,164 +1485,166 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
         </div>
       </div>
 
-      {/* 서식 툴바 — 구글 시트식 알약 스트립 */}
-      <div className="sheet-toolbar">
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => undoRef.current?.undo()} title="실행 취소 (Ctrl+Z)">
-          <SUndo />
-        </button>
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => undoRef.current?.redo()} title="다시 실행 (Ctrl+Y)">
-          <SRedo />
-        </button>
-        <span className="sht-sep" />
-        {/* 숫자 서식 — 시트처럼 직접 버튼 */}
-        <button className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'won' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'won' ? 'clear' : 'won')} title="통화 서식">
-          ₩
-        </button>
-        <button className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'pct' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'pct' ? 'clear' : 'pct')} title="백분율 서식">
-          %
-        </button>
-        <button className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'comma' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'comma' ? 'clear' : 'comma')} title="천 단위 콤마">
-          ,
-        </button>
-        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt('dec-')} title="소수점 줄이기">
-          .0−
-        </button>
-        <button className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt('dec+')} title="소수점 늘리기">
-          .00＋
-        </button>
-        <span className="sht-sep" />
-        <button className={`sht-btn${styleOf(sel.r, sel.c).b ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => toggleBI('b')} title="굵게">
-          <b>B</b>
-        </button>
-        <button className={`sht-btn${styleOf(sel.r, sel.c).i ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => toggleBI('i')} title="기울임">
-          <i>I</i>
-        </button>
-        <div className="sht-pop-wrap">
-          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'text' ? null : 'text')} title="글자 색">
-            <span className="doc-colorA" style={{ ['--c' as string]: styleOf(sel.r, sel.c).color ?? 'var(--text)' }}>A</span>
-          </button>
-          {menu === 'text' && (
-            <>
-              <div className="sht-back" onClick={() => setMenu(null)} />
-              <div className="sht-pop">
-                <ColorGrid
-                  value={styleOf(sel.r, sel.c).color}
-                  noneLabel="기본"
-                  onPick={(c) => setTextColor(c)}
-                />
-              </div>
-            </>
-          )}
-        </div>
-        <div className="sht-pop-wrap">
-          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'fill' ? null : 'fill')} title="채우기 색">
-            <SPaint />
-          </button>
-          {menu === 'fill' && (
-            <>
-              <div className="sht-back" onClick={() => setMenu(null)} />
-              <div className="sht-pop">
-                <ColorGrid
-                  value={styleOf(sel.r, sel.c).bg}
-                  noneLabel="채우기 없음"
-                  onPick={(c) => setFill(c)}
-                />
-              </div>
-            </>
-          )}
-        </div>
-        <div className="sht-pop-wrap">
-          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'border' ? null : 'border')} title="테두리">
-            <SBorder />
-          </button>
-          {menu === 'border' && (
-            <>
-              <div className="sht-back" onClick={() => setMenu(null)} />
-              <div className="sht-pop sht-pop-border">
-                <button onClick={() => { applyBorder('all'); setMenu(null); }}>모든 테두리</button>
-                <button onClick={() => { applyBorder('outer'); setMenu(null); }}>바깥 테두리</button>
-                <button onClick={() => { applyBorder('none'); setMenu(null); }}>테두리 없음</button>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="sht-pop-wrap">
-          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'merge' ? null : 'merge')} title="셀 병합">
-            <SMerge />
-          </button>
-          {menu === 'merge' && (
-            <>
-              <div className="sht-back" onClick={() => setMenu(null)} />
-              <div className="sht-pop sht-pop-border">
-                <button onClick={() => { mergeSel(); setMenu(null); }}>선택 영역 병합</button>
-                <button onClick={() => { unmergeSel(); setMenu(null); }}>병합 해제</button>
-              </div>
-            </>
-          )}
-        </div>
-        <span className="sht-sep" />
-        {(['left', 'center', 'right'] as const).map((a) => (
-          <button
-            key={a}
-            className={`sht-btn${styleOf(sel.r, sel.c).align === a ? ' on' : ''}`}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setAlign(a)}
-            title={a === 'left' ? '왼쪽 정렬' : a === 'center' ? '가운데 정렬' : '오른쪽 정렬'}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-              <line x1="1" y1="3" x2="13" y2="3" />
-              <line x1={a === 'left' ? 1 : a === 'center' ? 3.2 : 5.5} y1="7" x2={a === 'left' ? 8.5 : a === 'center' ? 10.8 : 13} y2="7" />
-              <line x1="1" y1="11" x2="13" y2="11" />
-            </svg>
-          </button>
-        ))}
-        <span className="sht-sep" />
-        <div className="sht-pop-wrap">
-          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'rowcol' ? null : 'rowcol')} title="행·열 삽입/삭제">
-            <SRowCol />
-          </button>
-          {menu === 'rowcol' && (
-            <>
-              <div className="sht-back" onClick={() => setMenu(null)} />
-              <div className="sht-pop sht-pop-border">
-                <button onClick={() => { structural('row', sel.r, 1); setMenu(null); }}>위에 행 삽입</button>
-                <button onClick={() => { structural('row', sel.r, -1); setMenu(null); }}>행 삭제</button>
-                <button onClick={() => { structural('col', sel.c, 1); setMenu(null); }}>왼쪽에 열 삽입</button>
-                <button onClick={() => { structural('col', sel.c, -1); setMenu(null); }}>열 삭제</button>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="sht-pop-wrap">
-          <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'sort' ? null : 'sort')} title="정렬">
-            <SSort />
-          </button>
-          {menu === 'sort' && (
-            <>
-              <div className="sht-back" onClick={() => setMenu(null)} />
-              <div className="sht-pop sht-pop-border">
-                <button onClick={() => { sortRange(false); setMenu(null); }}>오름차순 정렬</button>
-                <button onClick={() => { sortRange(true); setMenu(null); }}>내림차순 정렬</button>
-              </div>
-            </>
-          )}
-        </div>
-        <button className={`sht-btn${filter ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => { setFilterOpen((v) => !v); if (!filterOpen) setFilter({ col: sel.c, text: '' }); }} title="필터">
-          <SFilter />
-        </button>
-        <button className={`sht-btn${cfRules.length ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setCfForm(cfForm ? null : { op: '>', value: '', color: '#ffc9c9' })} title="조건부 서식">
-          <SCf />
-        </button>
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setChart({ type: 'bar' })} title="차트 만들기">
-          <SChart />
-        </button>
-        <button className={`sht-btn${freeze ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setFreeze((v) => !v)} title="첫 행 틀 고정">
-          <SFreeze />
-        </button>
-        <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setFindOpen((v) => !v)} title="찾기·바꾸기 (Ctrl+F)">
-          <SSearch />
-        </button>
-      </div>
+      {/* 서식 툴바 — 구글 시트식 알약 스트립, 폭 부족 시 ⋮로 접힘 */}
+      <OverflowToolbar
+        className="sheet-toolbar"
+        items={[
+          <button key="undo" className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => undoRef.current?.undo()} title="실행 취소 (Ctrl+Z)">
+            <SUndo />
+          </button>,
+          <button key="redo" className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => undoRef.current?.redo()} title="다시 실행 (Ctrl+Y)">
+            <SRedo />
+          </button>,
+          <span key="s1" className="sht-sep" />,
+          <button key="won" className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'won' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'won' ? 'clear' : 'won')} title="통화 서식">
+            ₩
+          </button>,
+          <button key="pct" className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'pct' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'pct' ? 'clear' : 'pct')} title="백분율 서식">
+            %
+          </button>,
+          <button key="comma" className={`sht-btn${styleOf(sel.r, sel.c).fmt === 'comma' ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt(styleOf(sel.r, sel.c).fmt === 'comma' ? 'clear' : 'comma')} title="천 단위 콤마">
+            ,
+          </button>,
+          <button key="decm" className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt('dec-')} title="소수점 줄이기">
+            .0−
+          </button>,
+          <button key="decp" className="sht-btn wide" onMouseDown={(e) => e.preventDefault()} onClick={() => setNumFmt('dec+')} title="소수점 늘리기">
+            .00＋
+          </button>,
+          <span key="s2" className="sht-sep" />,
+          <button key="b" className={`sht-btn${styleOf(sel.r, sel.c).b ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => toggleBI('b')} title="굵게">
+            <b>B</b>
+          </button>,
+          <button key="i" className={`sht-btn${styleOf(sel.r, sel.c).i ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => toggleBI('i')} title="기울임">
+            <i>I</i>
+          </button>,
+          <div key="tcolor" className="sht-pop-wrap">
+            <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'text' ? null : 'text')} title="글자 색">
+              <span className="doc-colorA" style={{ ['--c' as string]: styleOf(sel.r, sel.c).color ?? 'var(--text)' }}>A</span>
+            </button>
+            {menu === 'text' && (
+              <>
+                <div className="sht-back" onClick={() => setMenu(null)} />
+                <div className="sht-pop">
+                  <ColorGrid
+                    value={styleOf(sel.r, sel.c).color}
+                    noneLabel="기본"
+                    onPick={(c) => setTextColor(c)}
+                  />
+                </div>
+              </>
+            )}
+          </div>,
+          <div key="fill" className="sht-pop-wrap">
+            <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'fill' ? null : 'fill')} title="채우기 색">
+              <SPaint />
+            </button>
+            {menu === 'fill' && (
+              <>
+                <div className="sht-back" onClick={() => setMenu(null)} />
+                <div className="sht-pop">
+                  <ColorGrid
+                    value={styleOf(sel.r, sel.c).bg}
+                    noneLabel="채우기 없음"
+                    onPick={(c) => setFill(c)}
+                  />
+                </div>
+              </>
+            )}
+          </div>,
+          <div key="border" className="sht-pop-wrap">
+            <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'border' ? null : 'border')} title="테두리">
+              <SBorder />
+            </button>
+            {menu === 'border' && (
+              <>
+                <div className="sht-back" onClick={() => setMenu(null)} />
+                <div className="sht-pop sht-pop-border">
+                  <button onClick={() => { applyBorder('all'); setMenu(null); }}>모든 테두리</button>
+                  <button onClick={() => { applyBorder('outer'); setMenu(null); }}>바깥 테두리</button>
+                  <button onClick={() => { applyBorder('none'); setMenu(null); }}>테두리 없음</button>
+                </div>
+              </>
+            )}
+          </div>,
+          <div key="merge" className="sht-pop-wrap">
+            <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'merge' ? null : 'merge')} title="셀 병합">
+              <SMerge />
+            </button>
+            {menu === 'merge' && (
+              <>
+                <div className="sht-back" onClick={() => setMenu(null)} />
+                <div className="sht-pop sht-pop-border">
+                  <button onClick={() => { mergeSel(); setMenu(null); }}>선택 영역 병합</button>
+                  <button onClick={() => { unmergeSel(); setMenu(null); }}>병합 해제</button>
+                </div>
+              </>
+            )}
+          </div>,
+          <span key="s3" className="sht-sep" />,
+          ...(['left', 'center', 'right'] as const).map((a) => (
+            <button
+              key={`al-${a}`}
+              className={`sht-btn${styleOf(sel.r, sel.c).align === a ? ' on' : ''}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setAlign(a)}
+              title={a === 'left' ? '왼쪽 정렬' : a === 'center' ? '가운데 정렬' : '오른쪽 정렬'}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <line x1="1" y1="3" x2="13" y2="3" />
+                <line x1={a === 'left' ? 1 : a === 'center' ? 3.2 : 5.5} y1="7" x2={a === 'left' ? 8.5 : a === 'center' ? 10.8 : 13} y2="7" />
+                <line x1="1" y1="11" x2="13" y2="11" />
+              </svg>
+            </button>
+          )),
+          <span key="s4" className="sht-sep" />,
+          <div key="rowcol" className="sht-pop-wrap">
+            <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'rowcol' ? null : 'rowcol')} title="행·열 삽입/삭제">
+              <SRowCol />
+            </button>
+            {menu === 'rowcol' && (
+              <>
+                <div className="sht-back" onClick={() => setMenu(null)} />
+                <div className="sht-pop sht-pop-border">
+                  <button onClick={() => { structural('row', sel.r, 1); setMenu(null); }}>위에 행 삽입</button>
+                  <button onClick={() => { structural('row', sel.r, -1); setMenu(null); }}>행 삭제</button>
+                  <button onClick={() => { structural('col', sel.c, 1); setMenu(null); }}>왼쪽에 열 삽입</button>
+                  <button onClick={() => { structural('col', sel.c, -1); setMenu(null); }}>열 삭제</button>
+                </div>
+              </>
+            )}
+          </div>,
+          <div key="sort" className="sht-pop-wrap">
+            <button className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu === 'sort' ? null : 'sort')} title="정렬">
+              <SSort />
+            </button>
+            {menu === 'sort' && (
+              <>
+                <div className="sht-back" onClick={() => setMenu(null)} />
+                <div className="sht-pop sht-pop-border">
+                  <button onClick={() => { sortRange(false); setMenu(null); }}>오름차순 정렬</button>
+                  <button onClick={() => { sortRange(true); setMenu(null); }}>내림차순 정렬</button>
+                </div>
+              </>
+            )}
+          </div>,
+          <button key="filter" className={`sht-btn${filter ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => { setFilterOpen((v) => !v); if (!filterOpen) setFilter({ col: sel.c, text: '' }); }} title="필터">
+            <SFilter />
+          </button>,
+          <button key="cf" className={`sht-btn${cfRules.length ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setCfForm(cfForm ? null : { op: '>', value: '', color: '#ffc9c9' })} title="조건부 서식">
+            <SCf />
+          </button>,
+          <button key="chart" className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setChart({ type: 'bar' })} title="차트 만들기">
+            <SChart />
+          </button>,
+          <button key="freeze" className={`sht-btn${freeze ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setFreeze((v) => !v)} title="첫 행 틀 고정">
+            <SFreeze />
+          </button>,
+          <button key="find" className="sht-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setFindOpen((v) => !v)} title="찾기·바꾸기 (Ctrl+F)">
+            <SSearch />
+          </button>,
+        ]}
+      />
 
       {filterOpen && (
         <div className="sheet-find">

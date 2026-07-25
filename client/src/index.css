@@ -7600,6 +7600,45 @@ input:focus {
   flex-wrap: wrap;
 }
 
+/* 오버플로 툴바 — 폭 부족 시 ⋮ 뒤로 접힘 (구글 시트식) */
+.tb-row {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.tb-more-wrap {
+  position: relative;
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.tb-more {
+  font-weight: 800;
+}
+
+.tb-more-back {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+}
+
+.tb-more-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+  max-width: 340px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+}
+
 /* 수식줄 fx 라벨 */
 .sheet-fx {
   flex: none;
