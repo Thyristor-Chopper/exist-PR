@@ -291,6 +291,14 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
     function onMove(e: PointerEvent) {
       const canvas = canvasRef.current;
       if (!canvas) return;
+      // 버튼이 이미 떨어져 있으면(놓친 pointerup) 드래그 강제 종료
+      if (e.buttons === 0 && (dragRef.current || resizeRef.current)) {
+        dragRef.current = null;
+        resizeRef.current = null;
+        document.body.style.userSelect = '';
+        setGuides({ v: [], h: [] });
+        return;
+      }
       const rect = canvas.getBoundingClientRect();
       const d = dragRef.current;
       if (d) {
@@ -299,7 +307,7 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
         let nx = Math.max(0, Math.min(98, d.ox + dx));
         let ny = Math.max(0, Math.min(98, d.oy + dy));
         // 정렬 보조선 — 캔버스 중앙·다른 요소 가장자리/중앙에 스냅
-        const SNAP = 1.2;
+        const SNAP = 0.8;
         const el = elsRef.current?.get(d.id);
         const gv: number[] = [];
         const gh: number[] = [];
@@ -367,6 +375,10 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
     setSelEl(id);
     dragRef.current = { id, sx: e.clientX, sy: e.clientY, ox: el.x, oy: el.y };
     document.body.style.userSelect = 'none';
+    // 포인터 캡처 — 창 밖·빠른 릴리즈에서도 pointerup을 놓치지 않게 (안 하면 드래그가 안 놓아짐)
+    try {
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    } catch { /* 미지원 무시 */ }
     e.preventDefault();
   }
   function startResize(id: string, el: ElData, e: React.PointerEvent) {
@@ -374,6 +386,9 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
     setSelEl(id);
     resizeRef.current = { id, sx: e.clientX, sy: e.clientY, ow: el.w, oh: el.h };
     document.body.style.userSelect = 'none';
+    try {
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    } catch { /* 미지원 무시 */ }
     e.preventDefault();
   }
 
@@ -396,17 +411,26 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
   const renderShapeSvg = (el: ElData) => {
     const fill = el.fill || 'none';
     const stroke = el.stroke || 'none';
-    const sw = 3;
+    // 비율 늘어나도 선 굵기는 고정 (vector-effect) — 안 그러면 도형이 뭉개져 보임
+    const ve = { vectorEffect: 'non-scaling-stroke' } as const;
     return (
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
-        {el.shape === 'rect' && <rect x="2" y="2" width="96" height="96" fill={fill} stroke={stroke} strokeWidth={sw} />}
-        {el.shape === 'ellipse' && <ellipse cx="50" cy="50" rx="48" ry="48" fill={fill} stroke={stroke} strokeWidth={sw} />}
-        {el.shape === 'triangle' && <polygon points="50,3 97,97 3,97" fill={fill} stroke={stroke} strokeWidth={sw} />}
-        {el.shape === 'line' && <line x1="2" y1="50" x2="98" y2="50" stroke={el.stroke || '#1971c2'} strokeWidth="5" strokeLinecap="round" />}
+        {el.shape === 'rect' && (
+          <rect x="1" y="1" width="98" height="98" rx="2" fill={fill} stroke={stroke} strokeWidth="2" {...ve} />
+        )}
+        {el.shape === 'ellipse' && (
+          <ellipse cx="50" cy="50" rx="49" ry="49" fill={fill} stroke={stroke} strokeWidth="2" {...ve} />
+        )}
+        {el.shape === 'triangle' && (
+          <polygon points="50,2 98,98 2,98" fill={fill} stroke={stroke} strokeWidth="2" strokeLinejoin="round" {...ve} />
+        )}
+        {el.shape === 'line' && (
+          <line x1="1" y1="50" x2="99" y2="50" stroke={el.stroke || '#1971c2'} strokeWidth="3" strokeLinecap="round" {...ve} />
+        )}
         {el.shape === 'arrow' && (
-          <g stroke={el.stroke || '#1971c2'} fill={el.stroke || '#1971c2'}>
-            <line x1="2" y1="50" x2="88" y2="50" strokeWidth="5" strokeLinecap="round" />
-            <polygon points="84,40 100,50 84,60" stroke="none" />
+          <g stroke={el.stroke || '#1971c2'} fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="1" y1="50" x2="96" y2="50" {...ve} />
+            <polyline points="82,32 98,50 82,68" {...ve} />
           </g>
         )}
       </svg>
