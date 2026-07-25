@@ -33,7 +33,9 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
   const applyingRemote = useRef(false);
   const drawingRef = useRef(false); // 포인터로 그리는/이동하는 중인지
   const pendingRemoteRef = useRef(false); // 그리는 중 보류된 원격 변경
+  const pendingAwarenessRef = useRef(false); // 그리는 중 보류된 원격 커서 갱신
   const applyRemoteRef = useRef<(() => void) | null>(null);
+  const pushCollaboratorsRef = useRef<(() => void) | null>(null);
 
   // 앱 다크모드(html.dark) 추종
   const [dark, setDark] = useState(
@@ -108,7 +110,7 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
     });
 
     // 원격 커서/선택 → collaborators
-    const onAwareness = () => {
+    const pushCollaborators = () => {
       const api = apiRef.current;
       if (!api) return;
       const collaborators = new Map<string, unknown>();
@@ -125,12 +127,24 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
       });
       api.updateScene({ collaborators });
     };
+    pushCollaboratorsRef.current = pushCollaborators;
+    const onAwareness = () => {
+      // 내가 그리는/이동하는 중에 updateScene이 끼어들면 Excalidraw 포인터 상태가
+      // 깨져 드래그가 안 풀린다(놓아도 커서를 따라다님) — 요소 반영(applyRemote)과
+      // 동일하게 보류했다가 드래그가 끝나는 순간 적용.
+      if (drawingRef.current) {
+        pendingAwarenessRef.current = true;
+        return;
+      }
+      pushCollaborators();
+    };
     provider.awareness.on('change', onAwareness);
 
     return () => {
       yEls.unobserve(onRemote);
       yFiles.unobserve(onRemote);
       provider.awareness.off('change', onAwareness);
+      pushCollaboratorsRef.current = null;
       provider.destroy();
       ydoc.destroy();
       ydocRef.current = null;
@@ -159,13 +173,27 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
   // ── 로컬 변경 → Yjs ──
   const onChange = useCallback(
     (elements: readonly SceneElement[], appState: unknown, files: Record<string, BinaryFile>) => {
-      // 그리기/이동 진행 상태 추적: 끝나는 순간(down→up) 보류된 원격 변경을 적용
+      // 그리기/이동 진행 상태 추적: 끝나는 순간(down→up) 보류된 원격 변경을 적용.
+      // Excalidraw의 onChange 콜스택 안에서 updateScene을 부르면 내부 상태가 꼬일 수
+      // 있어 setTimeout(0)으로 스택을 벗어난 뒤 적용한다.
       const drawing = (appState as Record<string, unknown>).cursorButton === 'down';
       const wasDrawing = drawingRef.current;
       drawingRef.current = drawing;
-      if (wasDrawing && !drawing && pendingRemoteRef.current) {
+      if (wasDrawing && !drawing && (pendingRemoteRef.current || pendingAwarenessRef.current)) {
+        const doRemote = pendingRemoteRef.current;
+        const doAwareness = pendingAwarenessRef.current;
         pendingRemoteRef.current = false;
-        applyRemoteRef.current?.();
+        pendingAwarenessRef.current = false;
+        setTimeout(() => {
+          if (drawingRef.current) {
+            // 그 사이 새 드래그가 시작됐으면 다시 보류
+            if (doRemote) pendingRemoteRef.current = true;
+            if (doAwareness) pendingAwarenessRef.current = true;
+            return;
+          }
+          if (doRemote) applyRemoteRef.current?.();
+          if (doAwareness) pushCollaboratorsRef.current?.();
+        }, 0);
       }
       if (applyingRemote.current) return;
       const yEls = yElsRef.current;
