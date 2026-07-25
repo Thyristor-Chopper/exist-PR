@@ -82,10 +82,13 @@ export async function parseXlsx(buf: Buffer): Promise<{ name: string; grid: stri
     shared.push(texts.join(''));
   }
   const out: { name: string; grid: string[][] }[] = [];
-  for (const m of wbXml.matchAll(/<sheet[^>]*name="([^"]+)"[^>]*r:id="([^"]+)"[^>]*\/>/g)) {
-    const name = decodeEntities(m[1]);
-    const target = relMap.get(m[2]);
-    if (!target) continue;
+  // 속성 순서는 생성기마다 달라서 개별 추출 (엑셀·한셀·구글시트 호환)
+  const sheetTags = [...wbXml.matchAll(/<sheet\b([^>]*?)\/?>/g)];
+  for (let si = 0; si < sheetTags.length; si++) {
+    const attrs = sheetTags[si][1];
+    const name = decodeEntities(/name="([^"]*)"/.exec(attrs)?.[1] ?? `시트${si + 1}`);
+    const rid = /r:id="([^"]+)"/.exec(attrs)?.[1];
+    const target = (rid && relMap.get(rid)) || `xl/worksheets/sheet${si + 1}.xml`;
     const xml = await zip.file(target)?.async('string');
     if (!xml) continue;
     const grid: string[][] = [];
