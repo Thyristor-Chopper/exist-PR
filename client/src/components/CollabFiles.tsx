@@ -1587,7 +1587,7 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
               title={editorFull ? '창 크기로 (Esc)' : '전체화면'}
               onClick={() => setEditorFull((v) => !v)}
             >
-              {editorFull ? '⤡ 창으로' : '⛶ 전체화면'}
+              {editorFull ? '⤡' : '⛶'}
             </button>
           </div>
         )}
