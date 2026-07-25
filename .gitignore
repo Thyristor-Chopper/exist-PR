@@ -17,3 +17,5 @@ server/uploads/
 server/ydocs/
 docs/outreach-hkinnoen.md
 *.tsbuildinfo
+
+server/uploads-files/
