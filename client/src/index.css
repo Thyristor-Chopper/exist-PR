@@ -9953,6 +9953,7 @@ input:focus {
 
 .cf-main.grid .cf-entry {
   width: 108px;
+  position: relative; /* 프레즌스 배지 기준 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -10325,6 +10326,53 @@ input:focus {
   inset: 0;
   z-index: 900;
   background: var(--surface);
+}
+
+/* 파일별 편집 중 아바타 스택 — 겹침 + 개수 */
+.cf-presence {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  pointer-events: none;
+}
+
+.cf-presence .cf-presence-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 13px;
+  border-radius: 6px; /* 아바타 규칙: 정사각 + 살짝 radius */
+  border: 2px solid var(--surface);
+  margin-left: -7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  overflow: hidden;
+  box-sizing: content-box;
+}
+
+.cf-presence .cf-presence-avatar:first-child {
+  margin-left: 0;
+}
+
+.cf-presence .cf-presence-avatar .avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cf-presence-more {
+  margin-left: 3px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--green);
+}
+
+/* 그리드 타일에선 우상단 배지, 리스트/트리에선 인라인 */
+.cf-main.grid .cf-entry .cf-presence {
+  position: absolute;
+  top: 6px;
+  right: 6px;
 }
 
 .cf-uploading {

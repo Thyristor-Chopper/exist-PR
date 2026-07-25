@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import db from './db.js';
 import type { AuthedRequest } from './auth.js';
-import { ydocExists, deleteYdoc, copyYdoc, readYdocSnapshot, writeYdoc } from './ydoc.js';
+import { ydocExists, deleteYdoc, copyYdoc, readYdocSnapshot, writeYdoc, roomPresence } from './ydoc.js';
 import {
   parseCsv,
   parseXlsx,
@@ -157,6 +157,41 @@ router.get('/', (req: AuthedRequest, res) => {
     )
     .all(r.meeting.id);
   res.json(rows);
+});
+
+/** 파일별 현재 편집자 — { fileId: [{username, avatar}] } (awareness 기반, 접속 중인 룸만) */
+router.get('/presence', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const rows = db
+    .prepare('SELECT id, room FROM collab_files WHERE meeting_id = ? AND room IS NOT NULL AND deleted_at IS NULL')
+    .all(r.meeting.id) as { id: number; room: string }[];
+  const parts = db
+    .prepare(
+      `SELECT u.username, u.name, u.avatar FROM meeting_participants mp
+       JOIN users u ON u.id = mp.user_id WHERE mp.meeting_id = ?`,
+    )
+    .all(r.meeting.id) as { username: string; name: string | null; avatar: string | null }[];
+  const byKey = new Map<string, { username: string; avatar: string | null }>();
+  for (const p of parts) {
+    byKey.set(p.username, { username: p.username, avatar: p.avatar });
+    if (p.name) byKey.set(p.name, { username: p.username, avatar: p.avatar });
+  }
+  const out: Record<number, { username: string; avatar: string | null }[]> = {};
+  for (const f of rows) {
+    const states = roomPresence(f.room);
+    if (!states.length) continue;
+    const seen = new Set<string>();
+    const list: { username: string; avatar: string | null }[] = [];
+    for (const s of states) {
+      const p = byKey.get(s.name) ?? { username: s.name, avatar: null };
+      if (seen.has(p.username)) continue;
+      seen.add(p.username);
+      list.push(p);
+    }
+    if (list.length) out[f.id] = list;
+  }
+  res.json(out);
 });
 
 /** 파일 업로드 — raw body, ?name=원본이름&parent_id= (중복 이름은 " (n)" 자동) */

@@ -7,6 +7,7 @@ import SheetEditor from './SheetEditor';
 import SlideEditor from './SlideEditor';
 import CanvasBoard from './CanvasBoard';
 import Marquee from './Marquee';
+import Avatar from './Avatar';
 import {
   FolderIcon,
   CodeIcon,
@@ -159,6 +160,43 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
   }, [code]);
 
   useEffect(load, [load]);
+
+  // 파일별 편집 중인 사람 (awareness) — 8초 폴링
+  const [presence, setPresence] = useState<Record<number, { username: string; avatar: string | null }[]>>({});
+  useEffect(() => {
+    let alive = true;
+    const tick = () => {
+      void api<Record<number, { username: string; avatar: string | null }[]>>(
+        `/api/meetings/${code}/files/presence`,
+      )
+        .then((d) => alive && setPresence(d))
+        .catch(() => {});
+    };
+    tick();
+    const t = setInterval(tick, 8000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [code]);
+
+  /** 파일 옆 겹친 아바타 스택 (최대 3 + n) */
+  function PresenceStack({ fileId }: { fileId: number }) {
+    const people = presence[fileId];
+    if (!people?.length) return null;
+    const shown = people.slice(0, 3);
+    return (
+      <span
+        className="cf-presence"
+        title={`${people.map((p) => p.username).join(', ')} 편집 중`}
+      >
+        {shown.map((p) => (
+          <Avatar key={p.username} value={p.avatar} className="cf-presence-avatar" />
+        ))}
+        {people.length > 3 && <span className="cf-presence-more">+{people.length - 3}</span>}
+      </span>
+    );
+  }
 
   const byId = useMemo(() => new Map(files.map((f) => [f.id, f])), [files]);
   const byParent = useMemo(() => {
@@ -806,6 +844,7 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
               ) : (
                 <Marquee className="cf-name">{f.name}</Marquee>
               )}
+              <PresenceStack fileId={f.id} />
               <span className="cf-actions" onClick={(e) => e.stopPropagation()}>
                 {f.type === 'folder' && (
                   <button title="안에 만들기" onClick={() => setTypeMenuFor(f.id)}>
@@ -1280,6 +1319,7 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
                 <span className={`cf-entry-icon cf-icon ${f.type}`}>
                   <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} />
                 </span>
+                <PresenceStack fileId={f.id} />
                 {renamingId === f.id ? (
                   <form onSubmit={(e) => renameEntry(f, e)} onClick={(e) => e.stopPropagation()}>
                     <input

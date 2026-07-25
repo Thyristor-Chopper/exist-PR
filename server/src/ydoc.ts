@@ -131,6 +131,18 @@ export function readYdocSnapshot(name: string): Y.Doc | null {
   return doc;
 }
 
+/** 룸에 지금 접속해 편집 중인 사용자들 (awareness user 필드) — 파일 목록 프레즌스용 */
+export function roomPresence(name: string): { name: string; color?: string }[] {
+  const doc = docs.get(name);
+  if (!doc) return [];
+  const out: { name: string; color?: string }[] = [];
+  doc.awareness.getStates().forEach((st) => {
+    const u = (st as { user?: { name?: string; color?: string } }).user;
+    if (u?.name) out.push({ name: u.name, color: u.color });
+  });
+  return out;
+}
+
 /** 새 룸 상태 생성 — 업로드 임포트용. build로 채운 문서를 .bin으로 저장 (룸이 열려있지 않아야 함) */
 export function writeYdoc(name: string, build: (doc: Y.Doc) => void) {
   const doc = new Y.Doc();
