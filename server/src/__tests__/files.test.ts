@@ -198,6 +198,59 @@ describe('공동편집 파일시스템', () => {
     expect(fs.existsSync(bin)).toBe(false);
   });
 
+  it('내 파일 업로드 → 목록·다운로드 → 영구 삭제 시 blob 정리', async () => {
+    const { host, code } = await setup('cf9');
+    const body = Buffer.from('PDF-내용-흉내 1234567890');
+    const up = await request(app)
+      .post(`/api/meetings/${code}/files/upload?name=${encodeURIComponent('제안서.pdf')}`)
+      .set('Authorization', `Bearer ${host.token}`)
+      .set('Content-Type', 'application/pdf')
+      .send(body);
+    expect(up.status).toBe(200);
+    expect(up.body.type).toBe('file');
+    expect(up.body.size).toBe(body.length);
+
+    const list = await request(app)
+      .get(`/api/meetings/${code}/files`)
+      .set('Authorization', `Bearer ${host.token}`);
+    const f = (list.body as { id: number; name: string; type: string; mime: string }[]).find(
+      (x) => x.name === '제안서.pdf',
+    )!;
+    expect(f.type).toBe('file');
+    expect(f.mime).toBe('application/pdf');
+
+    const dl = await request(app)
+      .get(`/api/meetings/${code}/files/${f.id}/download`)
+      .set('Authorization', `Bearer ${host.token}`)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+    expect(dl.status).toBe(200);
+    expect(Buffer.compare(dl.body as Buffer, body)).toBe(0);
+
+    // 같은 이름 재업로드 → " (2)" 자동
+    const up2 = await request(app)
+      .post(`/api/meetings/${code}/files/upload?name=${encodeURIComponent('제안서.pdf')}`)
+      .set('Authorization', `Bearer ${host.token}`)
+      .set('Content-Type', 'application/pdf')
+      .send(body);
+    expect(up2.body.name).toBe('제안서 (2).pdf');
+
+    // 휴지통 → 영구 삭제하면 blob 파일도 삭제
+    const blobDir = path.join(process.env.DATA_DIR!, 'uploads-files');
+    const before = fs.readdirSync(blobDir).length;
+    await request(app)
+      .delete(`/api/meetings/${code}/files/${f.id}`)
+      .set('Authorization', `Bearer ${host.token}`);
+    await request(app)
+      .delete(`/api/meetings/${code}/files/trash/${f.id}`)
+      .set('Authorization', `Bearer ${host.token}`);
+    expect(fs.readdirSync(blobDir).length).toBe(before - 1);
+  });
+
   it('비참가자 403', async () => {
     const { code } = await setup('cf7');
     const stranger = await registerUser('cf7_stranger');

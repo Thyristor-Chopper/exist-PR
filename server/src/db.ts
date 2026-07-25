@@ -386,6 +386,23 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: 업로드 파일 (type='file') — 원본 메타와 저장 경로
+try {
+  db.exec(`ALTER TABLE collab_files ADD COLUMN mime TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+try {
+  db.exec(`ALTER TABLE collab_files ADD COLUMN size INTEGER`);
+} catch {
+  /* 이미 존재 */
+}
+try {
+  db.exec(`ALTER TABLE collab_files ADD COLUMN blob_path TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 
 /* 통화 음성 전사 — 각 참가자 브라우저의 STT(Web Speech) 결과.
  * recap·결정 원장·AI 총무의 근거로 채팅과 함께 쓰인다. */

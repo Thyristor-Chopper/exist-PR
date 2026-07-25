@@ -1,7 +1,25 @@
 import { Router } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import db from './db.js';
 import type { AuthedRequest } from './auth.js';
 import { ydocExists, deleteYdoc, copyYdoc, readYdocSnapshot } from './ydoc.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** 업로드 파일(blob) 저장소 — DATA_DIR/uploads-files */
+const BLOB_DIR = path.join(process.env.DATA_DIR || path.join(__dirname, '..'), 'uploads-files');
+const MAX_UPLOAD = 25 * 1024 * 1024; // 25MB
+
+function deleteBlob(blobPath: string | null | undefined) {
+  if (!blobPath) return;
+  try {
+    fs.unlinkSync(path.join(BLOB_DIR, blobPath));
+  } catch {
+    /* 이미 없음 */
+  }
+}
 
 /*
  * 공동편집 파일시스템 — 그룹 안에서 코드/문서/시트/발표 파일을 여러 개 만들고 폴더로 정리.
@@ -10,7 +28,8 @@ import { ydocExists, deleteYdoc, copyYdoc, readYdocSnapshot } from './ydoc.js';
  * meetings 라우터에 /:code/files 로 마운트 (mergeParams).
  */
 
-export type FileType = 'folder' | 'code' | 'doc' | 'sheet' | 'slide' | 'canvas';
+export type FileType = 'folder' | 'code' | 'doc' | 'sheet' | 'slide' | 'canvas' | 'file';
+// 'file'(업로드)은 /upload로만 생김 — 일반 생성으론 못 만듦
 const FILE_TYPES: FileType[] = ['folder', 'code', 'doc', 'sheet', 'slide', 'canvas'];
 const MAX_FILES = 100;
 const MAX_DEPTH = 5;
@@ -61,6 +80,10 @@ export function deleteMeetingFiles(meetingId: number, meetingCode: string) {
     .prepare('SELECT room FROM collab_files WHERE meeting_id = ? AND room IS NOT NULL')
     .all(meetingId) as { room: string }[];
   for (const r of rows) deleteYdoc(r.room);
+  const blobs = db
+    .prepare('SELECT blob_path FROM collab_files WHERE meeting_id = ? AND blob_path IS NOT NULL')
+    .all(meetingId) as { blob_path: string }[];
+  for (const b of blobs) deleteBlob(b.blob_path);
   // 레거시 룸도 정리 (파일로 흡수 안 된 상태로 남았을 수 있음)
   for (const l of LEGACY) deleteYdoc(`${l.prefix}${meetingCode.toUpperCase()}`);
   deleteYdoc(`mt-${meetingCode.toUpperCase()}`); // 캔버스
@@ -120,12 +143,97 @@ router.get('/', (req: AuthedRequest, res) => {
   ensureLegacyFiles(r.meeting.id, r.meeting.code, req.userId!);
   const rows = db
     .prepare(
-      `SELECT f.id, f.parent_id, f.name, f.type, f.room, f.created_at, u.username AS author
+      `SELECT f.id, f.parent_id, f.name, f.type, f.room, f.mime, f.size, f.created_at, u.username AS author
        FROM collab_files f JOIN users u ON u.id = f.created_by
        WHERE f.meeting_id = ? AND f.deleted_at IS NULL ORDER BY f.type = 'folder' DESC, f.name`,
     )
     .all(r.meeting.id);
   res.json(rows);
+});
+
+/** 파일 업로드 — raw body, ?name=원본이름&parent_id= (중복 이름은 " (n)" 자동) */
+router.post('/upload', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const rawName = cleanName(req.query.name);
+  if (!rawName) return res.status(400).json({ error: '파일 이름이 없어요' });
+  const parentId = req.query.parent_id != null && req.query.parent_id !== '' ? Number(req.query.parent_id) : null;
+  if (parentId != null) {
+    const parent = db
+      .prepare('SELECT type FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
+      .get(parentId, r.meeting.id) as { type: string } | undefined;
+    if (!parent || parent.type !== 'folder')
+      return res.status(400).json({ error: '폴더 안에만 올릴 수 있어요' });
+  }
+  const count = (
+    db.prepare('SELECT COUNT(*) AS n FROM collab_files WHERE meeting_id = ? AND deleted_at IS NULL').get(r.meeting.id) as {
+      n: number;
+    }
+  ).n;
+  if (count >= MAX_FILES) return res.status(400).json({ error: `파일은 그룹당 ${MAX_FILES}개까지예요` });
+
+  // 중복 이름 자동 회피: "이름 (2).ext"
+  const dot = rawName.lastIndexOf('.');
+  const base = dot > 0 ? rawName.slice(0, dot) : rawName;
+  const ext = dot > 0 ? rawName.slice(dot) : '';
+  let name = rawName;
+  for (let n = 2; n <= 20; n++) {
+    const dup = db
+      .prepare('SELECT 1 FROM collab_files WHERE meeting_id = ? AND name = ? AND parent_id IS ? AND deleted_at IS NULL')
+      .get(r.meeting.id, name, parentId);
+    if (!dup) break;
+    name = `${base} (${n})${ext}`;
+  }
+
+  const mime = String(req.headers['content-type'] || 'application/octet-stream').split(';')[0];
+  const blobName = `${crypto.randomUUID()}${ext.replace(/[^.\w-]/g, '').slice(0, 10)}`;
+  fs.mkdirSync(BLOB_DIR, { recursive: true });
+  const filePath = path.join(BLOB_DIR, blobName);
+  const out = fs.createWriteStream(filePath);
+  let size = 0;
+  let aborted = false;
+  req.on('data', (chunk: Buffer) => {
+    size += chunk.length;
+    if (size > MAX_UPLOAD && !aborted) {
+      aborted = true;
+      out.destroy();
+      deleteBlob(blobName);
+      res.status(413).json({ error: '파일은 25MB까지 올릴 수 있어요' });
+      req.destroy();
+    }
+  });
+  req.pipe(out);
+  out.on('finish', () => {
+    if (aborted) return;
+    ensureLegacyFiles(r.meeting.id, r.meeting.code, req.userId!);
+    const info = db
+      .prepare(
+        'INSERT INTO collab_files (meeting_id, parent_id, name, type, created_by, mime, size, blob_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(r.meeting.id, parentId, name, 'file', req.userId!, mime, size, blobName);
+    res.json({ id: info.lastInsertRowid, parent_id: parentId, name, type: 'file', mime, size });
+  });
+  out.on('error', () => {
+    if (!aborted && !res.headersSent) res.status(500).json({ error: '저장에 실패했어요' });
+  });
+});
+
+/** 업로드 파일 다운로드/보기 */
+router.get('/:fileId/download', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare('SELECT name, type, mime, blob_path FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
+    .get(req.params.fileId, r.meeting.id) as
+    | { name: string; type: FileType; mime: string | null; blob_path: string | null }
+    | undefined;
+  if (!f || f.type !== 'file' || !f.blob_path)
+    return res.status(404).json({ error: '업로드된 파일이 아니에요' });
+  const filePath = path.join(BLOB_DIR, f.blob_path);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: '파일이 사라졌어요' });
+  res.setHeader('Content-Type', f.mime || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(f.name)}`);
+  fs.createReadStream(filePath).pipe(res);
 });
 
 /** 파일/폴더 생성 — 참가자 누구나 */
@@ -413,6 +521,10 @@ router.delete('/trash/:fileId', (req: AuthedRequest, res) => {
     .prepare('SELECT room FROM collab_files WHERE deleted_root = ? AND room IS NOT NULL')
     .all(f.id) as { room: string }[];
   for (const row of rooms) deleteYdoc(row.room);
+  const blobs = db
+    .prepare('SELECT blob_path FROM collab_files WHERE deleted_root = ? AND blob_path IS NOT NULL')
+    .all(f.id) as { blob_path: string }[];
+  for (const row of blobs) deleteBlob(row.blob_path);
   const info = db.prepare('DELETE FROM collab_files WHERE deleted_root = ?').run(f.id);
   res.json({ ok: true, purged: info.changes });
 });
@@ -422,9 +534,15 @@ router.get('/:fileId/preview', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   const f = db
-    .prepare('SELECT type, room FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
-    .get(req.params.fileId, r.meeting.id) as { type: FileType; room: string | null } | undefined;
+    .prepare('SELECT type, room, mime, size FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
+    .get(req.params.fileId, r.meeting.id) as
+    | { type: FileType; room: string | null; mime: string | null; size: number | null }
+    | undefined;
   if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  if (f.type === 'file') {
+    const kb = f.size != null ? (f.size >= 1048576 ? `${(f.size / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(f.size / 1024))}KB`) : '';
+    return res.json({ items: [f.mime ?? '파일', kb].filter(Boolean) });
+  }
   if (f.type === 'folder' || !f.room) return res.json({ items: [] });
 
   const doc = readYdocSnapshot(f.room);

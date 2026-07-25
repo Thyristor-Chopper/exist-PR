@@ -10320,6 +10320,25 @@ input:focus {
   background: var(--surface);
 }
 
+.cf-uploading {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 950;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 20px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.cf-icon.file {
+  color: #8a919b;
+}
+
 .cf-fullscreen {
   margin-left: auto;
   flex: none;

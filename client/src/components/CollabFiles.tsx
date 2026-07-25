@@ -30,7 +30,7 @@ import {
  * 파일을 열면 에디터 전체 화면, ← 로 복귀. 한 번 연 파일은 마운트 유지(재연결 방지).
  */
 
-type FileType = 'folder' | 'code' | 'doc' | 'sheet' | 'slide' | 'canvas';
+type FileType = 'folder' | 'code' | 'doc' | 'sheet' | 'slide' | 'canvas' | 'file';
 
 interface CollabFile {
   id: number;
@@ -40,6 +40,8 @@ interface CollabFile {
   room: string | null;
   author: string;
   created_at?: string;
+  mime?: string | null;
+  size?: number | null;
 }
 
 const TYPE_LABEL: Record<Exclude<FileType, 'folder'>, string> = {
@@ -48,7 +50,18 @@ const TYPE_LABEL: Record<Exclude<FileType, 'folder'>, string> = {
   sheet: '시트',
   slide: '발표',
   canvas: '캔버스',
+  file: '업로드',
 };
+
+/** 업로드 파일(범용) 아이콘 — 모서리 접힌 종이 */
+function BlobFileIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2.5h8L19 7.5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1Z" />
+      <path d="M14 2.5v5h5" />
+    </svg>
+  );
+}
 
 function TypeIcon({ type, size = 15 }: { type: FileType; size?: number }) {
   if (type === 'folder') return <FolderIcon size={size} />;
@@ -56,6 +69,7 @@ function TypeIcon({ type, size = 15 }: { type: FileType; size?: number }) {
   if (type === 'doc') return <DocIcon size={size} />;
   if (type === 'sheet') return <SheetIcon size={size} />;
   if (type === 'canvas') return <PenIcon size={size} />;
+  if (type === 'file') return <BlobFileIcon size={size} />;
   return <SlideIcon size={size} />;
 }
 
@@ -74,6 +88,7 @@ function toast(message: string) {
 
 export default function CollabFiles({ code, isHost }: { code: string; isHost: boolean }) {
   const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
   const [files, setFiles] = useState<CollabFile[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [editorFull, setEditorFull] = useState(false); // 에디터 전체화면 (화면이 작을 때)
@@ -302,8 +317,67 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
     return () => window.removeEventListener('keydown', onKey);
   }, [editorFull]);
 
+  // ── 업로드 파일 (type='file') ──
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadParentRef = useRef<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function uploadFiles(list: FileList | File[], parentId: number | null) {
+    const arr = [...list];
+    if (!arr.length) return;
+    setUploading(true);
+    try {
+      for (const file of arr) {
+        const q = new URLSearchParams({ name: file.name });
+        if (parentId != null) q.set('parent_id', String(parentId));
+        const res = await fetch(`/api/meetings/${code}/files/upload?${q}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': file.type || 'application/octet-stream',
+          },
+          body: file,
+        });
+        if (!res.ok) {
+          const d = (await res.json().catch(() => null)) as { error?: string } | null;
+          toast(d?.error ?? `${file.name} 업로드 실패`);
+        }
+      }
+    } finally {
+      setUploading(false);
+      load();
+    }
+  }
+
+  /** 업로드 파일 열기 — 인증 fetch로 받아 새 탭에서 보기 (이미지·PDF는 브라우저가 바로 렌더) */
+  async function openBlobFile(f: CollabFile) {
+    try {
+      const res = await fetch(`/api/meetings/${code}/files/${f.id}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      if (!win) {
+        // 팝업 차단 시 다운로드로
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = f.name;
+        a.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      toast('파일을 열 수 없어요');
+    }
+  }
+
   // ── 파일 열기 ──
   function openFile(f: CollabFile) {
+    if (f.type === 'file') {
+      void openBlobFile(f);
+      return;
+    }
     if (f.type === 'folder') {
       if (isMobile) {
         setCollapsed((prev) => {
@@ -696,6 +770,15 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
             <TypeIcon type={t} size={14} /> {t === 'folder' ? '폴더' : TYPE_LABEL[t]}
           </button>
         ))}
+        <button
+          onClick={() => {
+            uploadParentRef.current = parentId;
+            setTypeMenuFor(null);
+            uploadInputRef.current?.click();
+          }}
+        >
+          <BlobFileIcon size={14} /> 내 파일 업로드
+        </button>
       </div>
     );
   }
@@ -1029,6 +1112,16 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
               return;
             }
             clearSel();
+          }}
+          onDragOver={(e) => {
+            // OS에서 끌어온 파일 — 현재 폴더에 업로드
+            if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+          }}
+          onDrop={(e) => {
+            if (e.dataTransfer.files.length > 0 && dragIdsRef.current.length === 0) {
+              e.preventDefault();
+              void uploadFiles(e.dataTransfer.files, cwd);
+            }
           }}
           onContextMenu={(e) => {
             if ((e.target as HTMLElement).closest('.cf-entry')) return;
@@ -1546,6 +1639,19 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
       ) : (
         renderExplorer()
       )}
+
+      {/* 내 파일 업로드 입력 (TypeMenu·드롭 공용) */}
+      <input
+        ref={uploadInputRef}
+        type="file"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          if (e.target.files?.length) void uploadFiles(e.target.files, uploadParentRef.current);
+          e.target.value = '';
+        }}
+      />
+      {uploading && <div className="cf-uploading">업로드 중…</div>}
 
       {/* 에디터 — 파일을 열면 전체 화면, ← 로 탐색기 복귀 */}
       <div
