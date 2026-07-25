@@ -131,6 +131,14 @@ export function readYdocSnapshot(name: string): Y.Doc | null {
   return doc;
 }
 
+/** 새 룸 상태 생성 — 업로드 임포트용. build로 채운 문서를 .bin으로 저장 (룸이 열려있지 않아야 함) */
+export function writeYdoc(name: string, build: (doc: Y.Doc) => void) {
+  const doc = new Y.Doc();
+  build(doc);
+  fs.writeFileSync(filePath(name), Buffer.from(Y.encodeStateAsUpdate(doc)));
+  doc.destroy();
+}
+
 /** 룸 완전 삭제 — 접속 종료 + 메모리 해제 + .bin 제거 (파일 삭제 시) */
 export function deleteYdoc(name: string) {
   const doc = docs.get(name);

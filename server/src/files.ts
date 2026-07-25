@@ -5,7 +5,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import db from './db.js';
 import type { AuthedRequest } from './auth.js';
-import { ydocExists, deleteYdoc, copyYdoc, readYdocSnapshot } from './ydoc.js';
+import { ydocExists, deleteYdoc, copyYdoc, readYdocSnapshot, writeYdoc } from './ydoc.js';
+import { parseCsv, parseXlsx, parseDocx, buildSheetYdoc, buildDocYdoc } from './importFile.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** 업로드 파일(blob) 저장소 — DATA_DIR/uploads-files */
@@ -186,37 +187,97 @@ router.post('/upload', (req: AuthedRequest, res) => {
   }
 
   const mime = String(req.headers['content-type'] || 'application/octet-stream').split(';')[0];
-  const blobName = `${crypto.randomUUID()}${ext.replace(/[^.\w-]/g, '').slice(0, 10)}`;
-  fs.mkdirSync(BLOB_DIR, { recursive: true });
-  const filePath = path.join(BLOB_DIR, blobName);
-  const out = fs.createWriteStream(filePath);
+  // 본문 버퍼링 (임포트 판단에 전체 필요)
+  const chunks: Buffer[] = [];
   let size = 0;
   let aborted = false;
   req.on('data', (chunk: Buffer) => {
     size += chunk.length;
     if (size > MAX_UPLOAD && !aborted) {
       aborted = true;
-      out.destroy();
-      deleteBlob(blobName);
       res.status(413).json({ error: '파일은 25MB까지 올릴 수 있어요' });
       req.destroy();
+      return;
     }
+    if (!aborted) chunks.push(chunk);
   });
-  req.pipe(out);
-  out.on('finish', () => {
+  req.on('end', () => {
     if (aborted) return;
+    const buf = Buffer.concat(chunks);
     ensureLegacyFiles(r.meeting.id, r.meeting.code, req.userId!);
-    const info = db
-      .prepare(
-        'INSERT INTO collab_files (meeting_id, parent_id, name, type, created_by, mime, size, blob_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      )
-      .run(r.meeting.id, parentId, name, 'file', req.userId!, mime, size, blobName);
-    res.json({ id: info.lastInsertRowid, parent_id: parentId, name, type: 'file', mime, size });
+    void finishUpload(res, r.meeting, req.userId!, { name, base, ext: ext.toLowerCase(), parentId, mime, buf });
   });
-  out.on('error', () => {
-    if (!aborted && !res.headersSent) res.status(500).json({ error: '저장에 실패했어요' });
+  req.on('error', () => {
+    if (!aborted && !res.headersSent) res.status(500).json({ error: '업로드에 실패했어요' });
   });
 });
+
+/** 업로드 마무리 — csv/xlsx는 시트로, txt·md/docx는 문서로 변환. 나머지는 blob 보관 */
+async function finishUpload(
+  res: Parameters<Parameters<typeof router.post>[1]>[1],
+  meeting: MeetingRef,
+  userId: number,
+  p: { name: string; base: string; ext: string; parentId: number | null; mime: string; buf: Buffer },
+) {
+  const dedupe = (candidate: string) => {
+    let out = candidate;
+    for (let n = 2; n <= 20; n++) {
+      const dup = db
+        .prepare('SELECT 1 FROM collab_files WHERE meeting_id = ? AND name = ? AND parent_id IS ? AND deleted_at IS NULL')
+        .get(meeting.id, out, p.parentId);
+      if (!dup) break;
+      out = `${candidate} (${n})`;
+    }
+    return out;
+  };
+  const insertTyped = (type: FileType) => {
+    const name = dedupe(p.base);
+    const info = db
+      .prepare('INSERT INTO collab_files (meeting_id, parent_id, name, type, created_by) VALUES (?, ?, ?, ?, ?)')
+      .run(meeting.id, p.parentId, name, type, userId);
+    const id = info.lastInsertRowid as number;
+    const room = `file-${id}`;
+    db.prepare('UPDATE collab_files SET room = ? WHERE id = ?').run(room, id);
+    return { id, room, name };
+  };
+  try {
+    if (p.ext === '.csv') {
+      const grid = parseCsv(p.buf.toString('utf8'));
+      const f = insertTyped('sheet');
+      writeYdoc(f.room, (doc) => buildSheetYdoc(doc, [{ name: '시트1', grid }]));
+      return res.json({ id: f.id, parent_id: p.parentId, name: p.base, type: 'sheet', imported: true });
+    }
+    if (p.ext === '.xlsx') {
+      const sheets = await parseXlsx(p.buf);
+      const f = insertTyped('sheet');
+      writeYdoc(f.room, (doc) => buildSheetYdoc(doc, sheets));
+      return res.json({ id: f.id, parent_id: p.parentId, name: p.base, type: 'sheet', imported: true });
+    }
+    if (p.ext === '.docx') {
+      const paras = await parseDocx(p.buf);
+      const f = insertTyped('doc');
+      writeYdoc(f.room, (doc) => buildDocYdoc(doc, p.base, paras));
+      return res.json({ id: f.id, parent_id: p.parentId, name: p.base, type: 'doc', imported: true });
+    }
+    if (p.ext === '.txt' || p.ext === '.md') {
+      const paras = p.buf.toString('utf8').replace(/^﻿/, '').split(/\r?\n/);
+      const f = insertTyped('doc');
+      writeYdoc(f.room, (doc) => buildDocYdoc(doc, p.base, paras));
+      return res.json({ id: f.id, parent_id: p.parentId, name: p.base, type: 'doc', imported: true });
+    }
+  } catch {
+    /* 파싱 실패 → 그냥 파일로 보관 */
+  }
+  const blobName = `${crypto.randomUUID()}${p.ext.replace(/[^.\w-]/g, '').slice(0, 10)}`;
+  fs.mkdirSync(BLOB_DIR, { recursive: true });
+  fs.writeFileSync(path.join(BLOB_DIR, blobName), p.buf);
+  const info = db
+    .prepare(
+      'INSERT INTO collab_files (meeting_id, parent_id, name, type, created_by, mime, size, blob_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(meeting.id, p.parentId, p.name, 'file', userId, p.mime, p.buf.length, blobName);
+  res.json({ id: info.lastInsertRowid, parent_id: p.parentId, name: p.name, type: 'file', mime: p.mime, size: p.buf.length });
+}
 
 /** 업로드 파일 다운로드/보기 */
 router.get('/:fileId/download', (req: AuthedRequest, res) => {

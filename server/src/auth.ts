@@ -31,9 +31,11 @@ export function generateRecoveryCode(): string {
 
 const SESSION_TTL_DAYS = 30;
 
-/** Bearer 토큰 검사 미들웨어 (30일 만료) */
+/** Bearer 토큰 검사 미들웨어 (30일 만료) — 새 탭 열기용으로 ?token= 쿼리도 허용 (/yjs와 동일 규약) */
 export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.replace(/^Bearer /, '');
+  const token =
+    req.headers.authorization?.replace(/^Bearer /, '') ||
+    (typeof req.query?.token === 'string' ? req.query.token : undefined);
   if (!token) return res.status(401).json({ error: '로그인이 필요합니다' });
 
   const row = db

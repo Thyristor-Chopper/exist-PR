@@ -349,33 +349,22 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
     }
   }
 
-  /** 업로드 파일 열기 — 인증 fetch로 받아 새 탭에서 보기 (이미지·PDF는 브라우저가 바로 렌더) */
-  async function openBlobFile(f: CollabFile) {
-    try {
-      const res = await fetch(`/api/meetings/${code}/files/${f.id}/download`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const win = window.open(url, '_blank');
-      if (!win) {
-        // 팝업 차단 시 다운로드로
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = f.name;
-        a.click();
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch {
-      toast('파일을 열 수 없어요');
+  /** 업로드 파일 열기 — 서버 URL 직접 (이미지·PDF는 새 탭 렌더, 저장 시 원본 파일명 유지) */
+  function openBlobFile(f: CollabFile) {
+    const url = `/api/meetings/${code}/files/${f.id}/download?token=${encodeURIComponent(token ?? '')}`;
+    const win = window.open(url, '_blank');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = f.name;
+      a.click();
     }
   }
 
   // ── 파일 열기 ──
   function openFile(f: CollabFile) {
     if (f.type === 'file') {
-      void openBlobFile(f);
+      openBlobFile(f);
       return;
     }
     if (f.type === 'folder') {

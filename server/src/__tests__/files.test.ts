@@ -251,6 +251,37 @@ describe('공동편집 파일시스템', () => {
     expect(fs.readdirSync(blobDir).length).toBe(before - 1);
   });
 
+  it('csv/txt 업로드는 협업 시트/문서로 변환 임포트', async () => {
+    const { host, code } = await setup('cf10');
+    // CSV → 시트
+    const csv = '이름,수량\n"콤마,포함",3\n총계,=SUM(B2:B2)';
+    const upCsv = await request(app)
+      .post(`/api/meetings/${code}/files/upload?name=${encodeURIComponent('재고.csv')}`)
+      .set('Authorization', `Bearer ${host.token}`)
+      .set('Content-Type', 'text/csv')
+      .send(Buffer.from(csv));
+    expect(upCsv.status).toBe(200);
+    expect(upCsv.body.type).toBe('sheet');
+    expect(upCsv.body.imported).toBe(true);
+    expect(upCsv.body.name).toBe('재고');
+    // Yjs 내용 확인
+    const binPath = path.join(YDOCS_DIR, `file-${upCsv.body.id}.bin`);
+    expect(fs.existsSync(binPath)).toBe(true);
+    const prev = await request(app)
+      .get(`/api/meetings/${code}/files/${upCsv.body.id}/preview`)
+      .set('Authorization', `Bearer ${host.token}`);
+    expect(prev.body.items).toContain('시트1');
+
+    // TXT → 문서
+    const upTxt = await request(app)
+      .post(`/api/meetings/${code}/files/upload?name=${encodeURIComponent('회의록.txt')}`)
+      .set('Authorization', `Bearer ${host.token}`)
+      .set('Content-Type', 'text/plain')
+      .send(Buffer.from('첫 줄\n둘째 줄'));
+    expect(upTxt.body.type).toBe('doc');
+    expect(upTxt.body.imported).toBe(true);
+  });
+
   it('비참가자 403', async () => {
     const { code } = await setup('cf7');
     const stranger = await registerUser('cf7_stranger');
