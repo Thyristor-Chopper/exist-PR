@@ -10394,8 +10394,22 @@ input:focus {
   color: #8a919b;
 }
 
-.cf-fullscreen {
+/* 에디터 바 우측 그룹 — 참여자 스택 + 전체화면 */
+.cf-editor-right {
   margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cf-editor-right .cf-presence .cf-presence-avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 15px;
+}
+
+.cf-fullscreen {
   flex: none;
   width: 30px;
   height: 30px;

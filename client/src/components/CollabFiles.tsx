@@ -180,11 +180,11 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
     };
   }, [code]);
 
-  /** 파일 옆 겹친 아바타 스택 (최대 3 + n) */
+  /** 파일 옆 겹친 아바타 스택 (최대 4 + n) */
   function PresenceStack({ fileId }: { fileId: number }) {
     const people = presence[fileId];
     if (!people?.length) return null;
-    const shown = people.slice(0, 3);
+    const shown = people.slice(0, 4);
     return (
       <span
         className="cf-presence"
@@ -193,7 +193,7 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
         {shown.map((p) => (
           <Avatar key={p.username} value={p.avatar} className="cf-presence-avatar" />
         ))}
-        {people.length > 3 && <span className="cf-presence-more">+{people.length - 3}</span>}
+        {people.length > 4 && <span className="cf-presence-more">+{people.length - 4}</span>}
       </span>
     );
   }
@@ -1717,13 +1717,16 @@ export default function CollabFiles({ code, isHost }: { code: string; isHost: bo
               <TypeIcon type={active.type} />
             </span>
             <Marquee className="cf-editor-name">{active.name}</Marquee>
-            <button
-              className={`cf-fullscreen${editorFull ? ' on' : ''}`}
-              title={editorFull ? '창 크기로 (Esc)' : '전체화면'}
-              onClick={() => setEditorFull((v) => !v)}
-            >
-              {editorFull ? '⤡' : '⛶'}
-            </button>
+            <span className="cf-editor-right">
+              <PresenceStack fileId={active.id} />
+              <button
+                className={`cf-fullscreen${editorFull ? ' on' : ''}`}
+                title={editorFull ? '창 크기로 (Esc)' : '전체화면'}
+                onClick={() => setEditorFull((v) => !v)}
+              >
+                {editorFull ? '⤡' : '⛶'}
+              </button>
+            </span>
           </div>
         )}
         {openedFiles.map((f) => (
