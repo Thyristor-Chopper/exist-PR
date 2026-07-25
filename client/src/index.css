@@ -8273,6 +8273,14 @@ input:focus {
   overflow: auto;
 }
 
+/* 모바일 — 세로 화면에선 캔버스를 위부터 (가운데 정렬이면 위 공백이 큼) */
+@media (max-width: 767px) {
+  .slide-stage {
+    justify-content: flex-start;
+    padding: 12px;
+  }
+}
+
 /* 발표자 노트 */
 .slide-notes {
   width: 100%;
