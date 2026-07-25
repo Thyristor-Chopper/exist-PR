@@ -54,6 +54,7 @@ export interface Meeting {
   title: string;
   starts_at: string | null;
   ends_at: string | null;
+  allDay?: boolean; // 종일 일정 (time 없음)
   thumbnail?: string | null;
   /** 반복 회의를 펼친 occurrence 고유키 (일정 목록용) */
   occId?: string;
@@ -735,7 +736,7 @@ function NowBar({
                   <span className="nb-recur-tag">{RECUR_LABEL[m.recur] ?? '반복'}</span>
                 )}
                 <span className="nb-next-start">
-                  <b>시작</b> {formatStart(new Date(m.starts_at!), now)}
+                  <b>시작</b> {m.allDay ? '종일' : formatStart(new Date(m.starts_at!), now)}
                 </span>
               </div>
             ))}
@@ -907,7 +908,7 @@ function NowBar({
                         <span className="nb-recur-tag">{RECUR_LABEL[m.recur] ?? '반복'}</span>
                       )}
                       <span className="nb-next-start">
-                        <b>시작</b> {formatStart(new Date(m.starts_at!), now)}
+                        <b>시작</b> {m.allDay ? '종일' : formatStart(new Date(m.starts_at!), now)}
                       </span>
                     </div>
                   ))}

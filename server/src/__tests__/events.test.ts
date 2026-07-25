@@ -331,4 +331,19 @@ describe('nowbar 일정 전개 (EV-18~20)', () => {
       expect(Math.round((e.getTime() - s.getTime()) / 86_400_000)).toBe(2);
     }
   });
+
+  it('EV-21 종일 일정(time 없음)도 /schedule에 allDay로 나온다', async () => {
+    await createEvent(host, { title: '전개-종일', date: day(2) });
+    const r = await request(app)
+      .get('/api/meetings/schedule?org=personal')
+      .set('Authorization', auth(host));
+    const occ = (
+      r.body as { title: string; starts_at: string; ends_at: string | null; allDay?: boolean }[]
+    ).find((x) => x.title === '전개-종일')!;
+    expect(occ).toBeDefined();
+    expect(occ.allDay).toBe(true);
+    expect(occ.starts_at).toBe(`${day(2)}T00:00`);
+    // 종일은 ends_at을 비워 nowbar "진행 중" 판정에 안 걸림
+    expect(occ.ends_at).toBeNull();
+  });
 });

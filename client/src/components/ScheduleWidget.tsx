@@ -120,7 +120,9 @@ export default function ScheduleWidget({
               return (
                 <button key={s.occId ?? s.code} style={tlRow} onClick={() => onOpen(s.code, s.title)}>
                   <span style={tlTime}>
-                    {t.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                    {s.allDay
+                      ? '종일'
+                      : t.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <span style={tlDot}>
                     <span style={{ ...tlDotInner, background: groupColor(s.id) }} />

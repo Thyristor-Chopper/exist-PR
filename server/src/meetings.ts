@@ -376,7 +376,7 @@ router.get('/schedule', (req: AuthedRequest, res) => {
     }
   }
 
-  // 회의 안에서 추가한 일정 이벤트(통화 등, 시간 있는 것)도 일정에 포함 — 반복이면 occurrence 전개
+  // 회의 안에서 추가한 일정 이벤트도 일정에 포함 — 종일(time null) 포함, 반복이면 occurrence 전개
   const events = db
     .prepare(
       `SELECT e.id AS eid, e.title AS etitle, e.date, e.time, e.end_time, e.end_date, e.recur, e.recur_until,
@@ -384,13 +384,13 @@ router.get('/schedule', (req: AuthedRequest, res) => {
        FROM meeting_events e
        JOIN meetings m ON m.id = e.meeting_id
        JOIN meeting_participants mp ON mp.meeting_id = m.id
-       WHERE mp.user_id = ? AND e.time IS NOT NULL${orgFilter}`,
+       WHERE mp.user_id = ?${orgFilter}`,
     )
     .all(req.userId!, ...orgArgs) as {
     eid: number;
     etitle: string;
     date: string;
-    time: string;
+    time: string | null;
     end_time: string | null;
     end_date: string | null;
     recur: string | null;
@@ -425,14 +425,16 @@ router.get('/schedule', (req: AuthedRequest, res) => {
               86_400_000,
           )
         : 0;
+    const allDay = e.time == null;
     for (const d of dates) {
-      const startsAt = `${d}T${e.time}`;
+      const startsAt = `${d}T${e.time ?? '00:00'}`;
       const ts = new Date(startsAt).getTime();
       if (isNaN(ts) || ts < lower || ts > upper) continue;
       const endD = new Date(d + 'T00:00:00');
       endD.setDate(endD.getDate() + spanDays);
       const endYmd = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
-      const endClock = e.end_time ?? (spanDays > 0 ? '23:59' : null);
+      // 종일 일정은 ends_at을 비워 nowbar "진행 중" 판정에 안 걸리게 (표시는 allDay 플래그로)
+      const endClock = allDay ? null : (e.end_time ?? (spanDays > 0 ? '23:59' : null));
       out.push({
         id: e.mid,
         occId: `ev${e.eid}@${d}`,
@@ -444,6 +446,7 @@ router.get('/schedule', (req: AuthedRequest, res) => {
         ends_at: endClock ? `${endYmd}T${endClock}` : null,
         recur: e.recur ?? 'none',
         kind: 'event',
+        allDay,
       });
     }
   }
