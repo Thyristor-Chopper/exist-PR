@@ -15,6 +15,7 @@ import {
   buildDocYdocFromMarkdown,
 } from './importFile.js';
 import { notifyUser } from './notify.js';
+import { canManageMeeting } from './perm.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** 업로드 파일(blob) 저장소 — DATA_DIR/uploads-files */
@@ -125,6 +126,12 @@ interface MeetingRef {
   id: number;
   code: string;
   host_id: number;
+  org_id: number | null;
+}
+
+/** 파일 관리 권한 — 만든 사람, 호스트, 소속 조직 관리자(owner/admin) */
+function canManageFile(f: { created_by: number }, meeting: MeetingRef, userId: number): boolean {
+  return f.created_by === userId || canManageMeeting(meeting, userId);
 }
 
 /** 참가자 검증 (meetings.ts와 동일 패턴 — 순환 import 방지 위해 자체 보유) */
@@ -133,7 +140,7 @@ function checkParticipant(
   userId: number,
 ): { ok: false; status: 403 | 404; error: string } | { ok: true; meeting: MeetingRef } {
   const meeting = db
-    .prepare('SELECT id, code, host_id FROM meetings WHERE code = ?')
+    .prepare('SELECT id, code, host_id, org_id FROM meetings WHERE code = ?')
     .get(String(code ?? '').toUpperCase()) as MeetingRef | undefined;
   if (!meeting) return { ok: false, status: 404, error: '존재하지 않는 회의입니다' };
   const isParticipant = db
@@ -422,7 +429,7 @@ router.post('/', (req: AuthedRequest, res) => {
   res.json({ id, parent_id: parentId, name, type, room });
 });
 
-/** 이름 변경·이동 — 호스트나 만든 사람. body에 name(이름 변경) / parent_id(이동, null=루트) */
+/** 이름 변경·이동 — 만든 사람·호스트·조직 관리자. body에 name(이름 변경) / parent_id(이동, null=루트) */
 router.patch('/:fileId', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
@@ -430,8 +437,8 @@ router.patch('/:fileId', (req: AuthedRequest, res) => {
     .prepare('SELECT id, parent_id, name, type, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
     .get(req.params.fileId, r.meeting.id) as FileRow | undefined;
   if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
-  if (f.created_by !== req.userId && r.meeting.host_id !== req.userId) {
-    return res.status(403).json({ error: '호스트나 만든 사람만 바꿀 수 있어요' });
+  if (!canManageFile(f, r.meeting, req.userId!)) {
+    return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 바꿀 수 있어요' });
   }
 
   // 이동 (잘라내기 → 붙여넣기)
@@ -564,7 +571,7 @@ function collectSubtree(rootId: number): number[] {
   return ids;
 }
 
-/** 삭제 → 휴지통 (소프트) — 호스트나 만든 사람. 폴더는 하위까지 묶어서. Yjs는 보존 */
+/** 삭제 → 휴지통 (소프트) — 만든 사람·호스트·조직 관리자. 폴더는 하위까지 묶어서. Yjs는 보존 */
 router.delete('/:fileId', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
@@ -572,8 +579,8 @@ router.delete('/:fileId', (req: AuthedRequest, res) => {
     .prepare('SELECT id, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
     .get(req.params.fileId, r.meeting.id) as FileRow | undefined;
   if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
-  if (f.created_by !== req.userId && r.meeting.host_id !== req.userId) {
-    return res.status(403).json({ error: '호스트나 만든 사람만 삭제할 수 있어요' });
+  if (!canManageFile(f, r.meeting, req.userId!)) {
+    return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 삭제할 수 있어요' });
   }
 
   const ids = collectSubtree(f.id);
@@ -612,8 +619,8 @@ router.post('/trash/:fileId/restore', (req: AuthedRequest, res) => {
     | { id: number; parent_id: number | null; name: string; created_by: number }
     | undefined;
   if (!f) return res.status(404).json({ error: '휴지통에 없는 항목이에요' });
-  if (f.created_by !== req.userId && r.meeting.host_id !== req.userId) {
-    return res.status(403).json({ error: '호스트나 만든 사람만 복원할 수 있어요' });
+  if (!canManageFile(f, r.meeting, req.userId!)) {
+    return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 복원할 수 있어요' });
   }
 
   // 원래 부모가 삭제됐거나 없어졌으면 루트로
@@ -650,8 +657,8 @@ router.delete('/trash/:fileId', (req: AuthedRequest, res) => {
     .prepare('SELECT id, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_root = id')
     .get(req.params.fileId, r.meeting.id) as FileRow | undefined;
   if (!f) return res.status(404).json({ error: '휴지통에 없는 항목이에요' });
-  if (f.created_by !== req.userId && r.meeting.host_id !== req.userId) {
-    return res.status(403).json({ error: '호스트나 만든 사람만 지울 수 있어요' });
+  if (!canManageFile(f, r.meeting, req.userId!)) {
+    return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 지울 수 있어요' });
   }
   const rooms = db
     .prepare('SELECT room FROM collab_files WHERE deleted_root = ? AND room IS NOT NULL')

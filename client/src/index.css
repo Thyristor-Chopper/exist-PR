@@ -11878,6 +11878,87 @@ input:focus {
   color: #ff5b5b;
 }
 
+/* 권한 매트릭스 — 역할별 권한 가시화 */
+.org-perm {
+  margin-top: 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.org-perm-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 13px 16px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.org-perm-head:hover {
+  background: var(--surface-2);
+}
+.org-perm-caret {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.org-perm-body {
+  padding: 0 16px 14px;
+}
+.org-perm-scroll {
+  overflow-x: auto;
+}
+.org-perm-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.org-perm-table th,
+.org-perm-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  white-space: nowrap;
+}
+.org-perm-table th:first-child,
+.org-perm-table td:first-child {
+  text-align: left;
+  white-space: normal;
+}
+.org-perm-table th {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 12px;
+}
+.org-perm-table td.yes {
+  color: var(--green);
+  font-weight: 700;
+}
+.org-perm-table td.no {
+  color: var(--text-dim);
+  opacity: 0.55;
+}
+.org-perm-section td {
+  text-align: left;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  padding: 6px 10px;
+}
+.org-perm-note {
+  margin: 10px 2px 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
 /* ───── 조직도 페이지 ───── */
 .orgchart-page {
   min-height: 100vh;

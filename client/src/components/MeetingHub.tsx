@@ -63,6 +63,8 @@ interface MeetingDetail {
   recur_except?: string[];
   host: string;
   isHost: boolean;
+  /** 관리 권한 — 호스트 또는 소속 조직 owner/admin */
+  canManage?: boolean;
   orgId: number | null;
   orgName: string | null;
   thumbnail: string | null;
@@ -988,7 +990,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
                 <div className="hub-dash-cols">
                   <div className="hub-dash-main">
                     {/* P1 — AI 회의 정리 (통화 종료 시 결정·할 일 배달) */}
-                    <RecapPanel code={detail.code} isHost={detail.isHost} />
+                    <RecapPanel code={detail.code} isHost={detail.isHost || !!detail.canManage} />
 
                     {/* 최근 결정 — 원장 상위 3개를 첫 화면에 (회의→결정→전달 노출) */}
                     <section className="hub-section">
@@ -1276,7 +1278,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
           <div className="hub-schedule">
             <MeetingSchedule
               code={code}
-              isHost={detail.isHost}
+              isHost={detail.isHost || !!detail.canManage}
               startsAt={detail.starts_at}
               endsAt={detail.ends_at}
               recur={detail.recur ?? 'none'}
@@ -1315,7 +1317,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
                         {p.department}
                       </span>
                     </span>
-                    {detail.isHost && !p.isHost && (
+                    {(detail.isHost || detail.canManage) && !p.isHost && (
                       <span className="hub-set-actions">
                         <button className="hub-set-btn" onClick={() => void transferHost(p.username)}>
                           호스트 위임
@@ -1372,7 +1374,9 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
             <section className="hub-set-card">
               <div className="hub-section-title">
                 <GearIcon size={15} /> 권한
-                {!detail.isHost && <span className="hub-set-hostonly">호스트만 변경 가능</span>}
+                {!detail.isHost && !detail.canManage && (
+                  <span className="hub-set-hostonly">호스트·조직 관리자만 변경 가능</span>
+                )}
               </div>
               {(() => {
                 const s = detail.settings ?? { locked: false, guestEdit: true, muteOnJoin: false };
@@ -1394,7 +1398,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
                     </span>
                     <button
                       className={`hub-switch${on ? ' on' : ''}`}
-                      disabled={!detail.isHost}
+                      disabled={!detail.isHost && !detail.canManage}
                       onClick={onToggle}
                       aria-label={label}
                     >
@@ -1440,7 +1444,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
               </div>
             </section>
 
-            {detail.isHost && (
+            {(detail.isHost || detail.canManage) && (
               <section className="hub-set-card danger-zone">
                 <div className="hub-section-title">
                   <GearIcon size={15} /> 그룹 삭제
@@ -1525,7 +1529,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
             className="hub-editor-pane"
             style={{ display: subtab === 'files' ? 'block' : 'none' }}
           >
-            <CollabFiles code={code} isHost={!!detail?.isHost} />
+            <CollabFiles code={code} isHost={!!(detail?.isHost || detail?.canManage)} />
           </div>
         )}
 
@@ -1554,7 +1558,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab }: Props) {
                     <span className="hub-channel-hash">#</span>
                     <Marquee className="hub-channel-name">{ch.name}</Marquee>
                     {(channelUnread[ch.id] ?? 0) > 0 && <i className="hub-channel-dot" />}
-                    {detail?.isHost && !ch.isDefault && (
+                    {(detail?.isHost || detail?.canManage) && !ch.isDefault && (
                       <span
                         className="hub-channel-del"
                         title="채널 삭제"

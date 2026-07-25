@@ -63,6 +63,7 @@ export default function OrgChartPage() {
   const reloadOrgs = useOrgStore((s) => s.load);
   const [detail, setDetail] = useState<OrgDetail | null>(null);
   const [copied, setCopied] = useState(false);
+  const [permOpen, setPermOpen] = useState(false);
   // 승인 전 입력할 직급·부서 (대기자 userId별)
   const [draft, setDraft] = useState<Record<number, { position: string; department: string }>>({});
 
@@ -297,8 +298,71 @@ export default function OrgChartPage() {
               </section>
             ))}
           </div>
+
+          {/* 권한 매트릭스 — 역할별로 할 수 있는 일 가시화 */}
+          <section className="org-perm">
+            <button className="org-perm-head" onClick={() => setPermOpen((v) => !v)}>
+              🔐 역할별 권한 안내
+              <span className="org-perm-caret">{permOpen ? '▴' : '▾'}</span>
+            </button>
+            {permOpen && (
+              <div className="org-perm-body">
+                <div className="org-perm-scroll">
+                  <table className="org-perm-table">
+                    <thead>
+                      <tr>
+                        <th>기능</th>
+                        <th>소유자</th>
+                        <th>관리자</th>
+                        <th>멤버</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {PERM_MATRIX.map((row) =>
+                        'section' in row ? (
+                          <tr key={row.section} className="org-perm-section">
+                            <td colSpan={4}>{row.section}</td>
+                          </tr>
+                        ) : (
+                          <tr key={row.label}>
+                            <td>{row.label}</td>
+                            {row.allow.map((v, i) => (
+                              <td key={i} className={v ? 'yes' : 'no'}>
+                                {v ? '✓' : '—'}
+                              </td>
+                            ))}
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="org-perm-note">
+                  호스트는 역할과 무관하게 자기 그룹을, 작성자는 자기가 만든 일정·채널·파일을 관리할 수
+                  있어요. 조직에 속하지 않은 개인 그룹은 호스트만 관리해요.
+                </p>
+              </div>
+            )}
+          </section>
         </main>
       )}
     </div>
   );
 }
+
+/** 권한 매트릭스 데이터 — [소유자, 관리자, 멤버] */
+const PERM_MATRIX: ({ section: string } | { label: string; allow: [boolean, boolean, boolean] })[] = [
+  { section: '조직 관리' },
+  { label: '가입 신청 승인·거절', allow: [true, true, false] },
+  { label: '직급·부서 지정', allow: [true, true, false] },
+  { label: '멤버 제거', allow: [true, true, false] },
+  { label: '역할 변경 (관리자 ↔ 멤버)', allow: [true, false, false] },
+  { label: '가입코드 보기·공유', allow: [true, true, false] },
+  { section: '조직 소속 그룹' },
+  { label: '그룹 설정 (잠금·편집 허용·음소거)', allow: [true, true, false] },
+  { label: '참가자 내보내기·호스트 위임', allow: [true, true, false] },
+  { label: '그룹 정보 수정·삭제', allow: [true, true, false] },
+  { label: '회의 정리(recap) 실행', allow: [true, true, false] },
+  { label: '일정·채널·공동편집 파일 관리', allow: [true, true, false] },
+  { label: '그룹 참여·채팅·통화·문서 편집', allow: [true, true, true] },
+];
