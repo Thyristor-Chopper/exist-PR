@@ -203,10 +203,33 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
         lastPointerRef.current = Date.now();
       }
     };
+    // wedge 자가 복구 — 포인터는 떠 있는데(buttons=0) Excalidraw는 아직 드래그 중이라
+    // 믿는 상태(놓아도 도형이 커서를 따라다님)를 감지하면 도구를 리셋해 탈출시킨다.
+    // 순간적 이벤트 순서 어긋남 오탐을 피하려고 250ms 이상 지속될 때만 발동.
+    let wedgeSince = 0;
     const onPointerMove = (e: PointerEvent) => {
       // 드래그 중엔 창 전체, 아니면 캔버스 위에서만 활동으로 기록
-      if (pointerActiveRef.current || (wrapRef.current && wrapRef.current.contains(e.target as Node))) {
+      const overCanvas = wrapRef.current && wrapRef.current.contains(e.target as Node);
+      if (pointerActiveRef.current || overCanvas) {
         lastPointerRef.current = Date.now();
+      }
+      if (overCanvas && !pointerActiveRef.current && e.buttons === 0) {
+        const api = apiRef.current;
+        const st = api?.getAppState?.();
+        if (st?.cursorButton === 'down') {
+          const now = Date.now();
+          if (!wedgeSince) wedgeSince = now;
+          else if (now - wedgeSince > 250) {
+            wedgeSince = 0;
+            try {
+              api.setActiveTool({ type: st.activeTool?.type ?? 'selection' });
+            } catch {
+              /* 무시 */
+            }
+          }
+        } else {
+          wedgeSince = 0;
+        }
       }
     };
     const onPointerUp = () => {
