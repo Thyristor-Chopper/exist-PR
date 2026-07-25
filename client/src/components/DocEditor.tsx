@@ -15,11 +15,10 @@ import { WebsocketProvider } from 'y-websocket';
 import { useAuthStore } from '../store';
 import Marquee from './Marquee';
 import { PlusIcon, CloseIcon, DownloadIcon } from './Icons';
+import ColorGrid from './ColorGrid';
 
 const CARET_COLORS = ['#30a46c', '#e5484d', '#f76808', '#4f7cff', '#8e4ec6', '#0091ff', '#d6409f'];
 
-const TEXT_COLORS = ['#1c2024', '#e5484d', '#f76808', '#f0b400', '#30a46c', '#4f7cff', '#8e4ec6', '#d6409f'];
-const HL_COLORS = ['#fff59d', '#b9f6ca', '#b3e5fc', '#f8bbd0', '#ffe0b2', '#e1bee7'];
 const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '32px'];
 
 interface DocMeta {
@@ -704,25 +703,15 @@ export default function DocEditor({ roomId }: { roomId: string }) {
               <>
                 <div className="doc-dd-back" onClick={() => setMenu(null)} />
                 <div className="doc-dd sw">
-                  <button
-                    className="doc-sw none"
-                    title="기본"
-                    onClick={() => {
-                      editor?.chain().focus().unsetColor().run();
+                  <ColorGrid
+                    value={editor?.getAttributes('textStyle').color as string | undefined}
+                    noneLabel="기본"
+                    onPick={(c) => {
+                      if (c) editor?.chain().focus().setColor(c).run();
+                      else editor?.chain().focus().unsetColor().run();
                       setMenu(null);
                     }}
                   />
-                  {TEXT_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      className="doc-sw"
-                      style={{ background: c }}
-                      onClick={() => {
-                        editor?.chain().focus().setColor(c).run();
-                        setMenu(null);
-                      }}
-                    />
-                  ))}
                 </div>
               </>
             )}
@@ -740,25 +729,15 @@ export default function DocEditor({ roomId }: { roomId: string }) {
               <>
                 <div className="doc-dd-back" onClick={() => setMenu(null)} />
                 <div className="doc-dd sw">
-                  <button
-                    className="doc-sw none"
-                    title="없음"
-                    onClick={() => {
-                      editor?.chain().focus().unsetHighlight().run();
+                  <ColorGrid
+                    value={editor?.getAttributes('highlight').color as string | undefined}
+                    noneLabel="형광펜 없음"
+                    onPick={(c) => {
+                      if (c) editor?.chain().focus().setHighlight({ color: c }).run();
+                      else editor?.chain().focus().unsetHighlight().run();
                       setMenu(null);
                     }}
                   />
-                  {HL_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      className="doc-sw"
-                      style={{ background: c }}
-                      onClick={() => {
-                        editor?.chain().focus().setHighlight({ color: c }).run();
-                        setMenu(null);
-                      }}
-                    />
-                  ))}
                 </div>
               </>
             )}

@@ -6264,6 +6264,7 @@ input:focus {
 .code-doc-status i {
   width: 8px;
   height: 8px;
+  flex: none; /* 텍스트가 2줄로 줄바꿈돼도 원형 유지 */
   border-radius: 50%;
   background: #f76808;
   transition: background 0.2s;
@@ -6641,6 +6642,65 @@ input:focus {
   white-space: nowrap;
 }
 
+/* PPT식 색 팔레트 그리드 (ColorGrid — 발표·시트·문서 공용) */
+.cgrid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px;
+}
+
+.cgrid-row {
+  display: flex;
+  gap: 3px;
+}
+
+.cgrid-row.base {
+  margin-bottom: 4px;
+}
+
+.cgrid-cell {
+  width: 19px;
+  height: 19px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+  padding: 0;
+  flex: none;
+}
+
+.dark .cgrid-cell {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.cgrid-cell:hover {
+  transform: scale(1.18);
+  position: relative;
+  z-index: 1;
+}
+
+.cgrid-cell.on {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
+}
+
+.cgrid-none {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 8px;
+  cursor: pointer;
+  margin-bottom: 5px;
+  text-align: left;
+}
+
+.cgrid-none:hover {
+  background: var(--surface-3);
+}
+
 /* 문서 툴바 드롭다운 공통 */
 .doc-dd-wrap {
   position: relative;
@@ -6700,12 +6760,38 @@ input:focus {
 }
 
 .doc-dd.sw {
-  flex-direction: row;
-  flex-wrap: wrap;
-  width: 140px;
   min-width: 0;
-  gap: 7px;
-  padding: 10px;
+  padding: 9px;
+}
+
+/* 색 버튼 (현재색 칩 + 라벨) 과 팔레트 팝오버 */
+.cbtn {
+  gap: 5px;
+}
+
+.cbtn-chip {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: transparent;
+}
+
+.dark .cbtn-chip {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.slide-color-pop {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 31;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  padding: 8px;
 }
 
 .doc-sw {

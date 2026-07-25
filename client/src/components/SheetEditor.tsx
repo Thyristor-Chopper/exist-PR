@@ -4,6 +4,7 @@ import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { useAuthStore } from '../store';
 import { DownloadIcon } from './Icons';
+import ColorGrid from './ColorGrid';
 
 const COLS = 26; // A..Z
 const ROWS = 60;
@@ -280,8 +281,6 @@ interface CFRule {
   color: string;
 }
 
-const FILL_COLORS = ['', '#fff3bf', '#ffd8a8', '#ffc9c9', '#d3f9d8', '#a5d8ff', '#d0bfff', '#e9ecef'];
-const TEXT_COLORS = ['#1c2024', '#e03131', '#1971c2', '#2f9e44', '#f08c00', '#9c36b5', '#ffffff'];
 
 const EMPTY_STYLE: CellStyle = {}; // 빈 셀 공용 ref (memo 안정화)
 
@@ -1504,17 +1503,11 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
             <>
               <div className="sht-back" onClick={() => setMenu(null)} />
               <div className="sht-pop">
-                {FILL_COLORS.map((col) => (
-                  <button
-                    key={col || 'none'}
-                    className="sht-swatch"
-                    style={{ background: col || '#fff' }}
-                    onClick={() => setFill(col)}
-                    title={col || '없음'}
-                  >
-                    {col ? '' : '✕'}
-                  </button>
-                ))}
+                <ColorGrid
+                  value={styleOf(sel.r, sel.c).bg}
+                  noneLabel="채우기 없음"
+                  onPick={(c) => setFill(c)}
+                />
               </div>
             </>
           )}
@@ -1527,15 +1520,11 @@ export default function SheetEditor({ roomId }: { roomId: string }) {
             <>
               <div className="sht-back" onClick={() => setMenu(null)} />
               <div className="sht-pop">
-                {TEXT_COLORS.map((col) => (
-                  <button
-                    key={col}
-                    className="sht-swatch"
-                    style={{ background: col }}
-                    onClick={() => setTextColor(col)}
-                    title={col}
-                  />
-                ))}
+                <ColorGrid
+                  value={styleOf(sel.r, sel.c).color}
+                  noneLabel="기본"
+                  onPick={(c) => setTextColor(c)}
+                />
               </div>
             </>
           )}

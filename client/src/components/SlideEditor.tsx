@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { useAuthStore } from '../store';
 import { PlusIcon, CloseIcon, PlayIcon } from './Icons';
+import ColorGrid from './ColorGrid';
 
 interface SlideMeta {
   id: string;
@@ -32,7 +33,6 @@ interface ElData {
 }
 
 const COLORS = ['#30a46c', '#e5484d', '#f76808', '#4f7cff', '#8e4ec6', '#0091ff', '#d6409f'];
-const PALETTE = ['#21c818', '#e5484d', '#f76808', '#f5a524', '#4f7cff', '#8e4ec6', '#1c2024', '#ffffff', ''];
 
 /** Yjs 기반 협업 슬라이드(PowerPoint형) — roomId 단위 공유 */
 export default function SlideEditor({ roomId }: { roomId: string }) {
@@ -57,6 +57,7 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
   const [shapeMenu, setShapeMenu] = useState(false);
   const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
   const [printing, setPrinting] = useState(false);
+  const [colorMenu, setColorMenu] = useState<'fill' | 'stroke' | 'text' | null>(null);
 
   useEffect(() => {
     const ydoc = new Y.Doc();
@@ -558,27 +559,54 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
               </button>
               {selElData.type === 'shape' && (
                 <>
-                  <span className="slide-prop-label">채움</span>
-                  {PALETTE.map((col) => (
+                  <div className="slide-shape-wrap">
                     <button
-                      key={'f' + col}
-                      className="sht-swatch"
-                      style={{ background: col || '#fff', outline: selElData.fill === col ? '2px solid var(--green)' : undefined }}
-                      onClick={() => updateEl(selEl!, { fill: col })}
-                      title={col || '없음'}
+                      className="slide-prop-btn cbtn"
+                      onClick={() => setColorMenu(colorMenu === 'fill' ? null : 'fill')}
                     >
-                      {col ? '' : '✕'}
+                      <span className="cbtn-chip" style={{ background: selElData.fill || 'transparent' }} />
+                      채움 ▾
                     </button>
-                  ))}
-                  <span className="slide-prop-label">선</span>
-                  {PALETTE.slice(0, 7).map((col) => (
+                    {colorMenu === 'fill' && (
+                      <>
+                        <div className="slide-shape-back" onClick={() => setColorMenu(null)} />
+                        <div className="slide-color-pop">
+                          <ColorGrid
+                            value={selElData.fill}
+                            noneLabel="채움 없음"
+                            onPick={(c) => {
+                              updateEl(selEl!, { fill: c });
+                              setColorMenu(null);
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="slide-shape-wrap">
                     <button
-                      key={'s' + col}
-                      className="sht-swatch"
-                      style={{ background: col || '#fff', outline: selElData.stroke === col ? '2px solid var(--green)' : undefined }}
-                      onClick={() => updateEl(selEl!, { stroke: col })}
-                    />
-                  ))}
+                      className="slide-prop-btn cbtn"
+                      onClick={() => setColorMenu(colorMenu === 'stroke' ? null : 'stroke')}
+                    >
+                      <span className="cbtn-chip" style={{ background: selElData.stroke || 'transparent' }} />
+                      선 ▾
+                    </button>
+                    {colorMenu === 'stroke' && (
+                      <>
+                        <div className="slide-shape-back" onClick={() => setColorMenu(null)} />
+                        <div className="slide-color-pop">
+                          <ColorGrid
+                            value={selElData.stroke}
+                            noneLabel="선 없음"
+                            onPick={(c) => {
+                              updateEl(selEl!, { stroke: c });
+                              setColorMenu(null);
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
               {(selElData.type ?? 'text') === 'text' && (
@@ -601,15 +629,30 @@ export default function SlideEditor({ roomId }: { roomId: string }) {
                   >
                     A＋
                   </button>
-                  <span className="slide-prop-label">글자색</span>
-                  {PALETTE.slice(0, 8).map((col) => (
+                  <div className="slide-shape-wrap">
                     <button
-                      key={'t' + col}
-                      className="sht-swatch"
-                      style={{ background: col || '#fff', outline: selElData.color === col ? '2px solid var(--green)' : undefined }}
-                      onClick={() => updateEl(selEl!, { color: col })}
-                    />
-                  ))}
+                      className="slide-prop-btn cbtn"
+                      onClick={() => setColorMenu(colorMenu === 'text' ? null : 'text')}
+                    >
+                      <span className="cbtn-chip" style={{ background: selElData.color || '#1c2024' }} />
+                      글자색 ▾
+                    </button>
+                    {colorMenu === 'text' && (
+                      <>
+                        <div className="slide-shape-back" onClick={() => setColorMenu(null)} />
+                        <div className="slide-color-pop">
+                          <ColorGrid
+                            value={selElData.color}
+                            noneLabel="기본"
+                            onPick={(c) => {
+                              updateEl(selEl!, { color: c });
+                              setColorMenu(null);
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
             </div>
