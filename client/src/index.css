@@ -6749,6 +6749,76 @@ input:focus {
   background: var(--surface-3);
 }
 
+/* 구글 독스식 툴바 — 알약형 스트립 */
+.doc-editor-bar .doc-tools {
+  background: var(--surface-2);
+  border-radius: 22px;
+  padding: 3px 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-style-btn {
+  min-width: 84px;
+  font-weight: 600;
+  font-size: 12.5px;
+  gap: 6px;
+}
+
+.doc-style-caret {
+  font-size: 9px;
+  color: var(--text-sub);
+}
+
+.doc-size-input {
+  width: 34px;
+  height: 26px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  outline: none;
+}
+
+.doc-size-input:focus {
+  border-color: var(--green);
+}
+
+/* 우상단 댓글·이력 아이콘 (독스식) */
+.doc-top-ico {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+
+.doc-top-ico:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.doc-top-ico.on {
+  color: var(--green);
+  background: rgba(33, 200, 24, 0.1);
+}
+
+.doc-top-ico .doc-cbadge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  margin-left: 0;
+}
+
 /* 문서 툴바 드롭다운 공통 */
 .doc-dd-wrap {
   position: relative;

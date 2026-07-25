@@ -19,7 +19,6 @@ import ColorGrid from './ColorGrid';
 
 const CARET_COLORS = ['#30a46c', '#e5484d', '#f76808', '#4f7cff', '#8e4ec6', '#0091ff', '#d6409f'];
 
-const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '32px'];
 
 interface DocMeta {
   id: string;
@@ -27,7 +26,7 @@ interface DocMeta {
   ord: number;
 }
 
-type Menu = 'export' | 'size' | 'color' | 'hl' | 'table' | 'link' | 'find' | null;
+type Menu = 'export' | 'style' | 'color' | 'hl' | 'table' | 'link' | 'find' | null;
 
 // ── 댓글 ──
 interface CommentReply {
@@ -124,6 +123,26 @@ function AlignSvg({ mode }: { mode: 'left' | 'center' | 'right' }) {
     </svg>
   );
 }
+
+/* 구글 독스식 툴바 아이콘 — 16px stroke 미니 세트 */
+const I = ({ children }: { children: React.ReactNode }) => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    {children}
+  </svg>
+);
+const UndoSvg = () => <I><path d="M6 3 3 6l3 3" /><path d="M3 6h6.5a3.5 3.5 0 0 1 0 7H6" /></I>;
+const RedoSvg = () => <I><path d="m10 3 3 3-3 3" /><path d="M13 6H6.5a3.5 3.5 0 0 0 0 7H10" /></I>;
+const EraserSvg = () => <I><path d="m5.5 12.5-3-3a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.4 0l3.6 3.6a1 1 0 0 1 0 1.4l-5.4 5.4Z" /><path d="M4 14h10" /></I>;
+const LinkSvg = () => <I><path d="M6.5 9.5 9.5 6.5" /><path d="M7 4.5 8.5 3a2.8 2.8 0 0 1 4 4L11 8.5" /><path d="M9 11.5 7.5 13a2.8 2.8 0 0 1-4-4L5 7.5" /></I>;
+const ImageSvg = () => <I><rect x="2" y="3" width="12" height="10" rx="1.5" /><circle cx="5.5" cy="6.5" r="1" fill="currentColor" stroke="none" /><path d="m4 12 3.5-3.5 2 2L12 8l2 2" /></I>;
+const TableSvg = () => <I><rect x="2" y="2.5" width="12" height="11" rx="1" /><line x1="2" y1="6.5" x2="14" y2="6.5" /><line x1="7" y1="6.5" x2="7" y2="13.5" /></I>;
+const SearchSvg = () => <I><circle cx="7" cy="7" r="4.2" /><path d="m10.2 10.2 3.3 3.3" /></I>;
+const UlSvg = () => <I><circle cx="3" cy="4" r="1" fill="currentColor" stroke="none" /><circle cx="3" cy="8" r="1" fill="currentColor" stroke="none" /><circle cx="3" cy="12" r="1" fill="currentColor" stroke="none" /><line x1="6" y1="4" x2="14" y2="4" /><line x1="6" y1="8" x2="14" y2="8" /><line x1="6" y1="12" x2="14" y2="12" /></I>;
+const OlSvg = () => <I><text x="1.2" y="5.4" fontSize="5" fill="currentColor" stroke="none">1</text><text x="1.2" y="9.6" fontSize="5" fill="currentColor" stroke="none">2</text><text x="1.2" y="13.8" fontSize="5" fill="currentColor" stroke="none">3</text><line x1="6" y1="4" x2="14" y2="4" /><line x1="6" y1="8" x2="14" y2="8" /><line x1="6" y1="12" x2="14" y2="12" /></I>;
+const CheckSvg = () => <I><rect x="1.5" y="1.5" width="6" height="6" rx="1.5" /><path d="m3 4.6 1.3 1.3L6.5 3.5" /><rect x="1.5" y="9" width="6" height="6" rx="1.5" /><line x1="10" y1="4.5" x2="14.5" y2="4.5" /><line x1="10" y1="12" x2="14.5" y2="12" /></I>;
+const CodeSvg = () => <I><path d="m5.5 4.5-3.5 3.5 3.5 3.5" /><path d="m10.5 4.5 3.5 3.5-3.5 3.5" /></I>;
+const CommentSvg = () => <I><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v6a1.5 1.5 0 0 1-1.5 1.5H6l-3.5 3v-3h-.5A1.5 1.5 0 0 1 .9 9.6" /><path d="M2 3.5v6A1.5 1.5 0 0 0 3.5 11H4v3l3.5-3h5A1.5 1.5 0 0 0 14 9.5v-6A1.5 1.5 0 0 0 12.5 2h-9A1.5 1.5 0 0 0 2 3.5Z" /></I>;
+const HistorySvg = () => <I><path d="M8 4.5V8l2.5 1.5" /><path d="M2.5 8a5.5 5.5 0 1 1 1.6 3.9" /><path d="M2.5 12V8.8h3.2" /></I>;
 
 /** Yjs 기반 리치텍스트 공동편집 — 여러 문서(탭), roomId 단위 공유 */
 export default function DocEditor({ roomId }: { roomId: string }) {
@@ -505,6 +524,20 @@ export default function DocEditor({ roomId }: { roomId: string }) {
     setMenu(null);
   }
 
+  /** 글자 크기 스테퍼 (독스식 − n +) — 기본 15px(doc-prose 본문 크기) */
+  function curFontPx(): number {
+    const v = editor?.getAttributes('textStyle').fontSize as string | undefined;
+    return v ? parseInt(v, 10) || 15 : 15;
+  }
+  function applyFontPx(n: number) {
+    const px = Math.max(8, Math.min(96, Math.round(n)));
+    if (px === 15) editor?.chain().focus().unsetFontSize().run();
+    else editor?.chain().focus().setFontSize(`${px}px`).run();
+  }
+  function clearFormatting() {
+    editor?.chain().focus().unsetAllMarks().clearNodes().run();
+  }
+
   /** 대소문자 무시 전체 매치 위치 */
   function getMatches(term: string): { from: number; to: number }[] {
     const out: { from: number; to: number }[] = [];
@@ -558,7 +591,6 @@ export default function DocEditor({ roomId }: { roomId: string }) {
     status === 'connected' ? '실시간 연결됨' : status === 'connecting' ? '연결 중…' : '연결 끊김';
   const btn = (active: boolean) => `doc-tool${active ? ' on' : ''}`;
   const curColor = (editor?.getAttributes('textStyle').color as string | undefined) ?? '#1c2024';
-  const curSize = (editor?.getAttributes('textStyle').fontSize as string | undefined) ?? '';
   const inTable = !!editor?.isActive('table');
 
   return (
@@ -602,6 +634,30 @@ export default function DocEditor({ roomId }: { roomId: string }) {
           </button>
         </div>
         <div className="doc-tabbar-right">
+          {/* 댓글·이력 — 독스처럼 우상단 */}
+          <button
+            className={`doc-top-ico${commentsOpen ? ' on' : ''}`}
+            title="댓글 (텍스트를 선택하고 누르면 새 댓글)"
+            onClick={startComment}
+          >
+            <CommentSvg />
+            {Object.values(comments).filter((c) => !c.resolved).length > 0 && (
+              <span className="doc-cbadge">
+                {Object.values(comments).filter((c) => !c.resolved).length}
+              </span>
+            )}
+          </button>
+          <button
+            className="doc-top-ico"
+            title="변경이력"
+            onClick={() => {
+              setPreviewVer(null);
+              setDiffMode(false);
+              setVersionsOpen(true);
+            }}
+          >
+            <HistorySvg />
+          </button>
           <div className="doc-dd-wrap">
             <button className="doc-export" onClick={() => setMenu(menu === 'export' ? null : 'export')}>
               <DownloadIcon size={14} /> 내보내기
@@ -621,44 +677,92 @@ export default function DocEditor({ roomId }: { roomId: string }) {
 
       <div className="doc-editor-bar">
         <div className="doc-tools">
-          {/* 글자 크기 */}
+          {/* 실행취소·다시실행·서식지우기 (독스식) */}
+          <button className={btn(false)} title="실행 취소 (Ctrl+Z)" onClick={() => editor?.chain().focus().undo().run()}>
+            <UndoSvg />
+          </button>
+          <button className={btn(false)} title="다시 실행 (Ctrl+Y)" onClick={() => editor?.chain().focus().redo().run()}>
+            <RedoSvg />
+          </button>
+          <button className={btn(false)} title="서식 지우기" onClick={clearFormatting}>
+            <EraserSvg />
+          </button>
+          <span className="doc-tool-sep" />
+          {/* 스타일 드롭다운 (일반 텍스트/제목) */}
           <div className="doc-dd-wrap">
             <button
-              className={btn(!!curSize)}
-              title="글자 크기"
-              onClick={() => setMenu(menu === 'size' ? null : 'size')}
+              className={`doc-tool doc-style-btn${menu === 'style' ? ' on' : ''}`}
+              title="텍스트 스타일"
+              onClick={() => setMenu(menu === 'style' ? null : 'style')}
             >
-              {curSize ? curSize.replace('px', '') : '크기'}
+              {editor?.isActive('heading', { level: 1 })
+                ? '제목 1'
+                : editor?.isActive('heading', { level: 2 })
+                  ? '제목 2'
+                  : '일반 텍스트'}
+              <span className="doc-style-caret">▾</span>
             </button>
-            {menu === 'size' && (
+            {menu === 'style' && (
               <>
                 <div className="doc-dd-back" onClick={() => setMenu(null)} />
                 <div className="doc-dd">
                   <button
-                    className="item"
+                    className={`item${!editor?.isActive('heading') ? ' on' : ''}`}
                     onClick={() => {
-                      editor?.chain().focus().unsetFontSize().run();
+                      editor?.chain().focus().setParagraph().run();
                       setMenu(null);
                     }}
                   >
-                    기본
+                    일반 텍스트
                   </button>
-                  {FONT_SIZES.map((s) => (
-                    <button
-                      key={s}
-                      className={`item${curSize === s ? ' on' : ''}`}
-                      onClick={() => {
-                        editor?.chain().focus().setFontSize(s).run();
-                        setMenu(null);
-                      }}
-                    >
-                      {s.replace('px', '')}
-                    </button>
-                  ))}
+                  <button
+                    className={`item${editor?.isActive('heading', { level: 1 }) ? ' on' : ''}`}
+                    style={{ fontSize: 17, fontWeight: 700 }}
+                    onClick={() => {
+                      editor?.chain().focus().setHeading({ level: 1 }).run();
+                      setMenu(null);
+                    }}
+                  >
+                    제목 1
+                  </button>
+                  <button
+                    className={`item${editor?.isActive('heading', { level: 2 }) ? ' on' : ''}`}
+                    style={{ fontSize: 15, fontWeight: 700 }}
+                    onClick={() => {
+                      editor?.chain().focus().setHeading({ level: 2 }).run();
+                      setMenu(null);
+                    }}
+                  >
+                    제목 2
+                  </button>
                 </div>
               </>
             )}
           </div>
+          <span className="doc-tool-sep" />
+          {/* 글자 크기 − n + (독스식) */}
+          <button className={btn(false)} title="글자 작게" onClick={() => applyFontPx(curFontPx() - 1)}>
+            −
+          </button>
+          <input
+            key={curFontPx()}
+            className="doc-size-input"
+            defaultValue={curFontPx()}
+            inputMode="numeric"
+            title="글자 크기"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                applyFontPx(parseInt((e.target as HTMLInputElement).value, 10) || 15);
+              }
+            }}
+            onBlur={(e) => {
+              const n = parseInt(e.target.value, 10);
+              if (n && n !== curFontPx()) applyFontPx(n);
+            }}
+          />
+          <button className={btn(false)} title="글자 크게" onClick={() => applyFontPx(curFontPx() + 1)}>
+            ＋
+          </button>
           <span className="doc-tool-sep" />
           <button
             className={btn(!!editor?.isActive('bold'))}
@@ -743,21 +847,6 @@ export default function DocEditor({ roomId }: { roomId: string }) {
             )}
           </div>
           <span className="doc-tool-sep" />
-          <button
-            className={btn(!!editor?.isActive('heading', { level: 1 }))}
-            onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-            title="제목 1"
-          >
-            H1
-          </button>
-          <button
-            className={btn(!!editor?.isActive('heading', { level: 2 }))}
-            onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-            title="제목 2"
-          >
-            H2
-          </button>
-          <span className="doc-tool-sep" />
           {(['left', 'center', 'right'] as const).map((m) => (
             <button
               key={m}
@@ -774,21 +863,21 @@ export default function DocEditor({ roomId }: { roomId: string }) {
             onClick={() => editor?.chain().focus().toggleBulletList().run()}
             title="글머리 목록"
           >
-            • 목록
+            <UlSvg />
           </button>
           <button
             className={btn(!!editor?.isActive('orderedList'))}
             onClick={() => editor?.chain().focus().toggleOrderedList().run()}
             title="번호 목록"
           >
-            1. 목록
+            <OlSvg />
           </button>
           <button
             className={btn(!!editor?.isActive('taskList'))}
             onClick={() => editor?.chain().focus().toggleTaskList().run()}
             title="체크리스트"
           >
-            ☑ 체크
+            <CheckSvg />
           </button>
           <button
             className={btn(!!editor?.isActive('blockquote'))}
@@ -802,13 +891,13 @@ export default function DocEditor({ roomId }: { roomId: string }) {
             onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
             title="코드 블록"
           >
-            {'</>'}
+            <CodeSvg />
           </button>
           <span className="doc-tool-sep" />
           {/* 링크 */}
           <div className="doc-dd-wrap">
             <button className={btn(!!editor?.isActive('link'))} title="링크" onClick={openLinkMenu}>
-              링크
+              <LinkSvg />
             </button>
             {menu === 'link' && (
               <>
@@ -842,7 +931,7 @@ export default function DocEditor({ roomId }: { roomId: string }) {
           </div>
           {/* 이미지 */}
           <button className={btn(false)} title="이미지 삽입" onClick={() => fileInputRef.current?.click()}>
-            이미지
+            <ImageSvg />
           </button>
           <input
             ref={fileInputRef}
@@ -862,7 +951,7 @@ export default function DocEditor({ roomId }: { roomId: string }) {
               title="표"
               onClick={() => setMenu(menu === 'table' ? null : 'table')}
             >
-              표
+              <TableSvg />
             </button>
             {menu === 'table' && (
               <>
@@ -924,7 +1013,7 @@ export default function DocEditor({ roomId }: { roomId: string }) {
                 setMenu(menu === 'find' ? null : 'find');
               }}
             >
-              찾기
+              <SearchSvg />
             </button>
             {menu === 'find' && (
               <>
@@ -961,32 +1050,6 @@ export default function DocEditor({ roomId }: { roomId: string }) {
               </>
             )}
           </div>
-          <span className="doc-tool-sep" />
-          {/* 댓글 */}
-          <button
-            className={btn(commentsOpen)}
-            title="댓글 (텍스트를 선택하고 누르면 새 댓글)"
-            onClick={startComment}
-          >
-            댓글
-            {Object.values(comments).filter((c) => !c.resolved).length > 0 && (
-              <span className="doc-cbadge">
-                {Object.values(comments).filter((c) => !c.resolved).length}
-              </span>
-            )}
-          </button>
-          {/* 변경이력 */}
-          <button
-            className={btn(versionsOpen)}
-            title="변경이력"
-            onClick={() => {
-              setPreviewVer(null);
-              setDiffMode(false);
-              setVersionsOpen(true);
-            }}
-          >
-            이력
-          </button>
         </div>
         <div className="doc-editor-right">
           <span className="code-doc-peers">{peers}명 참여</span>
