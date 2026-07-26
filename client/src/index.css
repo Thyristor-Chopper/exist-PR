@@ -15445,3 +15445,127 @@ input:focus {
 .cf-tool.on {
   background: var(--surface-2);
 }
+
+/* ── 통화 컨트롤 — 마이크·카메라 스플릿 버튼 + 장치 선택 메뉴 ── */
+.meeting-controls .ctl-split {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.meeting-controls .ctl-split button.main {
+  width: 46px;
+  border-radius: 27px 0 0 27px;
+}
+
+.meeting-controls .ctl-split button.dev-arrow {
+  width: 24px;
+  height: 54px;
+  border-radius: 0 27px 27px 0;
+  margin-left: 1px;
+  color: #aab0bd;
+}
+
+.meeting-controls .ctl-split button.dev-arrow:hover,
+.meeting-controls .ctl-split button.dev-arrow.active {
+  color: #fff;
+  background: #3a404d;
+}
+
+/* ChevronIcon은 ▼ 모양 — 컨트롤 바에선 위로 펼치므로 뒤집는다 */
+.meeting-controls .dev-arrow-chev {
+  display: grid;
+  place-items: center;
+  transform: rotate(180deg);
+}
+
+.meeting-room.embedded .meeting-controls .ctl-split button.main {
+  width: 40px;
+  height: 46px;
+}
+
+.meeting-room.embedded .meeting-controls .ctl-split button.dev-arrow {
+  width: 21px;
+  height: 46px;
+}
+
+/* 허브 미니 통화 카드에선 화살표 숨김 — 본체 버튼만 원형 복귀 */
+.hub-call.mini .meeting-controls .ctl-split button.dev-arrow {
+  display: none;
+}
+
+.hub-call.mini .meeting-controls .ctl-split button.main {
+  border-radius: 50%;
+}
+
+.dev-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(300px, 86vw);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 40;
+  text-align: left;
+}
+
+.dev-menu-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-sub);
+  padding: 6px 10px 4px;
+}
+
+.meeting-controls .dev-menu button.dev-menu-item {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.meeting-controls .dev-menu button.dev-menu-item:hover {
+  background: var(--bg);
+}
+
+.meeting-controls .dev-menu button.dev-menu-item.active {
+  font-weight: 700;
+}
+
+.dev-menu-check {
+  width: 15px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--green);
+}
+
+.dev-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 모바일·태블릿(1023 이하): 컨트롤 버튼이 48px로 줄어듦 — 스플릿도 맞춰 축소 */
+@media (max-width: 1023px) {
+  .meeting-controls .ctl-split button.main {
+    width: 42px;
+    height: 48px;
+  }
+
+  .meeting-controls .ctl-split button.dev-arrow {
+    width: 20px;
+    height: 48px;
+  }
+}

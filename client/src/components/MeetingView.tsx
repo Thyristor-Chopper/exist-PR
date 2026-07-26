@@ -6,7 +6,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import Logo from './Logo';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, GearIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -211,7 +211,7 @@ export default function MeetingView({
   const [cams, setCams] = useState<MediaDeviceInfo[]>([]);
   const [micId, setMicId] = useState(() => localStorage.getItem('exist:mic-device') ?? '');
   const [camId, setCamId] = useState(() => localStorage.getItem('exist:cam-device') ?? '');
-  const [devOpen, setDevOpen] = useState(false); // 통화 중 장치 선택 팝오버
+  const [devMenu, setDevMenu] = useState<'mic' | 'cam' | null>(null); // 통화 중 장치 선택 메뉴 (스플릿 버튼 ˄)
   const micIdRef = useRef(micId);
   micIdRef.current = micId;
   const camIdRef = useRef(camId);
@@ -794,7 +794,38 @@ export default function MeetingView({
 
   const peers = [...remotePeers.values()];
 
-  // 마이크·카메라 선택 셀렉트 — 프리뷰 카드와 통화 중 팝오버 공용
+  // 통화 중 장치 선택 메뉴 — 스플릿 버튼의 ˄가 연다. 현재 장치에 체크 표시
+  const renderDevMenu = (kind: 'mic' | 'cam') => {
+    const list = kind === 'mic' ? mics : cams;
+    const current = kind === 'mic' ? micId : camId;
+    const noun = kind === 'mic' ? '마이크' : '카메라';
+    return (
+      <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 39 }} onClick={() => setDevMenu(null)} />
+        <div className="dev-menu">
+          <div className="dev-menu-title">{noun} 선택</div>
+          {[{ deviceId: '', label: `기본 ${noun}` }, ...list].map((d, i) => {
+            const active = current === d.deviceId;
+            return (
+              <button
+                key={d.deviceId || `d${i}`}
+                className={`dev-menu-item${active ? ' active' : ''}`}
+                onClick={() => {
+                  setDevMenu(null);
+                  if (!active) void pickDevice(kind, d.deviceId);
+                }}
+              >
+                <span className="dev-menu-check">{active && <CheckMarkIcon size={13} />}</span>
+                <span className="dev-menu-label">{d.label || `${noun} ${i}`}</span>
+              </button>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
+  // 마이크·카메라 선택 셀렉트 — 입장 전 프리뷰 카드용
   const selStyle: React.CSSProperties = {
     flex: 1,
     minWidth: 0,
@@ -1133,59 +1164,45 @@ export default function MeetingView({
       </div>
 
       <footer className="meeting-controls">
-        <button className={micOn ? '' : 'off'} onClick={toggleMic} title="마이크">
-          <MicIcon size={21} />
-          {!micOn && (
-            <span className="slash">
-              <SlashIcon size={21} />
-            </span>
-          )}
-        </button>
-        <button className={camOn ? '' : 'off'} onClick={toggleCam} title="카메라">
-          <CamIcon size={21} />
-          {!camOn && (
-            <span className="slash">
-              <SlashIcon size={21} />
-            </span>
-          )}
-        </button>
-        <div style={{ position: 'relative', display: 'inline-flex' }}>
-          <button
-            className={devOpen ? 'active' : ''}
-            onClick={() => setDevOpen((v) => !v)}
-            title="마이크·카메라 선택"
-          >
-            <GearIcon size={20} />
+        <div className="ctl-split">
+          <button className={`main${micOn ? '' : ' off'}`} onClick={toggleMic} title="마이크">
+            <MicIcon size={21} />
+            {!micOn && (
+              <span className="slash">
+                <SlashIcon size={21} />
+              </span>
+            )}
           </button>
-          {devOpen && (
-            <div
-              style={{ position: 'fixed', inset: 0, zIndex: 39 }}
-              onClick={() => setDevOpen(false)}
-            />
-          )}
-          {devOpen && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: 'calc(100% + 10px)',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 'min(280px, 84vw)',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 12,
-                padding: 12,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-                zIndex: 40,
-                textAlign: 'left',
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sub)', marginBottom: 8 }}>
-                입력 장치
-              </div>
-              {deviceSelects}
-            </div>
-          )}
+          <button
+            className={`dev-arrow${devMenu === 'mic' ? ' active' : ''}`}
+            onClick={() => setDevMenu((v) => (v === 'mic' ? null : 'mic'))}
+            title="마이크 선택"
+          >
+            <span className="dev-arrow-chev">
+              <ChevronIcon size={13} />
+            </span>
+          </button>
+          {devMenu === 'mic' && renderDevMenu('mic')}
+        </div>
+        <div className="ctl-split">
+          <button className={`main${camOn ? '' : ' off'}`} onClick={toggleCam} title="카메라">
+            <CamIcon size={21} />
+            {!camOn && (
+              <span className="slash">
+                <SlashIcon size={21} />
+              </span>
+            )}
+          </button>
+          <button
+            className={`dev-arrow${devMenu === 'cam' ? ' active' : ''}`}
+            onClick={() => setDevMenu((v) => (v === 'cam' ? null : 'cam'))}
+            title="카메라 선택"
+          >
+            <span className="dev-arrow-chev">
+              <ChevronIcon size={13} />
+            </span>
+          </button>
+          {devMenu === 'cam' && renderDevMenu('cam')}
         </div>
         <button
           className={localScreen ? 'active' : ''}
