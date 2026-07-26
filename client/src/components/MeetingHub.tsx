@@ -899,8 +899,10 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
           onClick={() => setSubtab('call')}
         >
           <PhoneIcon size={13} /> 통화
-          {inCall && <i className="live-dot" />}
-          {(detail?.online ?? 0) > 0 && <span className="hub-tab-count">{detail!.online}</span>}
+          {/* 인원수 배지가 깜빡이며 라이브 표시까지 겸함 — live-dot과 중복이라 점은 제거 */}
+          {(detail?.online ?? 0) > 0 && (
+            <span className="hub-tab-count blink">{detail!.online}</span>
+          )}
         </button>
         <button
           className={`hub-tab${subtab === 'chat' ? ' active' : ''}`}

@@ -12759,6 +12759,21 @@ input:focus {
   line-height: 1;
 }
 
+/* 통화 인원수 배지 = 라이브 표시 겸용 — 사라졌다 떴다 반복 */
+.hub-tab-count.blink {
+  animation: hub-count-blink 1.8s ease-in-out infinite;
+}
+
+@keyframes hub-count-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 /* ───── 회의실 ───── */
 .meeting-room {
   display: flex;
