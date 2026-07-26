@@ -1179,7 +1179,7 @@ export default function MeetingView({
             title="마이크 선택"
           >
             <span className="dev-arrow-chev">
-              <ChevronIcon size={11} />
+              <ChevronIcon size={12} />
             </span>
           </button>
           {devMenu === 'mic' && renderDevMenu('mic')}
@@ -1199,7 +1199,7 @@ export default function MeetingView({
             title="카메라 선택"
           >
             <span className="dev-arrow-chev">
-              <ChevronIcon size={11} />
+              <ChevronIcon size={12} />
             </span>
           </button>
           {devMenu === 'cam' && renderDevMenu('cam')}

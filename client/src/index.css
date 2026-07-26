@@ -15446,31 +15446,57 @@ input:focus {
   background: var(--surface-2);
 }
 
-/* ── 통화 컨트롤 — 마이크·카메라 원형 버튼 + 우상단 ˄ 배지(장치 선택) ── */
+/* ── 통화 컨트롤 — 마이크·카메라 = 타원 한 덩어리 (토글 + ˄ 장치 선택) ── */
 .meeting-controls .ctl-split {
   position: relative;
   display: inline-flex;
   align-items: center;
+  border-radius: 999px;
+  background: #2a2e37; /* 타원 배경은 컨테이너가 그린다 — 이음새 없는 한 덩어리 */
 }
 
-/* 원형 토글은 기존 그대로 — 배지만 모서리에 얹는다 */
+.meeting-controls .ctl-split button.main {
+  width: 48px;
+  border-radius: 999px 0 0 999px;
+  background: none;
+}
+
+.meeting-controls .ctl-split button.main:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
 .meeting-controls .ctl-split button.dev-arrow {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #3a404d;
-  color: #cfd3dc;
-  border: 2px solid #0f1115; /* 푸터 배경색 — 본체 원과 시각적 분리 */
-  z-index: 1;
+  width: 27px;
+  height: 54px;
+  border-radius: 0 999px 999px 0;
+  background: none;
+  color: #aab0bd;
+  border-left: 1px solid rgba(255, 255, 255, 0.13); /* 은은한 구분선 */
 }
 
 .meeting-controls .ctl-split button.dev-arrow:hover,
 .meeting-controls .ctl-split button.dev-arrow.active {
   color: #fff;
-  background: #4a5163;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* 음소거/카메라 꺼짐: 타원 전체가 빨강 (토글 자체 배경은 none이므로 컨테이너에 칠함) */
+.meeting-controls .ctl-split:has(> button.main.off) {
+  background: #d33;
+}
+
+.meeting-controls .ctl-split:has(> button.main.off) button.main {
+  background: none;
+}
+
+.meeting-controls .ctl-split:has(> button.main.off) button.dev-arrow {
+  color: #ffd7d7;
+  border-left-color: rgba(255, 255, 255, 0.3);
+}
+
+.meeting-controls .ctl-split:has(> button.main.off) button.dev-arrow:hover {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.15);
 }
 
 /* ChevronIcon은 ▼ 모양 — 위로 펼치므로 뒤집는다 */
@@ -15480,16 +15506,32 @@ input:focus {
   transform: rotate(180deg);
 }
 
-.meeting-room.embedded .meeting-controls .ctl-split button.dev-arrow {
-  width: 20px;
-  height: 20px;
-  top: -4px;
-  right: -4px;
+.meeting-room.embedded .meeting-controls .ctl-split button.main {
+  width: 42px;
+  height: 46px;
 }
 
-/* 허브 미니 통화 카드에선 배지 숨김 */
+.meeting-room.embedded .meeting-controls .ctl-split button.dev-arrow {
+  width: 24px;
+  height: 46px;
+}
+
+/* 허브 미니 통화 카드: 화살표 숨기고 원형 복귀 */
+.hub-call.mini .meeting-controls .ctl-split {
+  background: none;
+}
+
 .hub-call.mini .meeting-controls .ctl-split button.dev-arrow {
   display: none;
+}
+
+.hub-call.mini .meeting-controls .ctl-split button.main {
+  border-radius: 50%;
+  background: #2a2e37;
+}
+
+.hub-call.mini .meeting-controls .ctl-split:has(> button.main.off) button.main {
+  background: #d33;
 }
 
 .dev-menu {
@@ -15551,12 +15593,15 @@ input:focus {
   white-space: nowrap;
 }
 
-/* 모바일·태블릿(1023 이하): 버튼 48px에 맞춰 배지 축소 + 탭 타깃 유지 */
+/* 모바일·태블릿(1023 이하): 버튼 48px에 맞춰 타원 세그먼트 축소 */
 @media (max-width: 1023px) {
+  .meeting-controls .ctl-split button.main {
+    width: 43px;
+    height: 48px;
+  }
+
   .meeting-controls .ctl-split button.dev-arrow {
-    width: 20px;
-    height: 20px;
-    top: -4px;
-    right: -4px;
+    width: 25px;
+    height: 48px;
   }
 }
