@@ -79,7 +79,6 @@ function makeFallbackStream(label: string): MediaStream {
 function VideoTile({
   track,
   username,
-  muted,
   isLocal,
   isScreen,
   paused,
@@ -87,7 +86,6 @@ function VideoTile({
 }: {
   track?: MediaStreamTrack;
   username: string;
-  muted?: boolean;
   isLocal?: boolean;
   isScreen?: boolean;
   paused?: boolean;
@@ -116,16 +114,22 @@ function VideoTile({
     };
   }, [track, isLocal]);
   useEffect(() => {
-    if (ref.current && track && showVideo) {
-      ref.current.srcObject = new MediaStream([track]);
-      void ref.current.play().catch(() => {}); // autoplay 거부 시 폴백 (실패해도 autoPlay 속성이 재시도)
-    }
+    const el = ref.current;
+    if (!el || !track || !showVideo) return;
+    el.srcObject = new MediaStream([track]);
+    // 모바일은 자동재생이 거부될 수 있음(NotAllowedError) — 다음 사용자 터치에서 1회 재시도
+    const retry = () => void el.play().catch(() => {});
+    void el.play().catch(() => {
+      window.addEventListener('pointerdown', retry, { once: true, capture: true });
+    });
+    return () => window.removeEventListener('pointerdown', retry, true);
   }, [track, showVideo]);
   return (
     <div className={`video-tile${isScreen ? ' screen' : ''}`}>
       {showVideo ? (
         <>
-          <video ref={ref} autoPlay playsInline muted={muted} />
+          {/* 소리는 AudioSink가 담당 — 비디오는 항상 muted (모바일 자동재생 정책: unmuted면 play 거부) */}
+          <video ref={ref} autoPlay playsInline muted />
           {stalled && (
             <div
               style={{
@@ -166,7 +170,15 @@ function VideoTile({
 function AudioSink({ track }: { track: MediaStreamTrack }) {
   const ref = useRef<HTMLAudioElement>(null);
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = new MediaStream([track]);
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = new MediaStream([track]);
+    // 모바일에서 오디오 자동재생이 거부되면 다음 터치에서 1회 재시도
+    const retry = () => void el.play().catch(() => {});
+    void el.play().catch(() => {
+      window.addEventListener('pointerdown', retry, { once: true, capture: true });
+    });
+    return () => window.removeEventListener('pointerdown', retry, true);
   }, [track]);
   return <audio ref={ref} autoPlay />;
 }
@@ -971,7 +983,6 @@ export default function MeetingView({
               <VideoTile
                 track={previewTrack}
                 username={dn(user?.username ?? '나')}
-                muted
                 isLocal
                 paused={!camOn}
               />
@@ -1079,7 +1090,6 @@ export default function MeetingView({
                   key={s.key}
                   track={s.track}
                   username={dn(s.username)}
-                  muted={s.isLocal}
                   isLocal={s.isLocal}
                   isScreen
                 />
@@ -1092,7 +1102,6 @@ export default function MeetingView({
             <VideoTile
               track={localTrack}
               username={dn(user?.username ?? '나')}
-              muted
               isLocal
               paused={!camOn}
             />
