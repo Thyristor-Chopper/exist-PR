@@ -13642,6 +13642,7 @@ input:focus {
   left: 12px;
   bottom: 10px;
   background: rgba(0, 0, 0, 0.55);
+  color: #fff; /* 어두운 오버레이 위 — 라이트 테마의 상속색(검정)이면 안 보임 */
   padding: 4px 10px;
   border-radius: 8px;
   font-size: 13px;
