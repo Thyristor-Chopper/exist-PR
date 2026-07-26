@@ -258,7 +258,14 @@ export default function DashboardPage() {
     (m: Meeting) => openMeetingTab(m.code, m.title),
     [openMeetingTab],
   );
-  const onScheduleFromBar = useCallback(() => openCreate(true), [openCreate]);
+  // nowbar "+ 일정 추가": 보고 있는 그룹이 있으면 그 그룹의 일정 탭으로 — 새 그룹 생성 아님 (7/26 버그 픽스)
+  const onScheduleFromBar = useCallback(
+    (m?: Meeting) => {
+      if (m) openMeetingTab(m.code, m.title, 'schedule');
+      else openCreate(true);
+    },
+    [openMeetingTab, openCreate],
+  );
 
   // nowbar 그룹 = 최근 회의 ∪ 일정(occurrence/이벤트)이 있는 회의.
   // 최근 목록에서 밀려난 회의라도 예정 일정이 있으면 nowbar가 띄울 수 있게 합친다.

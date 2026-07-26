@@ -424,6 +424,9 @@ interface SheetCellProps {
   fillHandle: boolean;
   isFormula: boolean;
   cfBg?: string;
+  remoteColor?: string;
+  remoteEdges?: string; // 원격 선택 범위의 경계 방향 조합 ('t','b','l','r') — 범위 외곽선만 그림
+  remoteName?: string;
   editing: boolean;
   editValue: string;
   editRef: React.RefObject<HTMLInputElement | null>;
@@ -450,6 +453,9 @@ const SheetCell = memo(function SheetCell({
   fillHandle,
   isFormula,
   cfBg,
+  remoteColor,
+  remoteEdges,
+  remoteName,
   editing,
   editValue,
   editRef,
@@ -461,16 +467,33 @@ const SheetCell = memo(function SheetCell({
   onEditBlur,
   onFillStart,
 }: SheetCellProps) {
+  // 원격 선택 안쪽 옅은 칠 — backgroundImage 레이어라 셀 배경(cfBg/스타일)·로컬 선택 하이라이트와 공존
+  const remoteWash = remoteColor
+    ? `linear-gradient(color-mix(in srgb, ${remoteColor} 12%, transparent), color-mix(in srgb, ${remoteColor} 12%, transparent))`
+    : undefined;
   const cellStyle: React.CSSProperties = {
     fontWeight: sty.b ? 700 : undefined,
     fontStyle: sty.i ? 'italic' : undefined,
     color: sty.color || undefined,
-    background: cfBg || sty.bg || undefined,
+    backgroundColor: cfBg || sty.bg || undefined,
+    backgroundImage: remoteWash,
     textAlign: sty.align,
     borderTop: sty.bt ? '2px solid var(--text)' : undefined,
     borderRight: sty.br ? '2px solid var(--text)' : undefined,
     borderBottom: sty.bb ? '2px solid var(--text)' : undefined,
     borderLeft: sty.bl ? '2px solid var(--text)' : undefined,
+    // 원격 사용자 선택 — 범위 외곽 변만 inset 그림자로 (로컬 outline과 공존)
+    boxShadow:
+      remoteColor && remoteEdges
+        ? [
+            remoteEdges.includes('t') && `inset 0 2px 0 0 ${remoteColor}`,
+            remoteEdges.includes('b') && `inset 0 -2px 0 0 ${remoteColor}`,
+            remoteEdges.includes('l') && `inset 2px 0 0 0 ${remoteColor}`,
+            remoteEdges.includes('r') && `inset -2px 0 0 0 ${remoteColor}`,
+          ]
+            .filter(Boolean)
+            .join(', ')
+        : undefined,
   };
   return (
     <td
@@ -506,9 +529,25 @@ const SheetCell = memo(function SheetCell({
           }}
         />
       )}
+      {remoteName && !editing && (
+        <span className="sheet-remote-name" style={{ background: remoteColor }}>
+          {remoteName}
+        </span>
+      )}
     </td>
   );
 });
+
+/** 다른 사용자의 셀 선택 — awareness 'sel' 필드로 공유 */
+interface RemoteSel {
+  name: string;
+  color: string;
+  sheetId: string;
+  r1: number;
+  c1: number;
+  r2: number;
+  c2: number;
+}
 
 /** Yjs 기반 협업 스프레드시트 — 여러 시트(하단 탭), roomId 단위 공유 */
 export default function SheetEditor({ roomId, active = true }: { roomId: string; active?: boolean }) {
@@ -541,6 +580,8 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
   const pendingSelRef = useRef<{ r: number; c: number } | null>(null);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [peers, setPeers] = useState(1);
+  const [remoteSels, setRemoteSels] = useState<RemoteSel[]>([]);
+  const remoteSelsJsonRef = useRef('[]'); // 내용 같으면 setState 생략 (awareness는 하트비트로도 옴)
   const [sheets, setSheets] = useState<SheetMeta[]>([]);
   const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
   const [renamingSheet, setRenamingSheet] = useState<{ id: string; name: string } | null>(null);
@@ -595,6 +636,21 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, roomId]);
 
+  // 내 선택을 awareness로 공유 — 다른 사용자 화면에 색 테두리+이름표로 표시
+  // active 의존: 숨김 복귀 시 setLocalState({user})가 sel을 지우므로 여기서 되살림
+  useEffect(() => {
+    const p = providerRef.current;
+    if (!p || !active || !activeSheetId) return;
+    p.awareness.setLocalStateField('sel', {
+      sheetId: activeSheetId,
+      r1: Math.min(anchor.r, sel.r),
+      c1: Math.min(anchor.c, sel.c),
+      r2: Math.max(anchor.r, sel.r),
+      c2: Math.max(anchor.c, sel.c),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel, anchor, activeSheetId, active, status]);
+
   useEffect(() => {
     const ydoc = new Y.Doc();
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -632,7 +688,30 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
     const onStatus = (e: { status: 'connecting' | 'connected' | 'disconnected' }) =>
       setStatus(e.status);
     provider.on('status', onStatus);
-    const onAwareness = () => setPeers(provider.awareness.getStates().size || 1);
+    // 원격 선택은 40ms로 묶어서 반영 — 드래그로 선택을 흔들면 초당 수십 번 change가 온다
+    let selTimer: ReturnType<typeof setTimeout> | null = null;
+    const pullRemoteSels = () => {
+      const list: RemoteSel[] = [];
+      provider.awareness.getStates().forEach((state, clientId) => {
+        if (clientId === provider.awareness.clientID) return;
+        const u = (state as { user?: { name: string; color: string } }).user;
+        const s = (state as { sel?: { sheetId: string; r1: number; c1: number; r2: number; c2: number } }).sel;
+        if (!u || !s) return;
+        list.push({ name: u.name, color: u.color, ...s });
+      });
+      const json = JSON.stringify(list);
+      if (json === remoteSelsJsonRef.current) return;
+      remoteSelsJsonRef.current = json;
+      setRemoteSels(list);
+    };
+    const onAwareness = () => {
+      setPeers(provider.awareness.getStates().size || 1);
+      if (selTimer) return;
+      selTimer = setTimeout(() => {
+        selTimer = null;
+        pullRemoteSels();
+      }, 40);
+    };
     provider.awareness.on('change', onAwareness);
     const color = COLORS[(user?.id ?? 0) % COLORS.length];
     provider.awareness.setLocalStateField('user', { name: user?.username ?? '익명', color });
@@ -641,6 +720,7 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
       sheetsMap.unobserve(syncSheets);
       provider.off('status', onStatus);
       provider.awareness.off('change', onAwareness);
+      if (selTimer) clearTimeout(selTimer);
       provider.destroy();
       ydoc.destroy();
       ydocRef.current = null;
@@ -1464,6 +1544,7 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
 
   const statusLabel =
     status === 'connected' ? '실시간 연결됨' : status === 'connecting' ? '연결 중…' : '연결 끊김';
+  const remoteSelsHere = remoteSels.filter((s) => s.sheetId === activeSheetId); // 같은 시트를 보는 사람만
   const activeRaw = raw(sel.r, sel.c);
   const r1 = Math.min(anchor.r, sel.r);
   const r2 = Math.max(anchor.r, sel.r);
@@ -1785,11 +1866,27 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
                   if (cov && !(cov.r1 === r && cov.c1 === c)) return null;
                   const isEditing = !!editing && editing.r === r && editing.c === c;
                   const sty = styleOf(r, c);
+                  let remoteColor: string | undefined;
+                  let remoteEdges: string | undefined;
+                  let remoteName: string | undefined;
+                  for (const rs of remoteSelsHere) {
+                    if (r >= rs.r1 && r <= rs.r2 && c >= rs.c1 && c <= rs.c2) {
+                      remoteColor = rs.color;
+                      remoteEdges =
+                        `${r === rs.r1 ? 't' : ''}${r === rs.r2 ? 'b' : ''}` +
+                        `${c === rs.c1 ? 'l' : ''}${c === rs.c2 ? 'r' : ''}`;
+                      if (r === rs.r1 && c === rs.c1) remoteName = rs.name; // 이름표는 좌상단 셀에만
+                      break;
+                    }
+                  }
                   return (
                     <SheetCell
                       key={c}
                       r={r}
                       c={c}
+                      remoteColor={remoteColor}
+                      remoteEdges={remoteEdges}
+                      remoteName={remoteName}
                       cfBg={cfRules.length ? cfBgFor(r, c, valueGrid[r]?.[c] ?? '') : undefined}
                       value={formatDisplay(valueGrid[r]?.[c] ?? '', sty)}
                       style={sty}

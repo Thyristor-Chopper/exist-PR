@@ -899,8 +899,10 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
           onClick={() => setSubtab('call')}
         >
           <PhoneIcon size={13} /> 통화
-          {inCall && <i className="live-dot" />}
-          {(detail?.online ?? 0) > 0 && <span className="hub-tab-count">{detail!.online}</span>}
+          {/* 인원수 배지가 깜빡이며 라이브 표시까지 겸함 — live-dot과 중복이라 점은 제거 */}
+          {(detail?.online ?? 0) > 0 && (
+            <span className="hub-tab-count blink">{detail!.online}</span>
+          )}
         </button>
         <button
           className={`hub-tab${subtab === 'chat' ? ' active' : ''}`}
@@ -1195,13 +1197,31 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                               </label>
                               <button
                                 type="button"
-                                className={`hub-todo-assign${(t.assignees ?? []).length ? ' has' : ''}`}
+                                className={`hub-todo-assign${(t.assignees ?? []).length ? ' has faces' : ''}`}
                                 onClick={() => setAssignPick(assignPick === t.id ? null : t.id)}
                                 title={(t.assignees ?? []).length ? undefined : '담당자 지정'}
                               >
-                                {(t.assignees ?? []).length
-                                  ? `${t.assignees!.slice(0, 2).join(', ')}${t.assignees!.length > 2 ? ` +${t.assignees!.length - 2}` : ''}`
-                                  : '담당'}
+                                {(t.assignees ?? []).length ? (
+                                  <span className="hub-assign-faces">
+                                    {t.assignees!.slice(0, 3).map((u) => (
+                                      <Avatar
+                                        key={u}
+                                        value={
+                                          detail.participants.find((p) => p.username === u)
+                                            ?.avatar ?? null
+                                        }
+                                        className="hub-assign-face"
+                                      />
+                                    ))}
+                                    {t.assignees!.length > 3 && (
+                                      <span className="hub-assign-more">
+                                        +{t.assignees!.length - 3}
+                                      </span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  '담당'
+                                )}
                               </button>
                               {(t.assignees ?? []).length > 0 && (
                                 <div className="hub-assign-tip" aria-hidden>
@@ -1230,8 +1250,11 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                         checked={(t.assignees ?? []).includes(p.username)}
                                         onChange={() => void toggleAssignee(t, p.username)}
                                       />
+                                      <span className="hub-todo-check" aria-hidden>
+                                        <CheckMarkIcon size={13} />
+                                      </span>
                                       <Avatar value={p.avatar} className="hub-assign-avatar" />
-                                      <span>{p.username}</span>
+                                      <span className="hub-assign-name">{p.username}</span>
                                     </label>
                                   ))}
                                 </div>
@@ -1278,8 +1301,11 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                     )
                                   }
                                 />
+                                <span className="hub-todo-check" aria-hidden>
+                                  <CheckMarkIcon size={13} />
+                                </span>
                                 <Avatar value={p.avatar} className="hub-assign-avatar" />
-                                <span>{p.username}</span>
+                                <span className="hub-assign-name">{p.username}</span>
                               </label>
                             ))}
                           </div>

@@ -322,8 +322,8 @@ interface Props {
   onAddTodo?: (title: string) => void;
   /** 일정 클릭 → 회의 탭 열기 */
   onOpenMeeting?: (m: Meeting) => void;
-  /** "+ 일정 추가" → 회의 일정 잡기 모달 */
-  onSchedule?: () => void;
+  /** "+ 일정 추가" — 보고 있는 그룹(fg)이 있으면 그 그룹을 넘김(그 그룹 일정 탭으로), 없으면 새 그룹 일정 잡기 */
+  onSchedule?: (m?: Meeting) => void;
   /** 사이드바 열고 닫기 */
   onToggleSidebar?: () => void;
 }
@@ -891,7 +891,7 @@ function NowBar({
                   <div className="nb-expand-title">
                     {fg ? `${fg.title} · 다가오는 일정` : '다가오는 일정'}
                     {onSchedule && (
-                      <button type="button" className="nb-sched-add" onClick={onSchedule}>
+                      <button type="button" className="nb-sched-add" onClick={() => onSchedule(fg ?? undefined)}>
                         + 일정 추가
                       </button>
                     )}
