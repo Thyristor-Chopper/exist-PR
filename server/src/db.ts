@@ -607,4 +607,14 @@ try {
   /* 이미 nullable */
 }
 
+// 채널별 채팅 알림 설정 — all(다 받기) | mention(@나 멘션만, 기본) | off(끄기)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS channel_notify_prefs (
+    user_id    INTEGER NOT NULL REFERENCES users(id),
+    channel_id INTEGER NOT NULL REFERENCES chat_channels(id),
+    mode       TEXT NOT NULL DEFAULT 'mention',
+    PRIMARY KEY (user_id, channel_id)
+  )
+`);
+
 export default db;

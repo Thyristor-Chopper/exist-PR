@@ -18,7 +18,14 @@ import {
   markNextMeetingRegistered,
   runRecapForMeeting,
 } from './recap.js';
-import { listChannels, ensureDefaultChannel, ensureCallChannel, resolveChannel, cleanChannelName } from './channels.js';
+import {
+  listChannels,
+  ensureDefaultChannel,
+  ensureCallChannel,
+  resolveChannel,
+  cleanChannelName,
+  setNotifyMode,
+} from './channels.js';
 import { generateAgenda, invalidateAgenda, ensureAgentUser } from './steward.js';
 import filesRouter, { deleteMeetingFiles } from './files.js';
 
@@ -1352,6 +1359,22 @@ router.delete('/:code/channels/:channelId', (req: AuthedRequest, res) => {
   db.prepare('DELETE FROM messages WHERE channel_id = ?').run(id);
   db.prepare('DELETE FROM chat_channels WHERE id = ?').run(id);
   res.json({ ok: true });
+});
+
+/** 채널 알림 설정 — 본인 것만 (all: 다 받기 / mention: @멘션만, 기본 / off: 끄기) */
+router.put('/:code/channels/:channelId/notify', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const mode = req.body?.mode;
+  if (mode !== 'all' && mode !== 'mention' && mode !== 'off') {
+    return res.status(400).json({ error: '알 수 없는 알림 모드예요' });
+  }
+  const ch = db
+    .prepare('SELECT id FROM chat_channels WHERE id = ? AND meeting_id = ?')
+    .get(req.params.channelId, r.meeting.id) as { id: number } | undefined;
+  if (!ch) return res.status(404).json({ error: '존재하지 않는 채널이에요' });
+  setNotifyMode(req.userId!, ch.id, mode);
+  res.json({ id: ch.id, notifyMode: mode });
 });
 
 export default router;
