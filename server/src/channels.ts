@@ -72,7 +72,6 @@ export function ensureCallChannel(meetingId: number, createdBy: number): { id: n
 export function listChannels(meetingId: number, callerId: number): Channel[] {
   const defaultId = ensureDefaultChannel(meetingId, callerId);
   const rows = db
-<<<<<<< HEAD
     .prepare('SELECT id, name, kind, created_by FROM chat_channels WHERE meeting_id = ? ORDER BY id')
     .all(meetingId) as { id: number; name: string; kind: string | null; created_by: number }[];
   // isDefault는 ensureDefaultChannel 기준 — 통화(kind=call) 채널이 첫 행이어도 기본을 못 뺏게
@@ -82,16 +81,7 @@ export function listChannels(meetingId: number, callerId: number): Channel[] {
     kind: r.kind,
     isDefault: r.id === defaultId,
     createdBy: r.created_by,
-=======
-    .prepare('SELECT id, name, created_by FROM chat_channels WHERE meeting_id = ? ORDER BY id')
-    .all(meetingId) as { id: number; name: string; created_by: number }[];
-  return rows.map((r, i) => ({
-    id: r.id,
-    name: r.name,
-    isDefault: i === 0,
-    createdBy: r.created_by,
     notifyMode: notifyModeOf(callerId, r.id),
->>>>>>> w2-todos-iam
   }));
 }
 
