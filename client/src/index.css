@@ -15446,56 +15446,50 @@ input:focus {
   background: var(--surface-2);
 }
 
-/* ── 통화 컨트롤 — 마이크·카메라 스플릿 버튼 + 장치 선택 메뉴 ── */
+/* ── 통화 컨트롤 — 마이크·카메라 원형 버튼 + 우상단 ˄ 배지(장치 선택) ── */
 .meeting-controls .ctl-split {
   position: relative;
   display: inline-flex;
   align-items: center;
 }
 
-.meeting-controls .ctl-split button.main {
-  width: 46px;
-  border-radius: 27px 0 0 27px;
-}
-
+/* 원형 토글은 기존 그대로 — 배지만 모서리에 얹는다 */
 .meeting-controls .ctl-split button.dev-arrow {
-  width: 24px;
-  height: 54px;
-  border-radius: 0 27px 27px 0;
-  margin-left: 1px;
-  color: #aab0bd;
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #3a404d;
+  color: #cfd3dc;
+  border: 2px solid #0f1115; /* 푸터 배경색 — 본체 원과 시각적 분리 */
+  z-index: 1;
 }
 
 .meeting-controls .ctl-split button.dev-arrow:hover,
 .meeting-controls .ctl-split button.dev-arrow.active {
   color: #fff;
-  background: #3a404d;
+  background: #4a5163;
 }
 
-/* ChevronIcon은 ▼ 모양 — 컨트롤 바에선 위로 펼치므로 뒤집는다 */
+/* ChevronIcon은 ▼ 모양 — 위로 펼치므로 뒤집는다 */
 .meeting-controls .dev-arrow-chev {
   display: grid;
   place-items: center;
   transform: rotate(180deg);
 }
 
-.meeting-room.embedded .meeting-controls .ctl-split button.main {
-  width: 40px;
-  height: 46px;
-}
-
 .meeting-room.embedded .meeting-controls .ctl-split button.dev-arrow {
-  width: 21px;
-  height: 46px;
+  width: 20px;
+  height: 20px;
+  top: -4px;
+  right: -4px;
 }
 
-/* 허브 미니 통화 카드에선 화살표 숨김 — 본체 버튼만 원형 복귀 */
+/* 허브 미니 통화 카드에선 배지 숨김 */
 .hub-call.mini .meeting-controls .ctl-split button.dev-arrow {
   display: none;
-}
-
-.hub-call.mini .meeting-controls .ctl-split button.main {
-  border-radius: 50%;
 }
 
 .dev-menu {
@@ -15557,15 +15551,12 @@ input:focus {
   white-space: nowrap;
 }
 
-/* 모바일·태블릿(1023 이하): 컨트롤 버튼이 48px로 줄어듦 — 스플릿도 맞춰 축소 */
+/* 모바일·태블릿(1023 이하): 버튼 48px에 맞춰 배지 축소 + 탭 타깃 유지 */
 @media (max-width: 1023px) {
-  .meeting-controls .ctl-split button.main {
-    width: 42px;
-    height: 48px;
-  }
-
   .meeting-controls .ctl-split button.dev-arrow {
     width: 20px;
-    height: 48px;
+    height: 20px;
+    top: -4px;
+    right: -4px;
   }
 }
