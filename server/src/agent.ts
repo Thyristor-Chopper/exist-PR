@@ -232,7 +232,8 @@ async function aiDecision(ctx: UserContext): Promise<Decision> {
     '통화 중·진행 중 회의 사실이 있으면 2, 곧 시작하는 회의 사실이 있으면 0, ' +
     '마감 임박 할 일 사실이 있으면 1. "진행 중" 사실이 없으면 절대 2를 고르지 않는다.\n' +
     '응답은 오직 JSON: {"brief": string, "card": 0|1|2, "reason": string}. ' +
-    'brief는 한국어 50자 이내(인사말·이모지 없이), reason은 카드 선택 이유 20자 이내 — ' +
+    'brief는 한국어 50자 이내(인사말·이모지 없이), 반드시 "~요"로 끝나는 해요체 문장. ' +
+    'reason은 카드 선택 이유 20자 이내 — ' +
     'reason도 사실 문장에 있는 표현만 사용한다 (예: 목록에 "마감"이 없으면 "마감"이라 쓰지 않는다).';
 
   const response = await openai!.chat.completions.create({
@@ -447,7 +448,7 @@ export async function getCatchup(userId: number, scope?: AgentScope): Promise<Ca
     chatTotal > 0 ? `안 읽은 그룹 채팅 ${chatTotal}곳` : null,
   ].filter(Boolean);
   let headline =
-    parts.length > 0 ? `자리 비운 사이: ${parts.join(' · ')}` : '자리 비운 사이 놓친 건 없어요';
+    parts.length > 0 ? `자리 비운 사이 ${parts.join(' · ')} 있어요` : '자리 비운 사이 놓친 건 없어요';
   let source: 'ai' | 'rule' = 'rule';
 
   if (openai && items.length > 0) {
@@ -463,6 +464,7 @@ export async function getCatchup(userId: number, scope?: AgentScope): Promise<Ca
             content:
               '너는 분산 근무 플랫폼 exist의 AI 운영자다. 사용자가 자리를 비운 사이 놓친 것들의 목록을 받아 ' +
               '한 줄 헤드라인(한국어 60자 이내, 가장 중요한 것 하나를 짚어서)으로 요약한다. ' +
+              '문체는 반드시 "~요"로 끝나는 해요체 ("~습니다"체 금지). ' +
               '목록에 없는 사실은 만들지 않는다. 응답은 JSON: {"headline": string}',
           },
           { role: 'user', content: JSON.stringify(items.map((i) => i.text)) },
@@ -566,7 +568,8 @@ export async function getDailyBrief(userId: number, scope?: AgentScope): Promise
             role: 'system',
             content:
               '너는 분산 근무 플랫폼 exist의 AI 총무다. 아래 "사실 문장" 목록을 자연스러운 ' +
-              '"오늘 브리핑" 문단(한국어 해요체 2~3문장, 220자 이내)으로 다듬는다.\n' +
+              '"오늘 브리핑" 문단(한국어 2~3문장, 220자 이내)으로 다듬는다.\n' +
+              '문체: 모든 문장은 반드시 "~요"로 끝나는 해요체. "~습니다"체 절대 금지.\n' +
               '절대 규칙: 사실은 목록에 있는 것만 쓴다. 새 사실·시각·수치·일정을 추가하지 않는다. ' +
               '중요도 순 재배열 허용, 덜 중요한 사실은 생략 가능.\n' +
               '판단은 자유: 목록의 사실들에 근거해 "무엇부터 하면 좋을지" 우선순위 제안 한 문장은 ' +
