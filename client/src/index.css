@@ -13498,7 +13498,7 @@ input:focus {
   gap: 6px;
   height: 38px;
   padding: 0 13px;
-  border: 1px dashed var(--border);
+  border: 1px solid var(--border);
   /* 채움 없는 흰 배경이면 이웃 초록 버튼들보다 낮아 보이는 착시가 생김 (실제 높이는 동일) */
   background: var(--surface-2);
   color: var(--text-sub);
@@ -13509,7 +13509,6 @@ input:focus {
 }
 
 .orgchart-editmode.on {
-  border-style: solid;
   border-color: var(--green);
   background: var(--green-soft);
   color: var(--green);
