@@ -3606,6 +3606,31 @@ input:focus {
   display: block;
 }
 
+/* 통화 헤더 "참가자 N명" hover — 참여 중 유저 리스트 (헤더라 아래로 연다) */
+.mv-peers-hover {
+  position: relative;
+  cursor: default;
+}
+
+.mv-peers-hover:hover .hub-assign-tip {
+  display: block;
+}
+
+.hub-assign-tip.down {
+  bottom: auto;
+  top: calc(100% + 6px);
+  left: 0;
+  right: auto;
+}
+
+/* 통화 헤더는 다크 고정 — 팁도 다크로 (라이트 테마 변수 무시) */
+.meeting-room .hub-assign-tip.down {
+  background: rgba(24, 27, 33, 0.97);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e8eaf0;
+  z-index: 40;
+}
+
 .hub-assign-tip-row {
   display: flex;
   align-items: center;

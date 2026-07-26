@@ -1101,7 +1101,23 @@ export default function MeetingView({
         <div className="meeting-info">
           <span className="meeting-title">{title || '회의'}</span>
           <span className="meeting-code">
-            코드 <b>{code}</b> · 참가자 {peers.length + 1}명
+            코드 <b>{code}</b> ·{' '}
+            <span className="mv-peers-hover">
+              참가자 {peers.length + 1}명
+              {/* hover 시 참여 중 유저 프로필 리스트 — 담당자·접속자 팝업과 동일 톤, 헤더라 아래로 */}
+              <span className="hub-assign-tip down" aria-hidden>
+                <span className="hub-assign-tip-row">
+                  <Avatar value={user?.avatar ?? null} className="hub-assign-avatar" />
+                  <span>{dn(user?.username ?? '나')} (나)</span>
+                </span>
+                {peers.map((p) => (
+                  <span key={p.peerId} className="hub-assign-tip-row">
+                    <Avatar value={peerAvatars?.[p.username] ?? null} className="hub-assign-avatar" />
+                    <span>{dn(p.username)}</span>
+                  </span>
+                ))}
+              </span>
+            </span>
             {locked && (
               <span className="meeting-locked">
                 · <LockIcon size={12} /> 잠김
