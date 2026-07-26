@@ -11909,6 +11909,82 @@ input:focus {
   color: #3b6cff;
 }
 
+/* 커스텀 역할(중간관리자) 뱃지 */
+.org-role.custom {
+  background: #fff4e5;
+  color: #c77700;
+}
+
+.dark .org-role.custom {
+  background: rgba(255, 165, 0, 0.14);
+  color: #ffb54d;
+}
+
+/* ── 역할(정책) 관리 — 소유자 전용, IAM식 ── */
+.org-roles {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+
+.org-roles-head {
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.org-roles-hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sub);
+}
+
+.org-roles-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+
+.org-roles-name {
+  min-width: 90px;
+  font-size: 13.5px;
+}
+
+.org-roles-perm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+
+.org-roles-perm input {
+  accent-color: var(--green);
+}
+
+.org-roles-row.new .org-field-input {
+  width: 170px;
+}
+
+/* 중간관리자 승인 시 고정 부서 표시 */
+.org-fixed-dept {
+  font-size: 12.5px;
+  color: var(--text-sub);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
 .org-member-actions {
   display: flex;
   gap: 6px;

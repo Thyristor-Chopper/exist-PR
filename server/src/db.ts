@@ -187,6 +187,23 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: 커스텀 역할(IAM식) — 소유자가 권한 조합을 만들어 멤버에게 부여(중간관리자).
+// perms = JSON 배열 (액션 키: member:approve | member:edit | member:remove), 스코프는 자기 부서
+db.exec(`
+  CREATE TABLE IF NOT EXISTS org_roles (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id     INTEGER NOT NULL REFERENCES organizations(id),
+    name       TEXT NOT NULL,
+    perms      TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+try {
+  db.exec(`ALTER TABLE organization_members ADD COLUMN role_id INTEGER REFERENCES org_roles(id)`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 마이그레이션: 채팅 첨부 파일 (JSON: {name,url,size}) — 없으면 추가
 try {
   db.exec(`ALTER TABLE messages ADD COLUMN file TEXT`);

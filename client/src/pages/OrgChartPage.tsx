@@ -13,6 +13,8 @@ interface Member {
   username: string;
   avatar: string;
   role: 'owner' | 'admin' | 'member';
+  roleId: number | null;
+  roleName: string | null;
   position: string | null;
   department: string | null;
 }
@@ -21,6 +23,11 @@ interface Pending {
   username: string;
   avatar: string;
 }
+interface OrgRole {
+  id: number;
+  name: string;
+  perms: string[];
+}
 interface OrgDetail {
   id: number;
   name: string;
@@ -28,11 +35,22 @@ interface OrgDetail {
   ownerId: number;
   myRole: 'owner' | 'admin' | 'member';
   isManager: boolean;
+  myPerms: string[];
+  myDept: string | null;
+  roles: OrgRole[];
   members: Member[];
   pending: Pending[];
 }
 
 const ROLE_LABEL: Record<string, string> = { owner: '소유자', admin: '관리자', member: '멤버' };
+
+/* IAM식 액션 — 커스텀 역할(중간관리자)에 조합해 부여. 스코프는 항상 "자기 부서" */
+const ORG_ACTIONS = ['member:approve', 'member:edit', 'member:remove'] as const;
+const ACTION_LABEL: Record<string, string> = {
+  'member:approve': '가입 승인',
+  'member:edit': '직급·부서 수정',
+  'member:remove': '멤버 내보내기',
+};
 
 /** 부서별 그룹 — 부서 있는 그룹 먼저(가나다), 미지정 마지막. 그룹 내 직급 높은 순 */
 function groupByDept(members: Member[]): { dept: string | null; people: Member[] }[] {
@@ -104,8 +122,49 @@ export default function OrgChartPage() {
     await api(`/api/orgs/${orgId}/members/${userId}`, { method: 'DELETE' });
     await refresh();
   }
-  async function setRole(userId: number, role: 'admin' | 'member') {
-    await api(`/api/orgs/${orgId}/members/${userId}`, { method: 'PATCH', body: { role } });
+  // (구 setRole은 assignRole로 대체)
+  /** 역할 지정 — 'member' | 'admin' | 'r<커스텀역할id>' */
+  async function assignRole(userId: number, value: string) {
+    const body =
+      value === 'admin'
+        ? { role: 'admin' }
+        : value === 'member'
+          ? { role: 'member', roleId: null }
+          : { roleId: Number(value.slice(1)) };
+    await api(`/api/orgs/${orgId}/members/${userId}`, { method: 'PATCH', body });
+    await load();
+  }
+
+  // ── 역할(정책) 관리 — 소유자 전용 ──
+  const [newRoleName, setNewRoleName] = useState('');
+  const [newRolePerms, setNewRolePerms] = useState<string[]>([]);
+
+  async function createRole(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newRoleName.trim() || newRolePerms.length === 0) return;
+    await api(`/api/orgs/${orgId}/roles`, {
+      method: 'POST',
+      body: { name: newRoleName.trim(), perms: newRolePerms },
+    });
+    setNewRoleName('');
+    setNewRolePerms([]);
+    await load();
+  }
+  async function toggleRolePerm(role: OrgRole, action: string) {
+    const perms = role.perms.includes(action)
+      ? role.perms.filter((p) => p !== action)
+      : [...role.perms, action];
+    if (perms.length === 0) {
+      window.dispatchEvent(
+        new CustomEvent('app:error', { detail: '권한이 하나는 남아야 해요 — 필요 없으면 역할을 삭제하세요' }),
+      );
+      return;
+    }
+    await api(`/api/orgs/${orgId}/roles/${role.id}`, { method: 'PATCH', body: { perms } });
+    await load();
+  }
+  async function deleteRole(roleId: number) {
+    await api(`/api/orgs/${orgId}/roles/${roleId}`, { method: 'DELETE' });
     await load();
   }
   async function setPosition(userId: number, position: string) {
@@ -151,6 +210,15 @@ export default function OrgChartPage() {
   const groups = detail ? groupByDept(detail.members) : [];
   const manager = !!detail?.isManager;
   const owner = detail?.myRole === 'owner';
+  const perms = detail?.myPerms ?? [];
+  const canApprove = manager || perms.includes('member:approve');
+  /** 대상 멤버를 편집(직급·부서)할 수 있나 — 중간관리자는 자기 부서의 일반 멤버만 */
+  const inMyScope = (m: Member) =>
+    m.role === 'member' && !m.roleId && !!detail?.myDept && m.department === detail.myDept;
+  const canEditTarget = (m: Member) =>
+    manager ? m.role !== 'owner' || owner : perms.includes('member:edit') && inMyScope(m);
+  const canRemoveTarget = (m: Member) =>
+    m.role !== 'owner' && (manager || (perms.includes('member:remove') && inMyScope(m)));
 
   return (
     <div className="orgchart-page">
@@ -199,8 +267,8 @@ export default function OrgChartPage() {
           {/* 팀 인사이트는 운영자용 — 멤버에겐 관전 정보라 숨긴다 (홈에선 '내 포커스'를 봄) */}
           {manager && <InsightsPanel orgId={orgId} />}
 
-          {/* 가입 대기 — 관리자만, 직급·부서 미리 정하며 승인 */}
-          {manager && detail.pending.length > 0 && (
+          {/* 가입 대기 — 관리자 + 승인 권한 중간관리자. 중간관리자는 자기 부서로만 받음 */}
+          {canApprove && detail.pending.length > 0 && (
             <section className="orgchart-pending">
               <div className="orgchart-pending-head">
                 ✉️ 가입 대기 <b>{detail.pending.length}</b>
@@ -224,23 +292,92 @@ export default function OrgChartPage() {
                       </option>
                     ))}
                   </select>
-                  <input
-                    className="org-field-input"
-                    value={draft[p.userId]?.department ?? ''}
-                    placeholder="부서 (선택)"
-                    maxLength={30}
-                    onChange={(e) => setDraft_(p.userId, { department: e.target.value })}
-                  />
+                  {manager ? (
+                    <input
+                      className="org-field-input"
+                      value={draft[p.userId]?.department ?? ''}
+                      placeholder="부서 (선택)"
+                      maxLength={30}
+                      onChange={(e) => setDraft_(p.userId, { department: e.target.value })}
+                    />
+                  ) : (
+                    <span className="org-fixed-dept" title="중간관리자는 자기 부서로만 받을 수 있어요">
+                      {detail.myDept ?? '부서 미지정'}
+                    </span>
+                  )}
                   <span className="orgchart-pending-actions">
                     <button className="org-btn approve" onClick={() => approve(p.userId)}>
                       승인
                     </button>
-                    <button className="org-btn reject" onClick={() => remove(p.userId)}>
-                      거절
-                    </button>
+                    {manager && (
+                      <button className="org-btn reject" onClick={() => remove(p.userId)}>
+                        거절
+                      </button>
+                    )}
                   </span>
                 </div>
               ))}
+            </section>
+          )}
+
+          {/* 역할(정책) 관리 — 소유자 전용. IAM식: 액션 조합 = 역할, 스코프 = 자기 부서 */}
+          {owner && (
+            <section className="org-roles">
+              <div className="org-roles-head">
+                🛡️ 역할 관리
+                <span className="org-roles-hint">
+                  만든 역할을 멤버에게 주면 중간관리자가 돼요 — 권한은 그 사람의 <b>자기 부서</b> 일반
+                  멤버에게만 적용
+                </span>
+              </div>
+              {detail.roles.map((r) => (
+                <div key={r.id} className="org-roles-row">
+                  <b className="org-roles-name">{r.name}</b>
+                  {ORG_ACTIONS.map((a) => (
+                    <label key={a} className="org-roles-perm">
+                      <input
+                        type="checkbox"
+                        checked={r.perms.includes(a)}
+                        onChange={() => void toggleRolePerm(r, a)}
+                      />
+                      {ACTION_LABEL[a]}
+                    </label>
+                  ))}
+                  <button className="org-btn reject" onClick={() => void deleteRole(r.id)}>
+                    삭제
+                  </button>
+                </div>
+              ))}
+              <form className="org-roles-row new" onSubmit={createRole}>
+                <input
+                  className="org-field-input"
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  placeholder="새 역할 이름 (예: 팀장)"
+                  maxLength={20}
+                />
+                {ORG_ACTIONS.map((a) => (
+                  <label key={a} className="org-roles-perm">
+                    <input
+                      type="checkbox"
+                      checked={newRolePerms.includes(a)}
+                      onChange={() =>
+                        setNewRolePerms((prev) =>
+                          prev.includes(a) ? prev.filter((p) => p !== a) : [...prev, a],
+                        )
+                      }
+                    />
+                    {ACTION_LABEL[a]}
+                  </label>
+                ))}
+                <button
+                  type="submit"
+                  className="org-btn approve"
+                  disabled={!newRoleName.trim() || newRolePerms.length === 0}
+                >
+                  만들기
+                </button>
+              </form>
             </section>
           )}
 
@@ -262,6 +399,7 @@ export default function OrgChartPage() {
                             {m.role !== 'member' && (
                               <span className={`org-role ${m.role}`}>{ROLE_LABEL[m.role]}</span>
                             )}
+                            {m.roleName && <span className="org-role custom">{m.roleName}</span>}
                           </div>
                           <div className="orgchart-pos">
                             {m.position ?? '직급 미지정'}
@@ -270,51 +408,61 @@ export default function OrgChartPage() {
                         </div>
                       </div>
 
-                      {/* 관리자 인라인 편집 — 소유자 카드는 소유자 본인만 (관리자가 소유자를 건드리는 건 차단) */}
-                      {manager && (m.role !== 'owner' || owner) && (
+                      {/* 인라인 편집 — 소유자 카드는 본인만, 중간관리자는 자기 부서 일반 멤버만 */}
+                      {(canEditTarget(m) || canRemoveTarget(m)) && (
                         <div className="orgchart-card-edit">
-                          <select
-                            className="org-field-select"
-                            value={m.position ?? ''}
-                            onChange={(e) => setPosition(m.userId, e.target.value)}
-                            title="직급"
-                          >
-                            <option value="">직급 미지정</option>
-                            {POSITIONS.map((pos) => (
-                              <option key={pos} value={pos}>
-                                {pos}
-                              </option>
-                            ))}
-                            {m.position &&
-                              !POSITIONS.includes(m.position as (typeof POSITIONS)[number]) && (
-                                <option value={m.position}>{m.position}</option>
-                              )}
-                          </select>
-                          <input
-                            key={`dep-${m.userId}-${m.department ?? ''}`}
-                            className="org-field-input"
-                            defaultValue={m.department ?? ''}
-                            placeholder="부서"
-                            maxLength={30}
-                            title="부서"
-                            onBlur={(e) => {
-                              if ((e.target.value || '') !== (m.department ?? '')) {
-                                void setDepartment(m.userId, e.target.value);
-                              }
-                            }}
-                          />
-                          {owner &&
-                            m.role !== 'owner' &&
-                            (m.role === 'member' ? (
-                              <button className="org-btn" onClick={() => setRole(m.userId, 'admin')}>
-                                관리자로
-                              </button>
-                            ) : (
-                              <button className="org-btn" onClick={() => setRole(m.userId, 'member')}>
-                                멤버로
-                              </button>
-                            ))}
-                          {m.role !== 'owner' && (
+                          {canEditTarget(m) && (
+                            <>
+                              <select
+                                className="org-field-select"
+                                value={m.position ?? ''}
+                                onChange={(e) => setPosition(m.userId, e.target.value)}
+                                title="직급"
+                              >
+                                <option value="">직급 미지정</option>
+                                {POSITIONS.map((pos) => (
+                                  <option key={pos} value={pos}>
+                                    {pos}
+                                  </option>
+                                ))}
+                                {m.position &&
+                                  !POSITIONS.includes(m.position as (typeof POSITIONS)[number]) && (
+                                    <option value={m.position}>{m.position}</option>
+                                  )}
+                              </select>
+                              <input
+                                key={`dep-${m.userId}-${m.department ?? ''}`}
+                                className="org-field-input"
+                                defaultValue={m.department ?? ''}
+                                placeholder="부서"
+                                maxLength={30}
+                                title="부서"
+                                onBlur={(e) => {
+                                  if ((e.target.value || '') !== (m.department ?? '')) {
+                                    void setDepartment(m.userId, e.target.value);
+                                  }
+                                }}
+                              />
+                            </>
+                          )}
+                          {/* 역할 지정 — 소유자 전용: 멤버/관리자/커스텀 역할(중간관리자) */}
+                          {owner && m.role !== 'owner' && (
+                            <select
+                              className="org-field-select"
+                              value={m.role === 'admin' ? 'admin' : m.roleId ? `r${m.roleId}` : 'member'}
+                              onChange={(e) => void assignRole(m.userId, e.target.value)}
+                              title="역할"
+                            >
+                              <option value="member">멤버</option>
+                              <option value="admin">관리자</option>
+                              {detail.roles.map((r) => (
+                                <option key={r.id} value={`r${r.id}`}>
+                                  {r.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {canRemoveTarget(m) && (
                             <button className="org-btn reject" onClick={() => remove(m.userId)}>
                               제거
                             </button>
