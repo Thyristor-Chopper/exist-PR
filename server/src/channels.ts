@@ -10,6 +10,8 @@ export interface Channel {
   id: number;
   name: string;
   isDefault: boolean;
+  /** 만든 사람 — 클라가 이름 수정 버튼 노출 판단용 (수정 권한: 만든 사람·호스트·조직 관리자) */
+  createdBy: number;
 }
 
 /** 기본 채널 확보 — 없으면 "일반" 생성 + 레거시 메시지(channel_id NULL) 백필 */
@@ -33,9 +35,9 @@ export function ensureDefaultChannel(meetingId: number, createdBy: number): numb
 export function listChannels(meetingId: number, callerId: number): Channel[] {
   ensureDefaultChannel(meetingId, callerId);
   const rows = db
-    .prepare('SELECT id, name FROM chat_channels WHERE meeting_id = ? ORDER BY id')
-    .all(meetingId) as { id: number; name: string }[];
-  return rows.map((r, i) => ({ id: r.id, name: r.name, isDefault: i === 0 }));
+    .prepare('SELECT id, name, created_by FROM chat_channels WHERE meeting_id = ? ORDER BY id')
+    .all(meetingId) as { id: number; name: string; created_by: number }[];
+  return rows.map((r, i) => ({ id: r.id, name: r.name, isDefault: i === 0, createdBy: r.created_by }));
 }
 
 /** 채널이 이 회의 소속인지 검증 — 맞으면 id, 아니면 null */
