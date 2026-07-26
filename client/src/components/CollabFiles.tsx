@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { getSocket } from '../lib/socket';
 import { useAuthStore } from '../store';
+import { useDisplayName } from '../names';
 import CodeDocEditor from './CodeDocEditor';
 import DocEditor from './DocEditor';
 import SheetEditor from './SheetEditor';
@@ -100,6 +101,7 @@ export default function CollabFiles({
 }) {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
+  const dn = useDisplayName();
   const [files, setFiles] = useState<CollabFile[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [editorFull, setEditorFull] = useState(false); // 에디터 전체화면 (화면이 작을 때)
@@ -204,7 +206,7 @@ export default function CollabFiles({
     return (
       <span
         className="cf-presence"
-        title={`${people.map((p) => p.username).join(', ')} 편집 중`}
+        title={`${people.map((p) => dn(p.username)).join(', ')} 편집 중`}
       >
         {shown.map((p) => (
           <Avatar key={p.username} value={p.avatar} className="cf-presence-avatar" />
@@ -1330,7 +1332,7 @@ export default function CollabFiles({
                   if (!selectedIds.has(f.id)) selectOnly(f.id);
                   setCtxMenu({ x: e.clientX, y: e.clientY, targetId: f.id });
                 }}
-                title={`${f.name} · ${f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]} · ${f.author}`}
+                title={`${f.name} · ${f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]} · ${dn(f.author)}`}
               >
                 <span className={`cf-entry-icon cf-icon ${f.type}`}>
                   <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} />
@@ -1370,7 +1372,7 @@ export default function CollabFiles({
                     <span className="cf-entry-type">
                       {f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]}
                     </span>
-                    <span className="cf-entry-author">{f.author}</span>
+                    <span className="cf-entry-author">{dn(f.author)}</span>
                   </>
                 )}
               </div>
@@ -1419,7 +1421,7 @@ export default function CollabFiles({
               </div>
               <div className="cf-details-row">
                 <span>만든 사람</span>
-                <b>{selected.author || '—'}</b>
+                <b>{dn(selected.author) || '—'}</b>
               </div>
               {selected.created_at && (
                 <div className="cf-details-row">
@@ -1626,7 +1628,7 @@ export default function CollabFiles({
                     {t.name}
                     {t.children > 0 ? ` (+${t.children})` : ''}
                   </span>
-                  <span className="cf-trash-meta">{t.author}</span>
+                  <span className="cf-trash-meta">{dn(t.author)}</span>
                   <button onClick={() => void restoreTrash(t.id)}>복원</button>
                   <button className="danger" onClick={() => void purgeTrash(t.id)}>
                     영구 삭제

@@ -79,7 +79,7 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
     providerRef.current = provider;
 
     const color = CURSOR_COLORS[(user?.id ?? 0) % CURSOR_COLORS.length];
-    provider.awareness.setLocalStateField('user', { name: user?.username ?? '익명', color });
+    provider.awareness.setLocalStateField('user', { name: user?.name || user?.username || '익명', color });
 
     // 보류분 적용 스케줄러 — 포인터가 350ms 이상 쉰 뒤에만 updateScene을 허용.
     // 릴리즈 직후(수십 ms)에 쏘면 Excalidraw 드래그 종료 처리와 경합해
@@ -290,7 +290,7 @@ export default function CanvasBoard({ roomId, active = true }: { roomId: string;
     if (active) {
       const color = CURSOR_COLORS[(user?.id ?? 0) % CURSOR_COLORS.length];
       const cur = p.awareness.getLocalState();
-      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.username ?? '익명', color } });
+      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.name || user?.username || '익명', color } });
     } else {
       p.awareness.setLocalState(null);
     }

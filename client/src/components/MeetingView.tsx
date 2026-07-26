@@ -4,6 +4,7 @@ import type { Transport, Producer } from 'mediasoup-client/types';
 import { getSocket, request } from '../lib/socket';
 import { api } from '../api';
 import { useAuthStore } from '../store';
+import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import MentionInput, { type MentionCandidate } from './MentionInput';
 import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon } from './Icons';
@@ -198,6 +199,7 @@ export default function MeetingView({
   mentionCandidates,
 }: MeetingViewProps) {
   const user = useAuthStore((s) => s.user);
+  const dn = useDisplayName();
 
   const [status, setStatus] = useState('연결 중…');
   const [title, setTitle] = useState('');
@@ -451,7 +453,7 @@ export default function MeetingView({
           ),
         ]);
       } catch {
-        localStream = makeFallbackStream(user?.username ?? 'me');
+        localStream = makeFallbackStream(displayNameOf(user?.username ?? 'me'));
         setStatus('카메라 없음 — 데모 화면 송출 중');
       }
       if (closed) return;
@@ -941,7 +943,7 @@ export default function MeetingView({
           <div style={{ fontSize: 12, color: 'var(--text-sub)', marginBottom: 6 }}>코드 {code}</div>
           {onlinePeers.length > 0 ? (
             <div style={{ fontSize: 13, color: '#21C818', fontWeight: 700, marginBottom: 16 }}>
-              ● 지금 통화 중 · {onlinePeers.join(', ')}
+              ● 지금 통화 중 · {onlinePeers.map((u) => dn(u)).join(', ')}
             </div>
           ) : (
             <div style={{ fontSize: 12.5, color: 'var(--text-sub)', marginBottom: 16 }}>
@@ -968,7 +970,7 @@ export default function MeetingView({
             >
               <VideoTile
                 track={previewTrack}
-                username={user?.username ?? '나'}
+                username={dn(user?.username ?? '나')}
                 muted
                 isLocal
                 paused={!camOn}
@@ -1076,7 +1078,7 @@ export default function MeetingView({
                 <VideoTile
                   key={s.key}
                   track={s.track}
-                  username={s.username}
+                  username={dn(s.username)}
                   muted={s.isLocal}
                   isLocal={s.isLocal}
                   isScreen
@@ -1089,7 +1091,7 @@ export default function MeetingView({
           >
             <VideoTile
               track={localTrack}
-              username={user?.username ?? '나'}
+              username={dn(user?.username ?? '나')}
               muted
               isLocal
               paused={!camOn}
@@ -1098,7 +1100,7 @@ export default function MeetingView({
               <div key={p.peerId} className="peer-cell">
                 <VideoTile
                   track={p.videoTrack}
-                  username={p.username}
+                  username={dn(p.username)}
                   paused={p.videoPaused}
                   onKick={
                     isHost
@@ -1115,7 +1117,7 @@ export default function MeetingView({
         {/* 라이브 자막 — 발화가 전사되는 순간 표시 (recap·결정 원장의 근거가 됨) */}
         {caption && (
           <div className={`call-caption${caption.interim ? ' interim' : ''}`}>
-            <b>{caption.username}</b> {caption.text}
+            <b>{dn(caption.username)}</b> {caption.text}
             {caption.interim && '…'}
           </div>
         )}
@@ -1132,7 +1134,7 @@ export default function MeetingView({
               {messages.length === 0 && <div className="chat-empty">아직 메시지가 없어요</div>}
               {messages.map((m, i) => (
                 <div key={i} className={`chat-msg${m.from === user?.username ? ' mine' : ''}`}>
-                  <span className="chat-from">{m.from}</span>
+                  <span className="chat-from">{dn(m.from)}</span>
                   <div className="chat-bubble">{m.text}</div>
                 </div>
               ))}

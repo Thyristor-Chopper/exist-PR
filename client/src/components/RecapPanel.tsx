@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { getSocket } from '../lib/socket';
+import { useDisplayName } from '../names';
 import { SparklesIcon, CheckMarkIcon } from './Icons';
 
 /*
@@ -48,6 +49,7 @@ function relTime(ts: number): string {
 }
 
 export default function RecapPanel({ code, isHost = false }: { code: string; isHost?: boolean }) {
+  const dn = useDisplayName();
   const [recaps, setRecaps] = useState<Recap[]>([]);
   const [expanded, setExpanded] = useState(false); // 기본은 최신 1건만
   const [registering, setRegistering] = useState<number | null>(null); // 등록 중인 recap id
@@ -164,7 +166,7 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
                   {r.actions.map((a, i) => (
                     <div key={i} className="hub-recap-action">
                       <span className={`hub-recap-assignee${a.assignee ? '' : ' none'}`}>
-                        {a.assignee ?? '담당 미정'}
+                        {a.assignee ? dn(a.assignee) : '담당 미정'}
                       </span>
                       {a.title}
                     </div>
@@ -195,7 +197,7 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
               )}
 
               <div className="hub-recap-foot">
-                참석 {r.attendees.length ? r.attendees.join(', ') : '없음'}
+                참석 {r.attendees.length ? r.attendees.map((a) => dn(a)).join(', ') : '없음'}
                 <span className={`hub-recap-src${r.source === 'ai' ? ' ai' : ''}`}>
                   {r.source === 'ai' ? 'AI 분석' : '규칙 정리'}
                 </span>

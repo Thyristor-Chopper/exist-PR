@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useDisplayName } from '../names';
 import Avatar from './Avatar';
 
 /*
@@ -38,13 +39,18 @@ export default function MentionInput({
   placeholder,
   autoFocus,
 }: Props) {
+  const dn = useDisplayName();
   const inputRef = useRef<HTMLInputElement>(null);
   const [token, setToken] = useState<{ start: number; query: string } | null>(null);
   const [sel, setSel] = useState(0);
 
   const q = token?.query.toLowerCase() ?? '';
   const hits = token
-    ? candidates.filter((c) => c.username.toLowerCase().includes(q)).slice(0, 8)
+    ? candidates
+        .filter(
+          (c) => c.username.toLowerCase().includes(q) || dn(c.username).toLowerCase().includes(q),
+        )
+        .slice(0, 8)
     : [];
   const open = hits.length > 0;
 
@@ -116,7 +122,7 @@ export default function MentionInput({
               onMouseEnter={() => setSel(i)}
             >
               <Avatar value={c.avatar} className="mention-avatar" />
-              <span className="mention-name">{c.username}</span>
+              <span className="mention-name">{dn(c.username)}</span>
               {c.sub && <span className="mention-sub">{c.sub}</span>}
             </button>
           ))}

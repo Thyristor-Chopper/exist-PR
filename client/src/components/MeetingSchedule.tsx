@@ -10,6 +10,7 @@ import {
 import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useAuthStore } from '../store';
+import { useDisplayName } from '../names';
 import { PhoneIcon, BellIcon } from './Icons';
 import Marquee from './Marquee';
 
@@ -235,6 +236,7 @@ export default function MeetingSchedule({
   participants = [],
 }: Props) {
   const userId = useAuthStore((s) => s.user?.id);
+  const dn = useDisplayName();
   const [events, setEvents] = useState<MEvent[]>([]);
   const [view, setView] = useState<ViewMode>('month');
   const [cursor, setCursor] = useState<Date>(() => new Date()); // 뷰 기준 날짜
@@ -808,7 +810,7 @@ export default function MeetingSchedule({
     const q = pq.trim().toLowerCase();
     return participants
       .filter((p) => !people.some((s) => s.id === p.userId))
-      .filter((p) => !q || p.username.toLowerCase().includes(q))
+      .filter((p) => !q || p.username.toLowerCase().includes(q) || dn(p.username).toLowerCase().includes(q))
       .slice(0, 8);
   }, [participants, people, pq]);
 
@@ -920,7 +922,7 @@ export default function MeetingSchedule({
         ) : null}
         {ev.title}
       </Marquee>
-      <span className="msched-event-author">{ev.author}</span>
+      <span className="msched-event-author">{dn(ev.author)}</span>
       {(ev.created_by === userId || isHost) && (
         <>
           <button
@@ -942,7 +944,7 @@ export default function MeetingSchedule({
             <span className="msched-event-ppl">
               {ev.people.map((p) => (
                 <span key={p.id} className="msched-event-person">
-                  {p.name || p.username}
+                  {p.name || dn(p.username)}
                 </span>
               ))}
             </span>
@@ -1116,11 +1118,11 @@ export default function MeetingSchedule({
               <span className="msched-people-label">관련자</span>
               {people.map((p) => (
                 <span key={p.id} className="msched-person on">
-                  {p.username}
+                  {dn(p.username)}
                   <button
                     type="button"
                     className="msched-person-x"
-                    aria-label={`${p.username} 제외`}
+                    aria-label={`${dn(p.username)} 제외`}
                     onClick={() => removePerson(p.id)}
                   >
                     ×
@@ -1153,7 +1155,7 @@ export default function MeetingSchedule({
                         }}
                         onMouseEnter={() => setPplIdx(i)}
                       >
-                        {p.username}
+                        {dn(p.username)}
                       </button>
                     ))}
                   </div>
@@ -1283,7 +1285,7 @@ export default function MeetingSchedule({
                       onClick={() => setSelected(key)}
                     >
                       {dayUntimed.map((e) => (
-                        <span key={e.id} className="msched-wallday-chip" style={evColorStyle(e.color)} title={`${e.title} · ${e.author}${e.memo ? ` — ${e.memo}` : ''}`}>
+                        <span key={e.id} className="msched-wallday-chip" style={evColorStyle(e.color)} title={`${e.title} · ${dn(e.author)}${e.memo ? ` — ${e.memo}` : ''}`}>
                           {e.title}
                         </span>
                       ))}
@@ -1564,7 +1566,7 @@ export default function MeetingSchedule({
                     <span className="msched-event-time">
                       {dv ? ampmRange(minToHHMM(s), minToHHMM(en)) : evTimeText(ev)}
                     </span>
-                    <span className="msched-event-author">{ev.author}</span>
+                    <span className="msched-event-author">{dn(ev.author)}</span>
                     {(ev.created_by === userId || isHost) && (
                       <>
                         <button
@@ -1774,14 +1776,14 @@ export default function MeetingSchedule({
                   <div className="msched-pop-ppl">
                     {popEv.people.map((p) => (
                       <span key={p.id} className="msched-event-person">
-                        {p.name || p.username}
+                        {p.name || dn(p.username)}
                       </span>
                     ))}
                   </div>
                 )}
                 {popEv.memo && <div className="msched-pop-memo">{popEv.memo}</div>}
                 <div className="msched-pop-foot">
-                  <span className="msched-pop-author">작성 {popEv.author}</span>
+                  <span className="msched-pop-author">작성 {dn(popEv.author)}</span>
                   {popCanEdit && (
                     <span className="msched-pop-actions">
                       <button

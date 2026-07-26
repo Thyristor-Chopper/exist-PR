@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useOrgStore, type OrgContext } from '../orgStore';
+import { useDisplayName } from '../names';
 import { useAuthStore } from '../store';
 import { CloseIcon, CalendarIcon, CopyIcon, CheckMarkIcon, BuildingIcon } from './Icons';
 import Avatar from './Avatar';
@@ -30,6 +31,7 @@ interface Props {
 
 export default function CreateMeetingModal({ open, onClose, onCreated, defaultSchedule }: Props) {
   const navigate = useNavigate();
+  const dn = useDisplayName();
   const orgs = useOrgStore((s) => s.orgs);
   const current = useOrgStore((s) => s.current);
   const [title, setTitle] = useState('');
@@ -319,7 +321,7 @@ export default function CreateMeetingModal({ open, onClose, onCreated, defaultSc
                     {invite.map((p) => (
                       <span className="cm-chip" key={p.username}>
                         <Avatar value={p.avatar} className="cm-chip-av" />
-                        {p.username}
+                        {dn(p.username)}
                         <button type="button" onClick={() => removePerson(p.username)}>
                           <CloseIcon size={12} />
                         </button>
@@ -350,7 +352,7 @@ export default function CreateMeetingModal({ open, onClose, onCreated, defaultSc
                             onClick={() => addPerson(r)}
                           >
                             <Avatar value={r.avatar} className="cm-result-av" />
-                            <span className="cm-result-name">{r.username}</span>
+                            <span className="cm-result-name">{dn(r.username)}</span>
                             <span className="cm-result-add">+ 추가</span>
                           </button>
                         ))}

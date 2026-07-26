@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import { getSocket } from '../lib/socket';
+import { useDisplayName } from '../names';
 import { CheckMarkIcon, SparklesIcon } from './Icons';
 
 /*
@@ -26,6 +27,7 @@ function dateLabel(ts: number): string {
 
 export default function DecisionLedger({ code }: { code: string }) {
   const user = useAuthStore((s) => s.user);
+  const dn = useDisplayName();
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [query, setQuery] = useState('');
 
@@ -119,14 +121,14 @@ export default function DecisionLedger({ code }: { code: string }) {
                     <div className="ledger-body">
                       <div className="ledger-decision">{e.decision}</div>
                       <div className="ledger-meta">
-                        참석 {e.attendees.length ? e.attendees.join(', ') : '기록 없음'}
+                        참석 {e.attendees.length ? e.attendees.map((a) => dn(a)).join(', ') : '기록 없음'}
                         {e.acks.length > 0 && (
                           <span
                             className="ledger-ack-list"
-                            title={e.acks.map((a) => a.username).join(', ')}
+                            title={e.acks.map((a) => dn(a.username)).join(', ')}
                           >
                             {' '}
-                            · 확인 {e.acks.length}명 ({e.acks.map((a) => a.username).join(', ')})
+                            · 확인 {e.acks.length}명 ({e.acks.map((a) => dn(a.username)).join(', ')})
                           </span>
                         )}
                       </div>
