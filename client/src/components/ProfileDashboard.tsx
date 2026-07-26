@@ -135,6 +135,39 @@ export default function ProfileDashboard() {
       })
     : null;
 
+  // 전체 할 일 카드 — 개인/조직 홈 공용 (todos는 이미 탭 스코프로 조회됨)
+  const todoCard = (
+    <div style={cellCard}>
+      <div style={sectionHead}><span style={headIcon}><ListIcon size={16} /></span> 전체 할 일</div>
+      {todos.length === 0 ? (
+        <div style={emptyRow}>할 일이 없어요</div>
+      ) : (
+        <div className="hub-todos">
+          {/* 회의 대시보드의 할 일과 같은 컴포넌트 언어(.hub-todo) — 체크로 완료 토글 */}
+          {[...todos]
+            .sort((a, b) => a.done - b.done)
+            .slice(0, 8)
+            .map((t) => (
+              <div key={t.id} className={`hub-todo${t.done ? ' done' : ''}`}>
+                <label className="hub-todo-label">
+                  <input type="checkbox" checked={!!t.done} onChange={() => void toggleTodo(t)} />
+                  <span className="hub-todo-check" aria-hidden>
+                    <CheckMarkIcon size={16} />
+                  </span>
+                  <Marquee className="hub-todo-text">{t.title}</Marquee>
+                </label>
+                {t.meeting_title && (
+                  <span className="hub-todo-meet" title={`"${t.meeting_title}" 회의에서 배정됨`}>
+                    {t.meeting_title}
+                  </span>
+                )}
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+
   // ── 조직 홈 — 관리자는 팀 인사이트, 멤버는 "내 포커스" (내가 지금 챙길 것) ──
   if (org !== 'personal') {
     const orgInfo = orgs.find((o) => o.id === org);
@@ -193,6 +226,8 @@ export default function ProfileDashboard() {
           </div>
 
           <div className="pd-quad-col">
+            {/* 개인 홈과 동일한 전체 할 일 — 이 조직 스코프의 할 일만 */}
+            {todoCard}
             <div className="pd-org-inbox" style={{ ...cellCard, minHeight: 420 }}>
               <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>
               <UnifiedInbox scope={org} />
@@ -351,39 +386,7 @@ export default function ProfileDashboard() {
         </div>
 
         <div className="pd-quad-col">
-        <div style={cellCard}>
-          <div style={sectionHead}><span style={headIcon}><ListIcon size={16} /></span> 전체 할 일</div>
-          {todos.length === 0 ? (
-            <div style={emptyRow}>할 일이 없어요</div>
-          ) : (
-            <div className="hub-todos">
-              {/* 회의 대시보드의 할 일과 같은 컴포넌트 언어(.hub-todo) — 체크로 완료 토글 */}
-              {[...todos]
-                .sort((a, b) => a.done - b.done)
-                .slice(0, 8)
-                .map((t) => (
-                  <div key={t.id} className={`hub-todo${t.done ? ' done' : ''}`}>
-                    <label className="hub-todo-label">
-                      <input
-                        type="checkbox"
-                        checked={!!t.done}
-                        onChange={() => void toggleTodo(t)}
-                      />
-                      <span className="hub-todo-check" aria-hidden>
-                        <CheckMarkIcon size={16} />
-                      </span>
-                      <Marquee className="hub-todo-text">{t.title}</Marquee>
-                    </label>
-                    {t.meeting_title && (
-                      <span className="hub-todo-meet" title={`"${t.meeting_title}" 회의에서 배정됨`}>
-                        {t.meeting_title}
-                      </span>
-                    )}
-                  </div>
-                ))}
-            </div>
-          )}
-        </div>
+        {todoCard}
 
         <div style={cellCard}>
           <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>
