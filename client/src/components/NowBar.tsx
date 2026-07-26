@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import Logo from './Logo';
@@ -50,23 +51,46 @@ export interface Todo {
   assigneeProfiles?: { username: string; name: string | null; avatar: string | null }[];
 }
 
-/** 할 일 담당자 미니 아바타 스택 + hover 전체 프로필 리스트 (허브·공동편집과 동일 톤) */
+/** 할 일 담당자 미니 아바타 스택 + hover 전체 프로필 리스트 (허브·공동편집과 동일 톤).
+ *  nowbar 카드는 overflow:hidden + transform이라 팝업이 잘림 → portal로 body에 띄우고 fixed 좌표 */
 function TodoAssignees({ profiles }: { profiles?: Todo['assigneeProfiles'] }) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  // up: 앵커가 화면 아래쪽(모바일 하단 바)이면 위로, 위쪽(데스크톱 상단 바)이면 아래로 연다
+  const [tip, setTip] = useState<{ x: number; y: number; up: boolean } | null>(null);
   if (!profiles?.length) return null;
   return (
-    <span className="nb-todo-assign">
+    <span
+      className="nb-todo-assign"
+      ref={anchorRef}
+      onMouseEnter={() => {
+        const r = anchorRef.current?.getBoundingClientRect();
+        if (r) {
+          const up = r.top > window.innerHeight / 2;
+          setTip({ x: r.right, y: up ? r.top : r.bottom, up });
+        }
+      }}
+      onMouseLeave={() => setTip(null)}
+    >
       {profiles.slice(0, 3).map((p) => (
         <Avatar key={p.username} value={p.avatar} className="nb-todo-assign-avatar" />
       ))}
       {profiles.length > 3 && <span className="nb-todo-assign-more">+{profiles.length - 3}</span>}
-      <span className="hub-assign-tip" aria-hidden>
-        {profiles.map((p) => (
-          <span key={p.username} className="hub-assign-tip-row">
-            <Avatar value={p.avatar} className="hub-assign-avatar" />
-            <span>{p.name || p.username}</span>
-          </span>
-        ))}
-      </span>
+      {tip &&
+        createPortal(
+          <span
+            className={`hub-assign-tip nb-tip-portal ${tip.up ? 'dir-up' : 'dir-down'}`}
+            style={{ left: tip.x, top: tip.y }}
+            aria-hidden
+          >
+            {profiles.map((p) => (
+              <span key={p.username} className="hub-assign-tip-row">
+                <Avatar value={p.avatar} className="hub-assign-avatar" />
+                <span>{p.name || p.username}</span>
+              </span>
+            ))}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }

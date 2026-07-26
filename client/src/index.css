@@ -3564,8 +3564,22 @@ input:focus {
   color: var(--text-sub);
 }
 
-.nb-todo-assign:hover .hub-assign-tip {
+/* portal 팁 — nowbar 카드(overflow hidden·transform) 밖 body에 fixed로 띄움.
+   상단 바(데스크톱)에선 아래로, 하단 바(모바일)에선 위로 연다 */
+.hub-assign-tip.nb-tip-portal {
   display: block;
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  z-index: 700;
+}
+
+.hub-assign-tip.nb-tip-portal.dir-up {
+  transform: translate(-100%, calc(-100% - 6px));
+}
+
+.hub-assign-tip.nb-tip-portal.dir-down {
+  transform: translate(-100%, 6px);
 }
 
 .hub-todo-assign {
