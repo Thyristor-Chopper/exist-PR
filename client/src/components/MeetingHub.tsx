@@ -1181,13 +1181,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                         {[...todos]
                           .sort((a, b) => a.done - b.done)
                           .map((t) => (
-                            <div
-                              key={t.id}
-                              className={`hub-todo${t.done ? ' done' : ''}`}
-                              data-assignees={
-                                (t.assignees ?? []).length ? t.assignees!.join(', ') : undefined
-                              }
-                            >
+                            <div key={t.id} className={`hub-todo${t.done ? ' done' : ''}`}>
                               <label className="hub-todo-label">
                                 <input
                                   type="checkbox"
@@ -1209,6 +1203,24 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                   ? `${t.assignees!.slice(0, 2).join(', ')}${t.assignees!.length > 2 ? ` +${t.assignees!.length - 2}` : ''}`
                                   : '담당'}
                               </button>
+                              {(t.assignees ?? []).length > 0 && (
+                                <div className="hub-assign-tip" aria-hidden>
+                                  {t.assignees!.map((name) => {
+                                    const p = detail.participants.find(
+                                      (x) => x.username === name,
+                                    );
+                                    return (
+                                      <div key={name} className="hub-assign-tip-row">
+                                        <Avatar
+                                          value={p?.avatar ?? null}
+                                          className="hub-assign-avatar"
+                                        />
+                                        <span>{name}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                               {assignPick === t.id && (
                                 <div className="hub-assign-pop">
                                   {detail.participants.map((p) => (
@@ -1218,6 +1230,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                         checked={(t.assignees ?? []).includes(p.username)}
                                         onChange={() => void toggleAssignee(t, p.username)}
                                       />
+                                      <Avatar value={p.avatar} className="hub-assign-avatar" />
                                       <span>{p.username}</span>
                                     </label>
                                   ))}
@@ -1265,6 +1278,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                     )
                                   }
                                 />
+                                <Avatar value={p.avatar} className="hub-assign-avatar" />
                                 <span>{p.username}</span>
                               </label>
                             ))}

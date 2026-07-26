@@ -3550,26 +3550,44 @@ input:focus {
   border-color: transparent;
 }
 
-/* 담당자 칩 hover — 전체 담당자 리스트 툴팁 (칩은 2명+N 축약이라).
-   칩 자체는 overflow:hidden이라 ::after가 잘림 → 행(.hub-todo)에 달고 :has로 hover 감지 */
-.hub-todo[data-assignees]:has(.hub-todo-assign:hover)::after {
-  content: attr(data-assignees);
+/* 담당자 칩 hover — 전체 담당자 프로필 리스트 (칩은 2명+N 축약이라) */
+.hub-assign-tip {
+  display: none;
   position: absolute;
   right: 0;
-  bottom: calc(100% + 2px);
+  bottom: calc(100% + 4px);
   z-index: 31;
-  background: var(--text);
-  color: var(--bg);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.5;
-  padding: 5px 9px;
-  border-radius: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   box-shadow: var(--shadow-md);
-  max-width: min(90%, 260px);
-  white-space: normal;
-  word-break: break-all;
+  padding: 6px;
+  min-width: 140px;
+  max-height: 200px;
+  overflow-y: auto;
   pointer-events: none;
+}
+
+.hub-todo-assign:hover + .hub-assign-tip {
+  display: block;
+}
+
+.hub-assign-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* 프로필 이미지 규칙: 정사각 + 살짝 radius (원형 금지) */
+.hub-assign-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .hub-assign-pop {
