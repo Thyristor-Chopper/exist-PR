@@ -14327,12 +14327,9 @@ input:focus {
     color: var(--green);
   }
 
-  /* 그룹이 없을 때 — 빈 상태 카드(레일에선 안 보이는데 자리만 차지)와 구분선 제거 */
+  /* 그룹이 없을 때 — 빈 상태 카드는 레일에선 안 보이는데 자리만 차지하므로 제거.
+   * 구분선(::before)은 홈 버튼 아래 경계로 항상 유지 */
   .dashboard > aside .recent-empty {
-    display: none;
-  }
-
-  .dashboard > aside .recent-list:has(.recent-empty)::before {
     display: none;
   }
 
