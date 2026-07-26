@@ -89,6 +89,10 @@ export default function SettingsModal({ open, onClose, avatar, onAvatarChange }:
     setDark(nextDark);
   }
 
+  // ⚠️ deps는 [open]만 — onClose(부모의 인라인 함수)를 넣으면 부모가 리렌더될 때마다
+  // (시계·알림 등) 이 effect가 재실행돼 서버 값 프리필이 입력 중인 폼을 덮어쓴다.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     setCurrent('');
@@ -97,7 +101,7 @@ export default function SettingsModal({ open, onClose, avatar, onAvatarChange }:
     setSaveError('');
     setSaveDone('');
     setNameInput(useAuthStore.getState().user?.name ?? '');
-    // 저장된 연락처 정보 프리필
+    // 저장된 연락처 정보 프리필 (열리는 순간 1회만)
     void api<{ name: string | null; email: string | null; phone: string | null; address: string | null }>(
       '/api/auth/me',
     ).then((me) => {
@@ -107,11 +111,11 @@ export default function SettingsModal({ open, onClose, avatar, onAvatarChange }:
       setAddress(me.address ?? '');
     }).catch(() => {});
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
