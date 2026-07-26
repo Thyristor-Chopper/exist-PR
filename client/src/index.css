@@ -15471,7 +15471,6 @@ input:focus {
   border-radius: 0 999px 999px 0;
   background: none;
   color: #aab0bd;
-  border-left: 1px solid rgba(255, 255, 255, 0.13); /* 은은한 구분선 */
 }
 
 .meeting-controls .ctl-split button.dev-arrow:hover,
@@ -15491,7 +15490,6 @@ input:focus {
 
 .meeting-controls .ctl-split:has(> button.main.off) button.dev-arrow {
   color: #ffd7d7;
-  border-left-color: rgba(255, 255, 255, 0.3);
 }
 
 .meeting-controls .ctl-split:has(> button.main.off) button.dev-arrow:hover {
@@ -15556,7 +15554,7 @@ input:focus {
   padding: 6px 10px 4px;
 }
 
-.meeting-controls .dev-menu button.dev-menu-item {
+.dev-menu button.dev-menu-item {
   width: 100%;
   height: auto;
   border-radius: 8px;
@@ -15570,11 +15568,11 @@ input:focus {
   text-align: left;
 }
 
-.meeting-controls .dev-menu button.dev-menu-item:hover {
+.dev-menu button.dev-menu-item:hover {
   background: var(--bg);
 }
 
-.meeting-controls .dev-menu button.dev-menu-item.active {
+.dev-menu button.dev-menu-item.active {
   font-weight: 700;
 }
 
