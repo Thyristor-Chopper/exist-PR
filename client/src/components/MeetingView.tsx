@@ -794,15 +794,16 @@ export default function MeetingView({
 
   const peers = [...remotePeers.values()];
 
-  // 통화 중 장치 선택 메뉴 — 스플릿 버튼의 ˄가 연다. 현재 장치에 체크 표시
-  const renderDevMenu = (kind: 'mic' | 'cam') => {
+  // 장치 선택 메뉴 — 알약의 ˄가 연다. 현재 장치에 체크 표시.
+  // align 'right'는 프리뷰처럼 앵커가 오른쪽 끝일 때 (화면 밖 삐져나감 방지)
+  const renderDevMenu = (kind: 'mic' | 'cam', align: 'center' | 'right' = 'center') => {
     const list = kind === 'mic' ? mics : cams;
     const current = kind === 'mic' ? micId : camId;
     const noun = kind === 'mic' ? '마이크' : '카메라';
     return (
       <>
         <div style={{ position: 'fixed', inset: 0, zIndex: 39 }} onClick={() => setDevMenu(null)} />
-        <div className="dev-menu">
+        <div className={`dev-menu${align === 'right' ? ' align-right' : ''}`}>
           <div className="dev-menu-title">{noun} 선택</div>
           {[{ deviceId: '', label: `기본 ${noun}` }, ...list].map((d, i) => {
             const active = current === d.deviceId;
@@ -872,7 +873,7 @@ export default function MeetingView({
             <ChevronIcon size={12} />
           </span>
         </button>
-        {devMenu === kind && renderDevMenu(kind)}
+        {devMenu === kind && renderDevMenu(kind, 'right')}
       </div>
     );
   };
