@@ -80,6 +80,7 @@ function makeFallbackStream(label: string): MediaStream {
 function VideoTile({
   track,
   username,
+  avatar,
   isLocal,
   isScreen,
   paused,
@@ -87,6 +88,8 @@ function VideoTile({
 }: {
   track?: MediaStreamTrack;
   username: string;
+  /** 카메라 꺼짐 placeholder에 표시할 프로필 아바타 (없으면 이니셜) */
+  avatar?: string | null;
   isLocal?: boolean;
   isScreen?: boolean;
   paused?: boolean;
@@ -150,7 +153,11 @@ function VideoTile({
         </>
       ) : (
         <div className="video-placeholder">
-          <div className="avatar-circle">{username.slice(0, 1).toUpperCase()}</div>
+          {avatar ? (
+            <Avatar value={avatar} className="video-ph-avatar" />
+          ) : (
+            <div className="avatar-circle">{username.slice(0, 1).toUpperCase()}</div>
+          )}
           <span className="cam-off-label">카메라 꺼짐</span>
         </div>
       )}
@@ -1034,6 +1041,7 @@ export default function MeetingView({
               <VideoTile
                 track={previewTrack}
                 username={dn(user?.username ?? '나')}
+                avatar={user?.avatar ?? null}
                 isLocal
                 paused={!camOn}
               />
@@ -1169,6 +1177,7 @@ export default function MeetingView({
             <VideoTile
               track={localTrack}
               username={dn(user?.username ?? '나')}
+              avatar={user?.avatar ?? null}
               isLocal
               paused={!camOn}
             />
@@ -1177,6 +1186,7 @@ export default function MeetingView({
                 <VideoTile
                   track={p.videoTrack}
                   username={dn(p.username)}
+                  avatar={peerAvatars ? (peerAvatars[p.username] ?? null) : null}
                   paused={p.videoPaused}
                   onKick={
                     isHost
