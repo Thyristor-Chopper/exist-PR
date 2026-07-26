@@ -646,13 +646,18 @@ export default function OrgChartPage() {
                         <th>소유자</th>
                         <th>관리자</th>
                         <th>멤버</th>
+                        {detail.roles.map((r) => (
+                          <th key={r.id} className="org-perm-role" title="커스텀 역할 — 자기 부서 스코프">
+                            {r.name}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
                       {PERM_MATRIX.map((row) =>
                         'section' in row ? (
                           <tr key={row.section} className="org-perm-section">
-                            <td colSpan={4}>{row.section}</td>
+                            <td colSpan={4 + detail.roles.length}>{row.section}</td>
                           </tr>
                         ) : (
                           <tr key={row.label}>
@@ -662,6 +667,14 @@ export default function OrgChartPage() {
                                 {v ? '✓' : '—'}
                               </td>
                             ))}
+                            {detail.roles.map((r) => {
+                              const c = roleCell(row, r);
+                              return (
+                                <td key={r.id} className={c === '—' ? 'no' : 'yes'}>
+                                  {c}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ),
                       )}
@@ -671,6 +684,8 @@ export default function OrgChartPage() {
                 <p className="org-perm-note">
                   호스트는 역할과 무관하게 자기 그룹을, 작성자는 자기가 만든 일정·채널·파일을 관리할 수
                   있어요. 조직에 속하지 않은 개인 그룹은 호스트만 관리해요.
+                  {detail.roles.length > 0 &&
+                    ' 커스텀 역할(◐=일부 권한)은 자기 부서의 멤버·자기 부서원이 호스트인 그룹에만 적용돼요.'}
                 </p>
               </div>
             )}
@@ -681,19 +696,31 @@ export default function OrgChartPage() {
   );
 }
 
-/** 권한 매트릭스 데이터 — [소유자, 관리자, 멤버] */
-const PERM_MATRIX: ({ section: string } | { label: string; allow: [boolean, boolean, boolean] })[] = [
+/** 권한 매트릭스 데이터 — [소유자, 관리자, 멤버] + 커스텀 역할은 actions로 자동 계산.
+ *  actions: 이 행에 해당하는 세분 액션 키들. 'base'는 멤버 기본권(커스텀 역할도 항상 ✓) */
+type MatrixRow =
+  | { section: string }
+  | { label: string; allow: [boolean, boolean, boolean]; actions?: string[] | 'base' };
+const PERM_MATRIX: MatrixRow[] = [
   { section: '조직 관리' },
-  { label: '가입 신청 승인·거절', allow: [true, true, false] },
-  { label: '직급·부서 지정', allow: [true, true, false] },
-  { label: '멤버 제거', allow: [true, true, false] },
+  { label: '가입 신청 승인·거절', allow: [true, true, false], actions: ['member:approve', 'member:reject'] },
+  { label: '직급·부서 지정', allow: [true, true, false], actions: ['member:edit-position', 'member:edit-department'] },
+  { label: '멤버 제거', allow: [true, true, false], actions: ['member:remove'] },
   { label: '역할 변경 (관리자 ↔ 멤버)', allow: [true, false, false] },
   { label: '가입코드 보기·공유', allow: [true, true, false] },
   { section: '조직 소속 그룹' },
-  { label: '그룹 설정 (잠금·편집 허용·음소거)', allow: [true, true, false] },
-  { label: '참가자 내보내기·호스트 위임', allow: [true, true, false] },
-  { label: '그룹 정보 수정·삭제', allow: [true, true, false] },
-  { label: '회의 정리(recap) 실행', allow: [true, true, false] },
-  { label: '일정·채널·공동편집 파일 관리', allow: [true, true, false] },
-  { label: '그룹 참여·채팅·통화·문서 편집', allow: [true, true, true] },
+  { label: '그룹 설정 (잠금·편집 허용·음소거)', allow: [true, true, false], actions: ['group:settings'] },
+  { label: '참가자 내보내기·호스트 위임', allow: [true, true, false], actions: ['group:kick', 'group:transfer'] },
+  { label: '그룹 정보 수정·삭제', allow: [true, true, false], actions: ['group:edit', 'group:delete'] },
+  { label: '회의 정리(recap) 실행', allow: [true, true, false], actions: ['group:recap'] },
+  { label: '일정·채널·공동편집 파일 관리', allow: [true, true, false], actions: ['group:schedule', 'group:channels', 'group:files'] },
+  { label: '그룹 참여·채팅·통화·문서 편집', allow: [true, true, true], actions: 'base' },
 ];
+
+/** 커스텀 역할의 행 표시 — ✓ 전부 / ◐ 일부 / — 없음 */
+function roleCell(row: { actions?: string[] | 'base' }, role: OrgRole): '✓' | '◐' | '—' {
+  if (row.actions === 'base') return '✓';
+  if (!row.actions) return '—';
+  const n = row.actions.filter((a) => role.perms.includes(a)).length;
+  return n === row.actions.length ? '✓' : n > 0 ? '◐' : '—';
+}
