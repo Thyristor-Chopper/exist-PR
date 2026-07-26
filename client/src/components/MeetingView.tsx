@@ -854,9 +854,29 @@ export default function MeetingView({
         <button
           onClick={toggle}
           title={on ? `${noun} 끄기` : `${noun} 켜기`}
-          style={{ ...segBtn, width: 42, height: 46, color: on ? '#222' : '#fff', paddingLeft: 4 }}
+          style={{
+            ...segBtn,
+            position: 'relative',
+            width: 42,
+            height: 46,
+            color: on ? '#222' : '#fff',
+            paddingLeft: 4,
+          }}
         >
           <Icon size={20} />
+          {!on && (
+            <span
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                paddingLeft: 4,
+              }}
+            >
+              <SlashIcon size={20} />
+            </span>
+          )}
         </button>
         <button
           onClick={() => setDevMenu((v) => (v === kind ? null : kind))}

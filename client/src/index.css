@@ -15724,7 +15724,7 @@ input:focus {
   transform: translateX(-50%);
   min-width: 220px;
   max-width: min(320px, 86vw);
-  max-height: 264px;
+  max-height: min(264px, 38vh); /* 짧은 화면에서 위로 뚫고 나가 가려지는 것 방지 */
   overflow-y: auto;
   background: rgba(24, 27, 33, 0.95);
   backdrop-filter: blur(14px);
@@ -15752,7 +15752,10 @@ input:focus {
   padding: 6px 10px;
 }
 
-.dev-menu button.dev-menu-item {
+/* ⚠️ 임베드 통화의 .meeting-room.embedded .meeting-controls button(46px 고정)이
+   메뉴 행까지 클램프해 라벨이 1px로 짜부됐었음 — 더 높은 특이도로 원복 */
+.dev-menu button.dev-menu-item,
+.meeting-room.embedded .meeting-controls .dev-menu button.dev-menu-item {
   width: 100%;
   height: auto;
   border: none;
