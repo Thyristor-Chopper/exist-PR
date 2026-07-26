@@ -1197,11 +1197,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 type="button"
                                 className={`hub-todo-assign${(t.assignees ?? []).length ? ' has faces' : ''}`}
                                 onClick={() => setAssignPick(assignPick === t.id ? null : t.id)}
-                                title={
-                                  (t.assignees ?? []).length
-                                    ? `담당: ${t.assignees!.join(', ')}`
-                                    : '담당자 지정'
-                                }
+                                title={(t.assignees ?? []).length ? undefined : '담당자 지정'}
                               >
                                 {(t.assignees ?? []).length ? (
                                   <span className="hub-assign-faces">
@@ -1225,6 +1221,24 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                   '담당'
                                 )}
                               </button>
+                              {(t.assignees ?? []).length > 0 && (
+                                <div className="hub-assign-tip" aria-hidden>
+                                  {t.assignees!.map((name) => {
+                                    const p = detail.participants.find(
+                                      (x) => x.username === name,
+                                    );
+                                    return (
+                                      <div key={name} className="hub-assign-tip-row">
+                                        <Avatar
+                                          value={p?.avatar ?? null}
+                                          className="hub-assign-avatar"
+                                        />
+                                        <span>{name}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                               {assignPick === t.id && (
                                 <div className="hub-assign-pop">
                                   {detail.participants.map((p) => (
