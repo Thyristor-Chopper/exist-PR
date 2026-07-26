@@ -12851,13 +12851,13 @@ input:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 8px;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 7px;
   background: var(--green);
   color: #fff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   line-height: 1;
 }
