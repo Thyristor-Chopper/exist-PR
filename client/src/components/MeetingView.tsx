@@ -1038,11 +1038,7 @@ export default function MeetingView({
               <VideoTile
                 track={previewTrack}
                 username={dn(user?.username ?? '나')}
-<<<<<<< HEAD
                 avatar={user?.avatar ?? null}
-=======
-                avatar={peerAvatars?.[user?.username ?? '']}
->>>>>>> w1-collab-awareness
                 isLocal
                 paused={!camOn}
               />
@@ -1179,11 +1175,7 @@ export default function MeetingView({
             <VideoTile
               track={localTrack}
               username={dn(user?.username ?? '나')}
-<<<<<<< HEAD
               avatar={user?.avatar ?? null}
-=======
-              avatar={peerAvatars?.[user?.username ?? '']}
->>>>>>> w1-collab-awareness
               isLocal
               paused={!camOn}
             />
@@ -1192,11 +1184,7 @@ export default function MeetingView({
                 <VideoTile
                   track={p.videoTrack}
                   username={dn(p.username)}
-<<<<<<< HEAD
                   avatar={peerAvatars ? (peerAvatars[p.username] ?? null) : null}
-=======
-                  avatar={peerAvatars?.[p.username]}
->>>>>>> w1-collab-awareness
                   paused={p.videoPaused}
                   onKick={
                     isHost
