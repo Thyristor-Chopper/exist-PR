@@ -262,7 +262,7 @@ export default function MeetingView({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatOpenRef = useRef(chatOpen);
   chatOpenRef.current = chatOpen;
-  const defaultChannelRef = useRef<number | null>(null); // 통화 패널이 고정될 기본 채널
+  const callChannelRef = useRef<number | null>(null); // 통화 패널이 고정될 통화 전용 채널 ("화상회의")
   const onLeaveRef = useRef(onLeave);
   onLeaveRef.current = onLeave;
   // SpeechRecognition 인스턴스 — 크롬 계열만 지원, 없으면 STT 기능 숨김
@@ -387,16 +387,19 @@ export default function MeetingView({
       });
       setTitle(meeting.title);
 
-      // 채팅: 히스토리 로드 + 채팅 룸 구독 (허브와 공용 스트림)
-      // 통화 중 패널은 기본 채널("일반")에 고정 — 다른 채널은 허브 채팅 탭에서
-      void api<{ id: number; isDefault: boolean }[]>(`/api/meetings/${code}/channels`)
-        .then((chs) => {
-          if (!closed) defaultChannelRef.current = chs.find((c) => c.isDefault)?.id ?? null;
+      // 채팅: 통화 전용 채널("화상회의") 확보 → 그 채널 히스토리 로드 + 채팅 룸 구독
+      // 통화 중 패널은 통화 채널에 고정 — 기본 채널과 안 섞이고, 허브 채팅 탭의 화상회의 채널과 연동
+      void api<{ id: number }>(`/api/meetings/${code}/channels/call`)
+        .then((ch) => {
+          if (closed) return;
+          callChannelRef.current = ch.id;
+          return api<ChatMessage[]>(`/api/meetings/${code}/messages?channel=${ch.id}`).then(
+            (history) => {
+              if (!closed) setMessages(history);
+            },
+          );
         })
         .catch(() => {});
-      void api<ChatMessage[]>(`/api/meetings/${code}/messages`).then((history) => {
-        if (!closed) setMessages(history);
-      });
       void request(socket, 'chat:join', { code }).catch(() => {});
 
       // 1. SFU 방 입장
@@ -574,13 +577,8 @@ export default function MeetingView({
       });
       socket.on('chat:message', (msg: ChatMessage) => {
         if (msg.code && msg.code !== code.toUpperCase()) return; // 다른 회의 채팅 무시
-        // 통화 패널은 기본 채널 고정 — 다른 채널 메시지는 허브 채팅 탭에서
-        if (
-          msg.channelId != null &&
-          defaultChannelRef.current != null &&
-          msg.channelId !== defaultChannelRef.current
-        )
-          return;
+        // 통화 패널은 통화 채널("화상회의") 고정 — 다른 채널 메시지는 허브 채팅 탭에서
+        if (callChannelRef.current == null || msg.channelId !== callChannelRef.current) return;
         setMessages((prev) => [...prev, msg]);
         if (!chatOpenRef.current) setUnread((n) => n + 1);
       });
@@ -821,7 +819,9 @@ export default function MeetingView({
   function sendChat(e: React.FormEvent) {
     e.preventDefault();
     if (!chatInput.trim()) return;
-    getSocket().emit('chat:send', { code, text: chatInput });
+    // 통화 채널이 아직 안 잡혔으면(입장 직후 찰나) 보류 — 기본 채널로 새는 것 방지
+    if (callChannelRef.current == null) return;
+    getSocket().emit('chat:send', { code, text: chatInput, channelId: callChannelRef.current });
     setChatInput('');
   }
 
@@ -1202,7 +1202,7 @@ export default function MeetingView({
           <aside className="chat-panel">
             <div className="chat-head">
               <span className="chat-head-title">
-                <ChatIcon size={16} /> 채팅
+                <ChatIcon size={16} /> 채팅 <span className="chat-head-channel"># 화상회의</span>
               </span>
               <button onClick={() => setChatOpen(false)}>×</button>
             </div>

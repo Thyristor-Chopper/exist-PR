@@ -3688,17 +3688,11 @@ input:focus {
   display: none;
 }
 
+/* 색은 할일 체크박스(.hub-todo-check)와 동일 — 크기만 행 높이에 맞춤 */
 .hub-assign-opt .hub-todo-check {
   width: 17px;
   height: 17px;
   border-radius: 5px;
-  /* 미체크가 "빈 공간"처럼 안 보이게 — 옅은 채움 + 뚜렷한 테두리로 체크박스임을 표시 */
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-  border-color: color-mix(in srgb, var(--text) 38%, transparent);
-}
-
-.hub-assign-opt:hover .hub-todo-check {
-  border-color: color-mix(in srgb, var(--text) 60%, transparent);
 }
 
 .hub-assign-opt input:checked + .hub-todo-check {
@@ -12248,8 +12242,21 @@ input:focus {
   white-space: nowrap;
 }
 
+/* 역할 권한 체크박스 — 할일 체크박스와 같은 커스텀 체크로 통일 */
 .org-roles-perm input {
-  accent-color: var(--green);
+  display: none;
+}
+
+.org-roles-perm .hub-todo-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+
+.org-roles-perm input:checked + .hub-todo-check {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
 }
 
 .org-roles-block.new .org-field-input {
@@ -13559,6 +13566,14 @@ input:focus {
   inset: 0;
   display: grid;
   place-items: center;
+}
+
+/* 통화 채팅이 물린 채널 표시 — 기본 채널이 아니라 화상회의 채널임을 알림 */
+.chat-head-channel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sub);
+  opacity: 0.8;
 }
 
 .chat-head-title {

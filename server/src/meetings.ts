@@ -18,7 +18,7 @@ import {
   markNextMeetingRegistered,
   runRecapForMeeting,
 } from './recap.js';
-import { listChannels, ensureDefaultChannel, resolveChannel, cleanChannelName } from './channels.js';
+import { listChannels, ensureDefaultChannel, ensureCallChannel, resolveChannel, cleanChannelName } from './channels.js';
 import { generateAgenda, invalidateAgenda, ensureAgentUser } from './steward.js';
 import filesRouter, { deleteMeetingFiles } from './files.js';
 
@@ -1284,6 +1284,15 @@ router.get('/:code/channels', (req: AuthedRequest, res) => {
   res.json(listChannels(r.meeting.id, req.userId!));
 });
 
+/** 통화 전용 채널 확보(get-or-create) — 통화 패널 채팅이 여기 물림. 참가자 누구나 */
+router.get('/:code/channels/call', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  ensureDefaultChannel(r.meeting.id, req.userId!); // 기본 채널 먼저 — 통화 채널이 기본을 차지하는 일 없게
+  const ch = ensureCallChannel(r.meeting.id, req.userId!);
+  res.json({ id: ch.id, name: ch.name, kind: 'call' });
+});
+
 /** 채널 생성 — 참가자 누구나 */
 router.post('/:code/channels', (req: AuthedRequest, res) => {
   const r = meetingForParticipant(req.params.code, req.userId!);
@@ -1335,9 +1344,11 @@ router.delete('/:code/channels/:channelId', (req: AuthedRequest, res) => {
   const id = Number(req.params.channelId);
   if (id === defaultId) return res.status(400).json({ error: '기본 채널은 삭제할 수 없어요' });
   const ch = db
-    .prepare('SELECT id FROM chat_channels WHERE id = ? AND meeting_id = ?')
-    .get(id, r.meeting.id);
+    .prepare('SELECT id, kind FROM chat_channels WHERE id = ? AND meeting_id = ?')
+    .get(id, r.meeting.id) as { id: number; kind: string | null } | undefined;
   if (!ch) return res.status(404).json({ error: '존재하지 않는 채널이에요' });
+  // 통화 채널을 지우면 진행 중인 통화 채팅이 유실됨 — 삭제 불가
+  if (ch.kind === 'call') return res.status(400).json({ error: '화상회의 채널은 삭제할 수 없어요' });
   db.prepare('DELETE FROM messages WHERE channel_id = ?').run(id);
   db.prepare('DELETE FROM chat_channels WHERE id = ?').run(id);
   res.json({ ok: true });
