@@ -58,6 +58,13 @@ function WorkspacePanel({ meetingRequest }: Props) {
   // 오버레이가 nowbar를 못 덮으므로, CSS에서 nowbar 자체를 숨기는 용도
   useEffect(() => {
     document.body.classList.toggle('call-fullscreen', expanded != null);
+    // 모바일에선 브라우저 주소창까지 걷어내는 진짜 풀스크린 (미지원 브라우저는 조용히 무시 — iOS 등)
+    const mobile = window.matchMedia('(max-width: 1023px)').matches;
+    if (expanded != null && mobile && !document.fullscreenElement) {
+      void document.documentElement.requestFullscreen?.().catch(() => {});
+    } else if (expanded == null && document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => {});
+    }
     return () => document.body.classList.remove('call-fullscreen');
   }, [expanded]);
   // 탭별 확대 토글 콜백 — 매 렌더 새 함수를 만들면 memo(MeetingHub)가 무력화돼 캐시
