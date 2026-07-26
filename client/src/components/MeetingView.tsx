@@ -863,20 +863,22 @@ export default function MeetingView({
             paddingLeft: 4,
           }}
         >
-          <Icon size={20} />
-          {!on && (
-            <span
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'grid',
-                placeItems: 'center',
-                paddingLeft: 4,
-              }}
-            >
-              <SlashIcon size={20} />
-            </span>
-          )}
+          {/* 슬래시는 버튼이 아니라 아이콘 박스에 겹침 — 버튼 패딩과 무관하게 항상 아이콘 정중앙 */}
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <Icon size={20} />
+            {!on && (
+              <span
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'grid',
+                  placeItems: 'center',
+                }}
+              >
+                <SlashIcon size={20} />
+              </span>
+            )}
+          </span>
         </button>
         <button
           onClick={() => setDevMenu((v) => (v === kind ? null : kind))}
