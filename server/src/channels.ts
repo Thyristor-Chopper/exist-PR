@@ -36,7 +36,7 @@ export function ensureDefaultChannel(meetingId: number, createdBy: number): numb
   return id;
 }
 
-/** 통화 전용 채널 확보 — 통화 중 채팅이 기본 채널과 섞이지 않게 분리. 없으면 "화상회의" 생성 */
+/** 통화 전용 채널 확보 — 통화 중 채팅이 기본 채널과 섞이지 않게 분리. 없으면 "통화" 생성 (이름 변경 가능, kind로 식별) */
 export function ensureCallChannel(meetingId: number, createdBy: number): { id: number; name: string } {
   const row = db
     .prepare("SELECT id, name FROM chat_channels WHERE meeting_id = ? AND kind = 'call' LIMIT 1")
@@ -44,8 +44,8 @@ export function ensureCallChannel(meetingId: number, createdBy: number): { id: n
   if (row) return row;
   const info = db
     .prepare("INSERT INTO chat_channels (meeting_id, name, created_by, kind) VALUES (?, ?, ?, 'call')")
-    .run(meetingId, '화상회의', createdBy);
-  return { id: info.lastInsertRowid as number, name: '화상회의' };
+    .run(meetingId, '통화', createdBy);
+  return { id: info.lastInsertRowid as number, name: '통화' };
 }
 
 /** 채널 목록 — 기본 채널 표시 포함 (통화 채널은 kind로 구분) */
