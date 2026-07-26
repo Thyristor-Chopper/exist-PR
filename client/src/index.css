@@ -13457,6 +13457,62 @@ input:focus {
   flex-wrap: wrap;
 }
 
+/* 보기/관리 모드 토글 — 기본 무채색, 켜지면 초록 */
+.orgchart-editmode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 13px;
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  color: var(--text-sub);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.orgchart-editmode.on {
+  border-style: solid;
+  border-color: var(--green);
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+/* 역할 관리 모달 — 프리셋 칩 */
+.org-roles-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.org-roles-presets-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.org-roles-preset {
+  border: 1px dashed var(--green);
+  background: var(--green-soft);
+  color: var(--green);
+  border-radius: 8px;
+  padding: 5px 11px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.org-roles-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sub);
+  margin-left: 4px;
+}
+
 .error-toast-text {
   line-height: 1.4;
   word-break: keep-all;

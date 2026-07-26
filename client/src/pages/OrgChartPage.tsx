@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useOrgStore } from '../orgStore';
 import Logo from '../components/Logo';
 import Avatar from '../components/Avatar';
-import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon } from '../components/Icons';
+import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon, PenIcon } from '../components/Icons';
 import { POSITIONS } from '../lib/positions';
 import InsightsPanel from '../components/InsightsPanel';
 
@@ -163,7 +163,13 @@ export default function OrgChartPage() {
     });
     await refresh();
   }
-  async function remove(userId: number) {
+  /** 제거/거절 — 파괴적 동작이라 확인 후 실행 */
+  async function remove(userId: number, mode: 'remove' | 'reject' = 'remove', username = '') {
+    const msg =
+      mode === 'reject'
+        ? `${username}님의 가입 신청을 거절할까요?`
+        : `${username}님을 조직에서 내보낼까요?\n소속 정보(직급·부서·역할)가 사라져요.`;
+    if (!window.confirm(msg)) return;
     await api(`/api/orgs/${orgId}/members/${userId}`, { method: 'DELETE' });
     await refresh();
   }
@@ -195,6 +201,9 @@ export default function OrgChartPage() {
     }
   }
 
+  // 보기/관리 모드 — 조직도는 기본 "보기", 관리 모드에서만 카드 편집 UI 노출
+  const [editMode, setEditMode] = useState(false);
+
   // ── 역할(정책) 관리 — 소유자 전용, 모달 ──
   const [rolesOpen, setRolesOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
@@ -224,10 +233,32 @@ export default function OrgChartPage() {
     await api(`/api/orgs/${orgId}/roles/${role.id}`, { method: 'PATCH', body: { perms } });
     await load();
   }
-  async function deleteRole(roleId: number) {
-    await api(`/api/orgs/${orgId}/roles/${roleId}`, { method: 'DELETE' });
+  async function deleteRole(role: OrgRole) {
+    const holders = (detail?.members ?? []).filter((m) => m.roleId === role.id);
+    const warn =
+      holders.length > 0
+        ? `\n이 역할을 가진 ${holders.length}명(${holders.slice(0, 3).map((h) => h.username).join(', ')}${holders.length > 3 ? '…' : ''})은 일반 멤버로 돌아가요.`
+        : '';
+    if (!window.confirm(`역할 "${role.name}"을(를) 삭제할까요?${warn}`)) return;
+    await api(`/api/orgs/${orgId}/roles/${role.id}`, { method: 'DELETE' });
     await load();
   }
+
+  /* 프리셋(관리형 정책) — 원클릭으로 폼 채우고 미세조정은 체크박스로 */
+  const ROLE_PRESETS: { name: string; perms: string[] }[] = [
+    {
+      name: '팀장',
+      perms: Object.keys(ACTION_LABEL),
+    },
+    {
+      name: '인사 담당',
+      perms: ['member:approve', 'member:reject', 'member:edit-position', 'member:edit-department'],
+    },
+    {
+      name: '그룹 운영자',
+      perms: Object.keys(ACTION_LABEL).filter((a) => a.startsWith('group:')),
+    },
+  ];
   async function setPosition(userId: number, position: string) {
     await api(`/api/orgs/${orgId}/members/${userId}`, {
       method: 'PATCH',
@@ -322,8 +353,19 @@ export default function OrgChartPage() {
                 </div>
               </div>
             </div>
-            {manager && detail.joinCode && (
-              <span className="orgchart-invite">
+            <span className="orgchart-invite">
+              {/* 보기/관리 모드 — 편집 권한이 있는 사람에게만. 기본은 깔끔한 보기 모드 */}
+              {(manager || perms.length > 0) && (
+                <button
+                  className={`orgchart-editmode${editMode ? ' on' : ''}`}
+                  onClick={() => setEditMode((v) => !v)}
+                  title={editMode ? '보기 모드로 — 편집 UI를 숨겨요' : '관리 모드로 — 멤버 편집 UI를 켜요'}
+                >
+                  <PenIcon size={13} /> {editMode ? '관리 모드 켜짐' : '관리 모드'}
+                </button>
+              )}
+              {manager && detail.joinCode && (
+                <>
                 <button className="orgchart-code" onClick={copyCode} title="가입코드 복사">
                   가입코드 <b>{detail.joinCode}</b> {copied ? '✓' : ''}
                 </button>
@@ -344,8 +386,9 @@ export default function OrgChartPage() {
                     <GearIcon size={14} /> 역할 관리
                   </button>
                 )}
-              </span>
-            )}
+                </>
+              )}
+            </span>
           </div>
 
           {/* AI 위임 제안 — 소유자에게만, 규칙 기반(사실에서 계산). 실행은 사람이 */}
@@ -412,7 +455,10 @@ export default function OrgChartPage() {
                       </button>
                     )}
                     {canReject && (
-                      <button className="org-btn reject" onClick={() => remove(p.userId)}>
+                      <button
+                        className="org-btn reject"
+                        onClick={() => remove(p.userId, 'reject', p.username)}
+                      >
                         거절
                       </button>
                     )}
@@ -431,14 +477,36 @@ export default function OrgChartPage() {
                   만든 역할을 멤버에게 주면 중간관리자가 돼요 — 권한은 그 사람의 <b>자기 부서</b>{' '}
                   일반 멤버에게만 적용돼요
                 </div>
+                {/* 프리셋 — 자주 쓰는 조합을 원클릭으로 폼에 채움 */}
+                <div className="org-roles-presets">
+                  <span className="org-roles-presets-label">빠른 시작:</span>
+                  {ROLE_PRESETS.map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      className="org-roles-preset"
+                      onClick={() => {
+                        setNewRoleName(p.name);
+                        setNewRolePerms(p.perms);
+                      }}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
                 {detail.roles.length === 0 && (
                   <div className="org-roles-empty">아직 만든 역할이 없어요 — 아래에서 시작해보세요</div>
                 )}
                 {detail.roles.map((r) => (
                   <div key={r.id} className="org-roles-block">
                     <div className="org-roles-block-head">
-                      <b className="org-roles-name">{r.name}</b>
-                      <button className="org-btn reject" onClick={() => void deleteRole(r.id)}>
+                      <b className="org-roles-name">
+                        {r.name}
+                        <span className="org-roles-count">
+                          · {detail.members.filter((m) => m.roleId === r.id).length}명
+                        </span>
+                      </b>
+                      <button className="org-btn reject" onClick={() => void deleteRole(r)}>
                         삭제
                       </button>
                     </div>
@@ -522,7 +590,10 @@ export default function OrgChartPage() {
                 </div>
                 <div className="orgchart-members">
                   {g.people.map((m) => (
-                    <div key={m.userId} className={`orgchart-card${manager ? ' editable' : ''}`}>
+                    <div
+                      key={m.userId}
+                      className={`orgchart-card${editMode && (canEditTarget(m) || canRemoveTarget(m)) ? ' editable' : ''}`}
+                    >
                       <div className="orgchart-card-main">
                         <Avatar value={m.avatar} className="orgchart-avatar" />
                         <div className="orgchart-info">
@@ -540,8 +611,8 @@ export default function OrgChartPage() {
                         </div>
                       </div>
 
-                      {/* 인라인 편집 — 소유자 카드는 본인만, 중간관리자는 자기 부서 일반 멤버만 */}
-                      {(canEditTarget(m) || canRemoveTarget(m)) && (
+                      {/* 인라인 편집 — 관리 모드에서만. 소유자 카드는 본인만, 중간관리자는 자기 부서 일반 멤버만 */}
+                      {editMode && (canEditTarget(m) || canRemoveTarget(m)) && (
                         <div className="orgchart-card-edit">
                           {canEditPos(m) && (
                             <select
@@ -596,7 +667,10 @@ export default function OrgChartPage() {
                             </select>
                           )}
                           {canRemoveTarget(m) && (
-                            <button className="org-btn reject" onClick={() => remove(m.userId)}>
+                            <button
+                              className="org-btn reject"
+                              onClick={() => remove(m.userId, 'remove', m.username)}
+                            >
                               제거
                             </button>
                           )}
