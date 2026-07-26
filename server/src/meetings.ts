@@ -156,6 +156,8 @@ router.post('/', (req: AuthedRequest, res) => {
     meetingId,
     req.userId,
   );
+  // 통합 메시지함 실시간 반영 — 새 그룹이 생겼으니 목록 재조회 신호 (다른 탭·기기 포함)
+  emitToUser(req.userId!, 'inbox:changed', { code });
 
   // 초대한 사람들 바로 참가자로 추가 + 알림
   const invited: string[] = [];
@@ -177,6 +179,7 @@ router.post('/', (req: AuthedRequest, res) => {
     ).run(meetingId, u.id);
     invited.push(u.username);
     emitToUser(u.id, 'meeting:invited', { code, title });
+    emitToUser(u.id, 'inbox:changed', { code });
     notifyUser(u.id, {
       from: me?.username ?? '누군가',
       text: `'${title}' 회의에 초대했어요. (코드 ${code})`,
@@ -210,6 +213,7 @@ router.post('/join', (req: AuthedRequest, res) => {
     }
   }
 
+  if (!already) emitToUser(req.userId!, 'inbox:changed', { code: meeting.code });
   db.prepare(
     'INSERT OR IGNORE INTO meeting_participants (meeting_id, user_id) VALUES (?, ?)',
   ).run(meeting.id, req.userId);
