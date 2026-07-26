@@ -12968,6 +12968,57 @@ html:not(.dark) .meeting-room {
   background: var(--surface-2);
 }
 
+/* 라이트 테마 통화 — 다크 하드코딩이 튀는 곳 보정:
+   컨트롤은 흰 버튼+보더, 타일·placeholder는 밝은 카드(어두운 사각형이 부자연 — 주호 피드백) */
+html:not(.dark) .meeting-controls button,
+html:not(.dark) .meeting-controls .ctl-split {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+html:not(.dark) .meeting-controls .ctl-split button {
+  background: none;
+  border: none;
+}
+
+html:not(.dark) .meeting-controls button:hover {
+  background: var(--surface-3);
+}
+
+html:not(.dark) .meeting-controls button.off,
+html:not(.dark) .meeting-controls .ctl-split:has(> button.main.off) {
+  background: #d33;
+  border-color: #d33;
+}
+
+html:not(.dark) .meeting-controls button.active {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+html:not(.dark) .meeting-controls .chat-toggle {
+  --chat-icon-fill: var(--surface);
+}
+
+html:not(.dark) .video-tile {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+}
+
+html:not(.dark) .video-placeholder {
+  background: var(--surface-3);
+}
+
+html:not(.dark) .cam-off-label {
+  color: var(--text-sub);
+}
+
+html:not(.dark) .meeting-controls .leave {
+  background: #d33;
+  border-color: #d33;
+  color: #fff;
+}
+
 /* 대시보드 탭 임베드 모드 */
 .meeting-room.embedded {
   height: 100%;
@@ -13321,17 +13372,17 @@ html:not(.dark) .meeting-room {
 
 .expand-btn {
   margin-left: auto;
-  border: 1px solid #3a3f4a;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #20242c;
-  color: #ddd;
+  background: var(--surface);
+  color: var(--text);
   padding: 8px 10px;
   display: grid;
   place-items: center;
 }
 
 .expand-btn:hover {
-  background: #2a2f39;
+  background: var(--surface-3);
   color: var(--green);
 }
 
@@ -13424,7 +13475,7 @@ html:not(.dark) .meeting-room {
 .lock-btn {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
   font-size: 13px;
   font-weight: 600;
@@ -13660,7 +13711,8 @@ html:not(.dark) .meeting-room {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: #181b21;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
   margin-bottom: 4px;
@@ -13673,13 +13725,13 @@ html:not(.dark) .meeting-room {
   padding: 14px 16px;
   font-weight: 600;
   font-size: 15px;
-  border-bottom: 1px solid #262a33;
+  border-bottom: 1px solid var(--border);
 }
 
 .chat-head button {
   border: none;
   background: none;
-  color: #888;
+  color: var(--text-sub);
   font-size: 18px;
 }
 
@@ -13694,7 +13746,7 @@ html:not(.dark) .meeting-room {
 }
 
 .chat-empty {
-  color: #666;
+  color: var(--text-sub);
   font-size: 13px;
   text-align: center;
   margin-top: 30px;
@@ -13716,7 +13768,7 @@ html:not(.dark) .meeting-room {
 
 .chat-from {
   font-size: 11px;
-  color: #888;
+  color: var(--text-sub);
 }
 
 .chat-msg.mine .chat-from {
@@ -13724,7 +13776,7 @@ html:not(.dark) .meeting-room {
 }
 
 .chat-bubble {
-  background: #262a33;
+  background: var(--surface-3);
   border-radius: 12px;
   padding: 8px 12px;
   font-size: 14px;
@@ -13734,22 +13786,23 @@ html:not(.dark) .meeting-room {
 
 .chat-msg.mine .chat-bubble {
   background: var(--green);
+  color: #fff;
 }
 
 .chat-input {
   display: flex;
   gap: 8px;
   padding: 12px;
-  border-top: 1px solid #262a33;
+  border-top: 1px solid var(--border);
 }
 
 .chat-input input {
   flex: 1;
   min-width: 0;
-  border: 1px solid #2e333d;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #20242c;
-  color: #fff;
+  background: var(--surface-2);
+  color: var(--text);
   padding: 10px 12px;
   font-size: 14px;
 }
