@@ -901,8 +901,10 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
           onClick={() => setSubtab('call')}
         >
           <PhoneIcon size={13} /> 통화
-          {inCall && <i className="live-dot" />}
-          {(detail?.online ?? 0) > 0 && <span className="hub-tab-count">{detail!.online}</span>}
+          {/* 인원수 배지가 깜빡이며 라이브 표시까지 겸함 — live-dot과 중복이라 점은 제거 */}
+          {(detail?.online ?? 0) > 0 && (
+            <span className="hub-tab-count blink">{detail!.online}</span>
+          )}
         </button>
         <button
           className={`hub-tab${subtab === 'chat' ? ' active' : ''}`}
@@ -1199,11 +1201,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 type="button"
                                 className={`hub-todo-assign${(t.assignees ?? []).length ? ' has faces' : ''}`}
                                 onClick={() => setAssignPick(assignPick === t.id ? null : t.id)}
-                                title={
-                                  (t.assignees ?? []).length
-                                    ? `담당: ${t.assignees!.map((u) => dn(u)).join(', ')}`
-                                    : '담당자 지정'
-                                }
+                                title={(t.assignees ?? []).length ? undefined : '담당자 지정'}
                               >
                                 {(t.assignees ?? []).length ? (
                                   <span className="hub-assign-faces">
@@ -1227,6 +1225,24 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                   '담당'
                                 )}
                               </button>
+                              {(t.assignees ?? []).length > 0 && (
+                                <div className="hub-assign-tip" aria-hidden>
+                                  {t.assignees!.map((name) => {
+                                    const p = detail.participants.find(
+                                      (x) => x.username === name,
+                                    );
+                                    return (
+                                      <div key={name} className="hub-assign-tip-row">
+                                        <Avatar
+                                          value={p?.avatar ?? null}
+                                          className="hub-assign-avatar"
+                                        />
+                                        <span>{dn(name)}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                               {assignPick === t.id && (
                                 <div className="hub-assign-pop">
                                   {detail.participants.map((p) => (
@@ -1638,6 +1654,9 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
               onToggleExpand={onToggleExpand}
               onJoined={() => setInCall(true)}
               onlinePeers={detail?.callPeers ?? []}
+              peerAvatars={Object.fromEntries(
+                (detail?.participants ?? []).map((p) => [p.username, p.avatar]),
+              )}
               mentionCandidates={mentionCandidates}
               onLeave={(message) => {
                 setInCall(false);

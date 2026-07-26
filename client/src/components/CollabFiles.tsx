@@ -204,14 +204,20 @@ export default function CollabFiles({
     if (!people?.length) return null;
     const shown = people.slice(0, 4);
     return (
-      <span
-        className="cf-presence"
-        title={`${people.map((p) => dn(p.username)).join(', ')} 편집 중`}
-      >
+      <span className="cf-presence">
         {shown.map((p) => (
           <Avatar key={p.username} value={p.avatar} className="cf-presence-avatar" />
         ))}
         {people.length > 4 && <span className="cf-presence-more">+{people.length - 4}</span>}
+        {/* hover 시 전체 접속자 프로필 리스트 (할 일 담당자 팝업과 동일 톤) — 이름 우선 표기 */}
+        <span className="hub-assign-tip cf-presence-tip" aria-hidden>
+          {people.map((p) => (
+            <span key={p.username} className="hub-assign-tip-row">
+              <Avatar value={p.avatar} className="hub-assign-avatar" />
+              <span>{dn(p.username)}</span>
+            </span>
+          ))}
+        </span>
       </span>
     );
   }

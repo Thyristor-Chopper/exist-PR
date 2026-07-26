@@ -3584,6 +3584,46 @@ input:focus {
   color: var(--text-sub);
 }
 
+/* 담당자 스택 hover — 전체 담당자 프로필 리스트 (스택은 3명+N 축약이라) */
+.hub-assign-tip {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 31;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  min-width: 140px;
+  max-height: 200px;
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.hub-todo-assign:hover + .hub-assign-tip {
+  display: block;
+}
+
+.hub-assign-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* 프로필 이미지 규칙: 정사각 + 살짝 radius (원형 금지) */
+.hub-assign-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
 .hub-assign-pop {
   position: absolute;
   right: 0;
@@ -10814,7 +10854,17 @@ input:focus {
   display: inline-flex;
   align-items: center;
   flex: none;
-  pointer-events: none;
+  position: relative; /* hover 프로필 리스트 기준점 */
+  /* hover 감지를 위해 pointer-events 허용 — 클릭은 행으로 버블링돼 파일 열기 그대로 동작 */
+}
+
+.cf-presence-tip {
+  top: calc(100% + 4px);
+  bottom: auto; /* hub-assign-tip 기본(위로 열림) 대신 아래로 */
+}
+
+.cf-presence:hover .cf-presence-tip {
+  display: block;
 }
 
 .cf-presence .cf-presence-avatar {
@@ -12709,6 +12759,21 @@ input:focus {
   line-height: 1;
 }
 
+/* 통화 인원수 배지 = 라이브 표시 겸용 — 사라졌다 떴다 반복 */
+.hub-tab-count.blink {
+  animation: hub-count-blink 1.8s ease-in-out infinite;
+}
+
+@keyframes hub-count-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 /* ───── 회의실 ───── */
 .meeting-room {
   display: flex;
@@ -13495,6 +13560,20 @@ input:focus {
 
 .meeting-controls button.active {
   background: var(--green);
+}
+
+/* 채팅 토글 — 말풍선 내부까지 상태를 따라가게: 기본은 버튼색(아웃라인 룩), 켜짐은 흰색 채움 */
+.meeting-controls .chat-toggle {
+  --chat-icon-fill: #2a2e37;
+}
+
+.meeting-controls .chat-toggle:hover {
+  --chat-icon-fill: #353a45;
+}
+
+.meeting-controls .chat-toggle.active {
+  --chat-icon-fill: #fff;
+  color: var(--green);
 }
 
 .meeting-controls .badge {
@@ -15715,8 +15794,12 @@ input:focus {
 }
 
 .hub-call.mini .meeting-controls .ctl-split button.main {
+  /* 임베드 스플릿 크기(42×46)가 미니 34px보다 우선순위 높아 타원으로 커지던 것 — 명시 복원 */
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: #2a2e37;
+  padding: 0;
 }
 
 .hub-call.mini .meeting-controls .ctl-split:has(> button.main.off) button.main {

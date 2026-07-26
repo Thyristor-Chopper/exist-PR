@@ -40,11 +40,17 @@ export function isViewingDm(userId: number, peerId: number): boolean {
 }
 
 export function notifyUser(userId: number, payload: NotifyPayload) {
+  // 발신자 표기 이름 우선 — from이 사용자 아이디면 name으로 치환 (표시 이름 규칙의 서버 몫, 전 알림 공통)
+  const nameRow = db
+    .prepare('SELECT name FROM users WHERE username = ?')
+    .get(payload.from) as { name: string | null } | undefined;
+  const from = nameRow?.name?.trim() ? nameRow.name! : payload.from;
+
   const info = db
     .prepare(
       'INSERT INTO notifications (user_id, from_name, text, kind, meeting_code) VALUES (?, ?, ?, ?, ?)',
     )
-    .run(userId, payload.from, payload.text, payload.kind ?? null, payload.meetingCode ?? null);
+    .run(userId, from, payload.text, payload.kind ?? null, payload.meetingCode ?? null);
 
   if (!io) return;
   // 회의 알림이면 썸네일 표시용 회의 정보를 함께 실어 보낸다
@@ -57,7 +63,7 @@ export function notifyUser(userId: number, payload: NotifyPayload) {
   }
   const full = {
     id: info.lastInsertRowid as number,
-    from: payload.from,
+    from,
     text: payload.text,
     kind: payload.kind,
     meeting,
@@ -73,7 +79,7 @@ export function notifyUser(userId: number, payload: NotifyPayload) {
   // 접속 소켓이 하나도 없으면 웹푸시(PWA) — 앱을 안 켜둔 사람에게 OS 알림
   if (!delivered) {
     sendPushToUser(userId, {
-      title: payload.from,
+      title: from,
       body: payload.text,
       tag: payload.kind ?? 'exist',
       url: '/',

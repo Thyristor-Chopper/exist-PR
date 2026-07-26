@@ -6,6 +6,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
+import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
 import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon } from './Icons';
 
@@ -196,6 +197,8 @@ interface MeetingViewProps {
   onJoined?: () => void;
   /** 현재 통화 중인 사람 이름 (프리뷰에 표시) */
   onlinePeers?: string[];
+  /** username → 아바타 — 프리뷰 접속자 스택용 (허브가 참가자 명단에서 내려줌) */
+  peerAvatars?: Record<string, string | null>;
   /** 채팅 @멘션 후보 — 허브가 회의 전체 명단을 내려줌 (없으면 통화 피어로 폴백) */
   mentionCandidates?: MentionCandidate[];
 }
@@ -208,6 +211,7 @@ export default function MeetingView({
   onLeave,
   onJoined,
   onlinePeers = [],
+  peerAvatars,
   mentionCandidates,
 }: MeetingViewProps) {
   const user = useAuthStore((s) => s.user);
@@ -469,7 +473,7 @@ export default function MeetingView({
         ]);
       } catch {
         localStream = makeFallbackStream(displayNameOf(user?.username ?? 'me'));
-        setStatus('카메라 없음 — 데모 화면 송출 중');
+        setStatus('카메라·마이크를 잡지 못했어요 — 데모 화면 송출 중 (다른 프로그램 점유 확인)');
       }
       if (closed) return;
 
@@ -707,7 +711,15 @@ export default function MeetingView({
 
   function toggleMic() {
     const p = producersRef.current.audio;
-    if (!p) return;
+    if (!p) {
+      // 입장 시 장치를 못 잡아 폴백(데모 화면)으로 도는 상태 — 조용히 무시하지 않고 알림
+      window.dispatchEvent(
+        new CustomEvent('app:error', {
+          detail: '마이크를 잡지 못했어요 — 다른 프로그램이 카메라·마이크를 쓰고 있는지 확인하고 다시 입장해주세요',
+        }),
+      );
+      return;
+    }
     const socket = getSocket();
     if (micOn) {
       p.pause();
@@ -721,7 +733,14 @@ export default function MeetingView({
 
   function toggleCam() {
     const p = producersRef.current.video;
-    if (!p) return;
+    if (!p) {
+      window.dispatchEvent(
+        new CustomEvent('app:error', {
+          detail: '카메라를 잡지 못했어요 — 다른 프로그램이 카메라를 쓰고 있는지 확인하고 다시 입장해주세요',
+        }),
+      );
+      return;
+    }
     const socket = getSocket();
     if (camOn) {
       p.pause();
@@ -954,8 +973,40 @@ export default function MeetingView({
           </h2>
           <div style={{ fontSize: 12, color: 'var(--text-sub)', marginBottom: 6 }}>코드 {code}</div>
           {onlinePeers.length > 0 ? (
-            <div style={{ fontSize: 13, color: '#21C818', fontWeight: 700, marginBottom: 16 }}>
-              ● 지금 통화 중 · {onlinePeers.map((u) => dn(u)).join(', ')}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                fontSize: 13,
+                color: '#21C818',
+                fontWeight: 700,
+                marginBottom: 16,
+              }}
+            >
+              <span>● {onlinePeers.length}명 통화 중</span>
+              {/* 겹친 아바타 스택 + hover 전체 프로필 리스트 (공동편집 접속자와 동일 톤, 이름 우선) */}
+              <span className="cf-presence">
+                {onlinePeers.slice(0, 4).map((name) => (
+                  <Avatar
+                    key={name}
+                    value={peerAvatars?.[name] ?? null}
+                    className="cf-presence-avatar"
+                  />
+                ))}
+                {onlinePeers.length > 4 && (
+                  <span className="cf-presence-more">+{onlinePeers.length - 4}</span>
+                )}
+                <span className="hub-assign-tip cf-presence-tip" aria-hidden>
+                  {onlinePeers.map((name) => (
+                    <span key={name} className="hub-assign-tip-row">
+                      <Avatar value={peerAvatars?.[name] ?? null} className="hub-assign-avatar" />
+                      <span>{dn(name)}</span>
+                    </span>
+                  ))}
+                </span>
+              </span>
             </div>
           ) : (
             <div style={{ fontSize: 12.5, color: 'var(--text-sub)', marginBottom: 16 }}>
