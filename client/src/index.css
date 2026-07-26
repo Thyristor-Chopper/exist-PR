@@ -10752,7 +10752,17 @@ input:focus {
   display: inline-flex;
   align-items: center;
   flex: none;
-  pointer-events: none;
+  position: relative; /* hover 프로필 리스트 기준점 */
+  /* hover 감지를 위해 pointer-events 허용 — 클릭은 행으로 버블링돼 파일 열기 그대로 동작 */
+}
+
+.cf-presence-tip {
+  top: calc(100% + 4px);
+  bottom: auto; /* hub-assign-tip 기본(위로 열림) 대신 아래로 */
+}
+
+.cf-presence:hover .cf-presence-tip {
+  display: block;
 }
 
 .cf-presence .cf-presence-avatar {
