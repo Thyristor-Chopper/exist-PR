@@ -13633,8 +13633,8 @@ input:focus {
 }
 
 .meeting-controls .chat-toggle.active {
+  /* 외곽선은 흰색 유지(초록으로 칠하면 앙상해 보임 — 주호 피드백), 내부만 흰색 채움 */
   --chat-icon-fill: #fff;
-  color: var(--green);
 }
 
 .meeting-controls .badge {
