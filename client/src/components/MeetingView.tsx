@@ -80,6 +80,7 @@ function makeFallbackStream(label: string): MediaStream {
 function VideoTile({
   track,
   username,
+  avatar,
   isLocal,
   isScreen,
   paused,
@@ -87,6 +88,8 @@ function VideoTile({
 }: {
   track?: MediaStreamTrack;
   username: string;
+  /** 프로필 아바타 (이모지/사진) — 카메라 꺼짐 자리에 표시 */
+  avatar?: string | null;
   isLocal?: boolean;
   isScreen?: boolean;
   paused?: boolean;
@@ -150,7 +153,8 @@ function VideoTile({
         </>
       ) : (
         <div className="video-placeholder">
-          <div className="avatar-circle">{username.slice(0, 1).toUpperCase()}</div>
+          {/* 프로필 아바타 그대로 — 앱 다른 곳과 같은 모습 (없으면 Avatar 기본 이모지) */}
+          <Avatar value={avatar} className="video-avatar" />
           <span className="cam-off-label">카메라 꺼짐</span>
         </div>
       )}
@@ -1034,6 +1038,7 @@ export default function MeetingView({
               <VideoTile
                 track={previewTrack}
                 username={dn(user?.username ?? '나')}
+                avatar={peerAvatars?.[user?.username ?? '']}
                 isLocal
                 paused={!camOn}
               />
@@ -1141,6 +1146,7 @@ export default function MeetingView({
                   key={s.key}
                   track={s.track}
                   username={dn(s.username)}
+                  avatar={peerAvatars?.[s.username]}
                   isLocal={s.isLocal}
                   isScreen
                 />
@@ -1153,6 +1159,7 @@ export default function MeetingView({
             <VideoTile
               track={localTrack}
               username={dn(user?.username ?? '나')}
+              avatar={peerAvatars?.[user?.username ?? '']}
               isLocal
               paused={!camOn}
             />
@@ -1161,6 +1168,7 @@ export default function MeetingView({
                 <VideoTile
                   track={p.videoTrack}
                   username={dn(p.username)}
+                  avatar={peerAvatars?.[p.username]}
                   paused={p.videoPaused}
                   onKick={
                     isHost
