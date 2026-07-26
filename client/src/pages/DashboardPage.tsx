@@ -77,6 +77,7 @@ export default function DashboardPage() {
   }
 
   const [code, setCode] = useState('');
+  const [addOpen, setAddOpen] = useState(false); // 모바일 — 그룹 추가 선택(만들기/참여)
   const [joinOpen, setJoinOpen] = useState(false); // 모바일 — 코드로 참여 모달
   const [recent, setRecent] = useState<Meeting[]>([]);
   const [schedule, setSchedule] = useState<Meeting[]>([]);
@@ -361,16 +362,47 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 모바일 레일 전용 — 새 그룹 만들기 (데스크톱은 그룹 입장 카드의 +) */}
-          <button className="drawer-add" onClick={() => openCreate(false)} title="새 그룹 만들기">
+          {/* 모바일 레일 전용 — + 하나로 만들기/코드 참여 선택 (데스크톱은 그룹 입장 카드) */}
+          <button className="drawer-add" onClick={() => setAddOpen(true)} title="그룹 추가">
             +
-          </button>
-          {/* 모바일 레일 전용 — 그룹 코드로 참여 (데스크톱은 그룹 입장 카드) */}
-          <button className="drawer-join" onClick={() => setJoinOpen(true)} title="코드로 참여">
-            #
           </button>
 
         </aside>
+
+        {/* 모바일 — 그룹 추가 선택 (만들기 / 코드로 참여) */}
+        {addOpen && (
+          <div className="modal-overlay" onClick={() => setAddOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">그룹 추가</div>
+              <button
+                className="add-choice"
+                onClick={() => {
+                  setAddOpen(false);
+                  openCreate(false);
+                }}
+              >
+                <span className="add-choice-icon">+</span>
+                <span>
+                  <b>새 그룹 만들기</b>
+                  <small>팀·프로젝트 그룹을 새로 시작해요</small>
+                </span>
+              </button>
+              <button
+                className="add-choice"
+                onClick={() => {
+                  setAddOpen(false);
+                  setJoinOpen(true);
+                }}
+              >
+                <span className="add-choice-icon">#</span>
+                <span>
+                  <b>코드로 참여</b>
+                  <small>받은 그룹 코드를 입력해 들어가요</small>
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 모바일 — 그룹 코드로 참여 모달 */}
         {joinOpen && (

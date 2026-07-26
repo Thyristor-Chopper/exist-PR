@@ -1576,6 +1576,52 @@ input:focus {
   padding: 8px 4px;
 }
 
+/* 모바일 그룹 추가 선택 모달 — 만들기 / 코드로 참여 */
+.add-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.add-choice:active {
+  background: var(--surface);
+}
+
+.add-choice-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(33, 200, 24, 0.12);
+  color: var(--green);
+  font-size: 20px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.add-choice b {
+  display: block;
+  font-size: 14.5px;
+}
+
+.add-choice small {
+  display: block;
+  color: var(--text-sub);
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+
 .join-card .join-btn:hover {
   text-decoration: underline;
 }
@@ -13534,7 +13580,6 @@ input:focus {
 .nb-pill-count,
 .drawer-home,
 .drawer-add,
-.drawer-join,
 .org-menu-scrim,
 .hub-m-menu,
 .hub-m-back,
@@ -14051,8 +14096,7 @@ input:focus {
     display: none;
   }
 
-  .drawer-add,
-  .drawer-join {
+  .drawer-add {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -14064,11 +14108,6 @@ input:focus {
     font-size: 24px;
     font-weight: 600;
     color: var(--green);
-  }
-
-  .drawer-join {
-    font-size: 20px;
-    color: var(--text-sub);
   }
 
   /* 그룹이 없을 때 — 빈 상태 카드(레일에선 안 보이는데 자리만 차지)와 구분선 제거 */
