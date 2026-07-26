@@ -1013,7 +1013,7 @@ export default function MeetingView({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'var(--bg)',
+          /* 배경은 .meeting-room 공통 규칙 — 라이트 테마 얕은 회색 포함 */
         }}
       >
         <div

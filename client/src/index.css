@@ -12963,9 +12963,9 @@ input:focus {
   color: var(--text);
 }
 
-/* 라이트 테마 통화 배경은 얕은 회색 — 순백이면 타일·컨트롤 경계가 안 삶 (주호 피드백) */
+/* 라이트 테마 통화 배경은 얕은 회색(--surface-2) — 순백이면 타일·컨트롤 경계가 안 삶 (주호 피드백) */
 html:not(.dark) .meeting-room {
-  background: #eceef2;
+  background: var(--surface-2);
 }
 
 /* 대시보드 탭 임베드 모드 */
