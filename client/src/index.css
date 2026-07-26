@@ -3571,7 +3571,8 @@ input:focus {
   position: fixed;
   right: auto;
   bottom: auto;
-  z-index: 700;
+  /* 일시적 툴팁 — nowbar 펼침 패널·알림센터(1400~1500)·기타 오버레이(~4000) 전부 위 */
+  z-index: 4100;
 }
 
 .hub-assign-tip.nb-tip-portal.dir-up {
