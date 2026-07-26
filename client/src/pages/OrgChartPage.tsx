@@ -327,11 +327,11 @@ export default function OrgChartPage() {
                 </button>
                 {owner && (
                   <button
-                    className="orgchart-code"
+                    className="orgchart-manage"
                     onClick={() => setRolesOpen(true)}
                     title="역할 관리 — 권한 조합을 만들어 중간관리자를 지정해요"
                   >
-                    <GearIcon size={13} /> 역할 관리
+                    <GearIcon size={14} /> 역할 관리
                   </button>
                 )}
               </span>
