@@ -15772,8 +15772,12 @@ input:focus {
 }
 
 .hub-call.mini .meeting-controls .ctl-split button.main {
+  /* 임베드 스플릿 크기(42×46)가 미니 34px보다 우선순위 높아 타원으로 커지던 것 — 명시 복원 */
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: #2a2e37;
+  padding: 0;
 }
 
 .hub-call.mini .meeting-controls .ctl-split:has(> button.main.off) button.main {
