@@ -395,10 +395,13 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
     );
   }
 
-  // 직급·부서 변경 — 관리자(owner/admin)
+  // 직급·부서 변경 — 관리자(owner/admin). 단 소유자의 정보는 소유자 본인만
   if (body.position !== undefined || body.department !== undefined) {
     if (!isManager(orgId, req.userId!)) {
       return res.status(403).json({ error: '직급·부서는 관리자만 설정할 수 있어요' });
+    }
+    if (m.role === 'owner' && req.userId !== targetId) {
+      return res.status(403).json({ error: '소유자 정보는 본인만 수정할 수 있어요' });
     }
     if (body.position !== undefined) {
       const position = body.position === null ? null : String(body.position).trim().slice(0, 20) || null;

@@ -270,8 +270,8 @@ export default function OrgChartPage() {
                         </div>
                       </div>
 
-                      {/* 관리자 인라인 편집 (소유자 대상 제외) */}
-                      {manager && m.role !== 'owner' && (
+                      {/* 관리자 인라인 편집 — 소유자 카드는 소유자 본인만 (관리자가 소유자를 건드리는 건 차단) */}
+                      {manager && (m.role !== 'owner' || owner) && (
                         <div className="orgchart-card-edit">
                           <select
                             className="org-field-select"
@@ -304,6 +304,7 @@ export default function OrgChartPage() {
                             }}
                           />
                           {owner &&
+                            m.role !== 'owner' &&
                             (m.role === 'member' ? (
                               <button className="org-btn" onClick={() => setRole(m.userId, 'admin')}>
                                 관리자로
@@ -313,9 +314,11 @@ export default function OrgChartPage() {
                                 멤버로
                               </button>
                             ))}
-                          <button className="org-btn reject" onClick={() => remove(m.userId)}>
-                            제거
-                          </button>
+                          {m.role !== 'owner' && (
+                            <button className="org-btn reject" onClick={() => remove(m.userId)}>
+                              제거
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
