@@ -9138,6 +9138,27 @@ input:focus {
   background: rgba(33, 200, 24, 0.04);
 }
 
+/* 원격 마우스 포인터 — 40ms 브로드캐스트 사이를 트랜지션으로 부드럽게, 클릭 방해 금지 */
+.slide-remote-cursor {
+  position: absolute;
+  z-index: 70;
+  pointer-events: none;
+  transition: left 0.06s linear, top 0.06s linear;
+}
+
+.slide-remote-cursor-name {
+  position: absolute;
+  left: 12px;
+  top: 14px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 0 5px;
+  color: #fff;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
 /* 원격 사용자가 선택 중인 객체의 이름표 */
 .slide-remote-name {
   position: absolute;

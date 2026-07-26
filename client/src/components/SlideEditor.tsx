@@ -94,6 +94,12 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
   // 다른 사용자가 선택 중인 객체 (awareness 'sel' 필드)
   const [remoteSels, setRemoteSels] = useState<{ name: string; color: string; slideId: string; ids: string[] }[]>([]);
   const remoteSelsJsonRef = useRef('[]');
+  // 다른 사용자의 마우스 포인터 (awareness 'pointer' 필드, %좌표) — "여기 보세요" 가리키기
+  const [remotePtrs, setRemotePtrs] = useState<
+    { id: number; name: string; color: string; slideId: string; x: number; y: number }[]
+  >([]);
+  const remotePtrsJsonRef = useRef('[]');
+  const ptrSentAtRef = useRef(0); // 송신 스로틀 (40ms)
   const [slides, setSlides] = useState<SlideMeta[]>([]);
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
   const [selIds, setSelIds] = useState<string[]>([]);
@@ -146,17 +152,25 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
     const onAwareness = () => {
       setPeers(provider.awareness.getStates().size || 1);
       const list: { name: string; color: string; slideId: string; ids: string[] }[] = [];
+      const ptrs: { id: number; name: string; color: string; slideId: string; x: number; y: number }[] = [];
       provider.awareness.getStates().forEach((state, clientId) => {
         if (clientId === provider.awareness.clientID) return;
         const u = (state as { user?: { name: string; color: string } }).user;
+        if (!u) return;
         const s = (state as { sel?: { slideId: string; ids: string[] } }).sel;
-        if (!u || !s || !s.ids?.length) return;
-        list.push({ name: u.name, color: u.color, slideId: s.slideId, ids: s.ids });
+        if (s && s.ids?.length) list.push({ name: u.name, color: u.color, slideId: s.slideId, ids: s.ids });
+        const p = (state as { pointer?: { slideId: string; x: number; y: number } | null }).pointer;
+        if (p) ptrs.push({ id: clientId, name: u.name, color: u.color, ...p });
       });
       const json = JSON.stringify(list);
       if (json !== remoteSelsJsonRef.current) {
         remoteSelsJsonRef.current = json;
         setRemoteSels(list);
+      }
+      const pjson = JSON.stringify(ptrs);
+      if (pjson !== remotePtrsJsonRef.current) {
+        remotePtrsJsonRef.current = pjson;
+        setRemotePtrs(ptrs);
       }
     };
     provider.awareness.on('change', onAwareness);
@@ -1234,6 +1248,20 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
             ref={canvasRef}
             style={{ background: activeSlide?.bg || undefined }}
             onMouseDown={() => clearSel()}
+            onPointerMove={(e) => {
+              // 내 포인터 공유 — %좌표라 상대 화면 크기와 무관, 40ms 스로틀
+              const now = performance.now();
+              if (now - ptrSentAtRef.current < 40) return;
+              ptrSentAtRef.current = now;
+              const rect = canvasRef.current?.getBoundingClientRect();
+              if (!rect || !activeSlideId) return;
+              providerRef.current?.awareness.setLocalStateField('pointer', {
+                slideId: activeSlideId,
+                x: ((e.clientX - rect.left) / rect.width) * 100,
+                y: ((e.clientY - rect.top) / rect.height) * 100,
+              });
+            }}
+            onPointerLeave={() => providerRef.current?.awareness.setLocalStateField('pointer', null)}
           >
             {activeEls.map(([id, el]) => renderEl(id, el, true))}
             {guides.v.map((x) => (
@@ -1242,6 +1270,23 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
             {guides.h.map((y) => (
               <div key={`h${y}`} className="slide-guide-h" style={{ top: `${y}%` }} />
             ))}
+            {/* 원격 마우스 포인터 — 발표 모드(present)에선 이 캔버스 자체가 안 그려져 자동 제외 */}
+            {remotePtrs
+              .filter((p) => p.slideId === activeSlideId)
+              .map((p) => (
+                <div
+                  key={p.id}
+                  className="slide-remote-cursor"
+                  style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                >
+                  <svg width="14" height="16" viewBox="0 0 14 16" fill={p.color}>
+                    <path d="M0 0l14 10-6 1-3 5z" />
+                  </svg>
+                  <span className="slide-remote-cursor-name" style={{ background: p.color }}>
+                    {p.name}
+                  </span>
+                </div>
+              ))}
           </div>
           {/* 발표자 노트 */}
           <textarea
