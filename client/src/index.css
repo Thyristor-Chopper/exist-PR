@@ -3560,8 +3560,8 @@ input:focus {
   border-radius: 10px;
   box-shadow: var(--shadow-md);
   padding: 6px;
-  min-width: 150px;
-  max-height: 200px;
+  min-width: 176px;
+  max-height: 224px;
   overflow-y: auto;
 }
 
@@ -3584,8 +3584,35 @@ input:focus {
   background: var(--surface-2);
 }
 
+/* 피커 행 = 할일과 같은 체크 + 아바타 + 아이디 (네이티브 체크박스는 숨김) */
 .hub-assign-opt input {
-  accent-color: var(--green);
+  display: none;
+}
+
+.hub-assign-opt .hub-todo-check {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+}
+
+.hub-assign-opt input:checked + .hub-todo-check {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.hub-assign-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.hub-assign-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hub-todo-del {

@@ -1212,7 +1212,11 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                         checked={(t.assignees ?? []).includes(p.username)}
                                         onChange={() => void toggleAssignee(t, p.username)}
                                       />
-                                      <span>{p.username}</span>
+                                      <span className="hub-todo-check" aria-hidden>
+                                        <CheckMarkIcon size={13} />
+                                      </span>
+                                      <Avatar value={p.avatar} className="hub-assign-avatar" />
+                                      <span className="hub-assign-name">{p.username}</span>
                                     </label>
                                   ))}
                                 </div>
@@ -1259,7 +1263,11 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                     )
                                   }
                                 />
-                                <span>{p.username}</span>
+                                <span className="hub-todo-check" aria-hidden>
+                                  <CheckMarkIcon size={13} />
+                                </span>
+                                <Avatar value={p.avatar} className="hub-assign-avatar" />
+                                <span className="hub-assign-name">{p.username}</span>
                               </label>
                             ))}
                           </div>
