@@ -76,8 +76,9 @@ function setAssignees(
   const meeting = db
     .prepare('SELECT code, title FROM meetings WHERE id = ?')
     .get(meetingId) as { code: string; title: string } | undefined;
-  const actor = db.prepare('SELECT username FROM users WHERE id = ?').get(actorId) as
-    | { username: string }
+  // 알림 발신자는 표시 이름 우선 (w1 표시 이름 규칙 — 없으면 아이디)
+  const actor = db.prepare('SELECT username, name FROM users WHERE id = ?').get(actorId) as
+    | { username: string; name: string | null }
     | undefined;
   for (const id of nextIds) {
     if (curIds.has(id)) continue;
@@ -88,7 +89,7 @@ function setAssignees(
     invalidateBrief(id);
     if (id !== actorId) {
       notifyUser(id, {
-        from: actor?.username ?? '누군가',
+        from: actor?.name || actor?.username || '누군가',
         text: `'${todoTitle}' 할 일 담당자로 지정했어요${meeting ? ` ('${meeting.title}')` : ''}`,
         kind: 'todo',
         meetingCode: meeting?.code,
