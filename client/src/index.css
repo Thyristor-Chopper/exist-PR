@@ -12717,6 +12717,15 @@ input:focus {
   font-size: 13px;
   font-weight: 600;
   padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.meeting-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .lock-btn:hover {

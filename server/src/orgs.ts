@@ -239,6 +239,81 @@ router.get('/:id', (req: AuthedRequest, res) => {
   });
 });
 
+/** 내 포커스 — 일반 멤버의 조직 홈용: 이 조직에서 내가 지금 챙길 것들
+ *  (미완료 할 일 · 다가오는 일정 · 안읽은 채팅). 팀 인사이트는 관리자용, 멤버는 이걸 본다. */
+router.get('/:id/my-focus', (req: AuthedRequest, res) => {
+  const orgId = Number(req.params.id);
+  if (!isMember(orgId, req.userId!)) {
+    return res.status(403).json({ error: '이 조직의 멤버가 아니에요' });
+  }
+  // 내가 참가 중인 이 조직의 그룹들
+  const myMeetings = db
+    .prepare(
+      `SELECT m.id, m.code, m.title FROM meetings m
+       JOIN meeting_participants mp ON mp.meeting_id = m.id AND mp.user_id = ?
+       WHERE m.org_id = ?`,
+    )
+    .all(req.userId, orgId) as { id: number; code: string; title: string }[];
+  if (myMeetings.length === 0) return res.json({ todos: [], events: [], unread: [] });
+  const ids = myMeetings.map((m) => m.id);
+  const ph = ids.map(() => '?').join(',');
+  const byId = new Map(myMeetings.map((m) => [m.id, m]));
+
+  // 미완료 할 일 (그룹 할 일은 공유)
+  const todos = (
+    db
+      .prepare(
+        `SELECT t.id, t.title, t.due_at, t.meeting_id FROM todos t
+         WHERE t.meeting_id IN (${ph}) AND t.done = 0 ORDER BY t.due_at IS NULL, t.due_at, t.created_at LIMIT 8`,
+      )
+      .all(...ids) as { id: number; title: string; due_at: string | null; meeting_id: number }[]
+  ).map((t) => ({
+    id: t.id,
+    title: t.title,
+    dueAt: t.due_at,
+    meetingCode: byId.get(t.meeting_id)?.code,
+    meetingTitle: byId.get(t.meeting_id)?.title,
+  }));
+
+  // 다가오는 일정 (오늘 포함, 날짜순)
+  const events = (
+    db
+      .prepare(
+        `SELECT e.id, e.title, e.date, e.time, e.meeting_id FROM meeting_events e
+         WHERE e.meeting_id IN (${ph}) AND e.date >= date('now', 'localtime')
+         ORDER BY e.date, e.time IS NULL, e.time LIMIT 6`,
+      )
+      .all(...ids) as { id: number; title: string; date: string; time: string | null; meeting_id: number }[]
+  ).map((e) => ({
+    id: e.id,
+    title: e.title,
+    date: e.date,
+    time: e.time,
+    meetingCode: byId.get(e.meeting_id)?.code,
+    meetingTitle: byId.get(e.meeting_id)?.title,
+  }));
+
+  // 그룹별 안읽은 채팅 수
+  const unread = (
+    db
+      .prepare(
+        `SELECT m.id AS meeting_id, COUNT(msg.id) AS cnt FROM meetings m
+         JOIN messages msg ON msg.meeting_id = m.id AND msg.user_id != ?
+           AND msg.id > COALESCE((SELECT last_read FROM chat_reads WHERE user_id = ? AND meeting_id = m.id), 0)
+         WHERE m.id IN (${ph}) GROUP BY m.id`,
+      )
+      .all(req.userId, req.userId, ...ids) as { meeting_id: number; cnt: number }[]
+  )
+    .filter((u) => u.cnt > 0)
+    .map((u) => ({
+      meetingCode: byId.get(u.meeting_id)?.code,
+      meetingTitle: byId.get(u.meeting_id)?.title,
+      count: u.cnt,
+    }));
+
+  res.json({ todos, events, unread });
+});
+
 /** 가입 승인 (관리자) — 직급·부서를 함께 지정할 수 있음 */
 router.post('/:id/members/:userId/approve', (req: AuthedRequest, res) => {
   const orgId = Number(req.params.id);

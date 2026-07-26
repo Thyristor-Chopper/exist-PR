@@ -171,7 +171,8 @@ export default function OrgChartPage() {
             )}
           </div>
 
-          <InsightsPanel orgId={orgId} />
+          {/* 팀 인사이트는 운영자용 — 멤버에겐 관전 정보라 숨긴다 (홈에선 '내 포커스'를 봄) */}
+          {manager && <InsightsPanel orgId={orgId} />}
 
           {/* 가입 대기 — 관리자만, 직급·부서 미리 정하며 승인 */}
           {manager && detail.pending.length > 0 && (
@@ -302,7 +303,11 @@ export default function OrgChartPage() {
           {/* 권한 매트릭스 — 역할별로 할 수 있는 일 가시화 */}
           <section className="org-perm">
             <button className="org-perm-head" onClick={() => setPermOpen((v) => !v)}>
-              🔐 역할별 권한 안내
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ verticalAlign: '-2px', marginRight: 6 }}>
+                <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+                <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+              </svg>
+              역할별 권한 안내
               <span className="org-perm-caret">{permOpen ? '▴' : '▾'}</span>
             </button>
             {permOpen && (

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useOrgStore } from '../orgStore';
 import InsightsPanel from './InsightsPanel';
+import MyOrgFocus from './MyOrgFocus';
 import { type Todo, type Meeting } from './NowBar';
 import UnifiedInbox from './UnifiedInbox';
 import ScheduleWidget from './ScheduleWidget';
@@ -127,9 +128,11 @@ export default function ProfileDashboard() {
       })
     : null;
 
-  // ── 조직 홈 — 팀 인사이트 중심 (개인 홈과 완전 분리) ──
+  // ── 조직 홈 — 관리자는 팀 인사이트, 멤버는 "내 포커스" (내가 지금 챙길 것) ──
   if (org !== 'personal') {
-    const orgName = orgs.find((o) => o.id === org)?.name ?? '조직';
+    const orgInfo = orgs.find((o) => o.id === org);
+    const orgName = orgInfo?.name ?? '조직';
+    const orgManager = !!orgInfo?.isManager;
     return (
       <div className="pd-wrap" style={wrap}>
         <div className="pd-hero org">
@@ -141,7 +144,9 @@ export default function ProfileDashboard() {
             </div>
             <div className="pd-hero-name">{orgName} 팀</div>
             <div style={heroChips}>
-              <span style={heroChip}>📊 팀 협업 현황을 아래에서 한눈에</span>
+              <span style={heroChip}>
+                {orgManager ? '📊 팀 협업 현황을 아래에서 한눈에' : '📌 지금 챙길 것부터 아래에 모아뒀어요'}
+              </span>
             </div>
           </div>
         </div>
@@ -159,7 +164,7 @@ export default function ProfileDashboard() {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <InsightsPanel orgId={org} />
+          {orgManager ? <InsightsPanel orgId={org} /> : <MyOrgFocus orgId={org} />}
         </div>
 
         <div className="pd-org-inbox" style={{ ...section, minHeight: 420 }}>

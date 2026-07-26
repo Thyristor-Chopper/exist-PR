@@ -186,6 +186,24 @@ export function CheckIcon({ size }: IconProps) {
   );
 }
 
+export function LockIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function UnlockIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 7.8-1.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function MicIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

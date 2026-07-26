@@ -6,7 +6,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import Logo from './Logo';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -798,7 +798,11 @@ export default function MeetingView({
           <span className="meeting-title">{title || '회의'}</span>
           <span className="meeting-code">
             코드 <b>{code}</b> · 참가자 {peers.length + 1}명
-            {locked && ' · 🔒 잠김'}
+            {locked && (
+              <span className="meeting-locked">
+                · <LockIcon size={12} /> 잠김
+              </span>
+            )}
           </span>
         </div>
         {isHost && (
@@ -809,7 +813,7 @@ export default function MeetingView({
               void request(getSocket(), 'room:lock', { locked: !locked });
             }}
           >
-            {locked ? '🔒 잠김' : '🔓 열림'}
+            {locked ? <LockIcon size={13} /> : <UnlockIcon size={13} />} {locked ? '잠김' : '열림'}
           </button>
         )}
         {status && <span className="meeting-status">{status}</span>}
