@@ -16175,13 +16175,15 @@ input:focus {
   }
 }
 
-/* 폰 폭: 3명 이상 통화는 2열 정사각 그리드 (1열 16:9 스택은 5인에 2.5명만 보임 — Meet식).
-   행 높이는 명시(grid-auto-rows) — 타일 aspect-ratio에 맡기면 행이 타일보다 납작해져
-   9인+에서 서로 겹침(실기기 실측) */
+/* 폰 폭: 3명 이상 통화는 2열 그리드가 화면 세로를 꽉 채움 (Meet식 — 인원 늘면 타일이 낮아짐).
+   행 1fr = 스크롤·겹침·정렬 문제 원천 제거, 전 인원 수직 중앙(꽉 참) 보장.
+   (aspect-ratio로 행 높이 맡기면 9인+ 행이 납작해져 타일 겹침 — 실기기 실측) */
 @media (max-width: 640px) {
   .video-grid:not(.filmstrip):not(.count-1):not(.count-2) {
     grid-template-columns: repeat(2, 1fr);
-    grid-auto-rows: calc((100vw - 36px) / 2); /* 좌우 패딩 28 + 열 간격 8 → 정사각 행 */
+    grid-auto-rows: minmax(0, 1fr);
+    align-content: stretch;
+    overflow-y: hidden;
   }
 
   .video-grid:not(.filmstrip):not(.count-1):not(.count-2) .video-tile {
@@ -16190,23 +16192,8 @@ input:focus {
     min-height: 0;
   }
 
-  /* 홀수 인원(3·5·7·9): 마지막 한 명이 반쪽 칸에 고아로 남지 않게 — 2칸 와이드(16:9)로.
-     그리드 자식 = [내 타일, peer-cell×N-1] (peer-cell은 display:contents라 안쪽 타일에 적용) */
+  /* 홀수 인원(3·5·7·9): 마지막 한 명이 반쪽 칸에 고아로 남지 않게 — 2칸 와이드로 */
   .video-grid:not(.filmstrip):not(.count-1):not(.count-2) > .peer-cell:last-child:nth-child(odd) > .video-tile {
-    grid-column: span 2; /* 행 높이는 위 auto-rows가 정함 — 꽉 찬 와이드 타일 */
-  }
-
-  /* 화면에 다 들어가는 인원(2행=3·4명)은 세로 중앙 — 위 붙고 아래 텅 비는 것 방지 */
-  .video-grid.count-3:not(.filmstrip),
-  .video-grid.count-4:not(.filmstrip) {
-    align-content: center;
-  }
-}
-
-/* 긴 폰(XR 이상)에선 3행(5·6명)까지도 다 들어가므로 중앙 정렬 */
-@media (max-width: 640px) and (min-height: 780px) {
-  .video-grid.count-5:not(.filmstrip),
-  .video-grid.count-6:not(.filmstrip) {
-    align-content: center;
+    grid-column: span 2;
   }
 }
