@@ -1348,7 +1348,7 @@ router.delete('/:code/channels/:channelId', (req: AuthedRequest, res) => {
     .get(id, r.meeting.id) as { id: number; kind: string | null } | undefined;
   if (!ch) return res.status(404).json({ error: '존재하지 않는 채널이에요' });
   // 통화 채널을 지우면 진행 중인 통화 채팅이 유실됨 — 삭제 불가
-  if (ch.kind === 'call') return res.status(400).json({ error: '화상회의 채널은 삭제할 수 없어요' });
+  if (ch.kind === 'call') return res.status(400).json({ error: '통화 채널은 삭제할 수 없어요' });
   db.prepare('DELETE FROM messages WHERE channel_id = ?').run(id);
   db.prepare('DELETE FROM chat_channels WHERE id = ?').run(id);
   res.json({ ok: true });

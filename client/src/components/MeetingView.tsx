@@ -266,7 +266,19 @@ export default function MeetingView({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatOpenRef = useRef(chatOpen);
   chatOpenRef.current = chatOpen;
-  const callChannelRef = useRef<number | null>(null); // 통화 패널이 고정될 통화 전용 채널 ("화상회의")
+  const callChannelRef = useRef<number | null>(null); // 통화 패널이 고정될 통화 전용 채널
+  const [callChannelName, setCallChannelName] = useState('통화'); // 표시용 — 허브에서 이름 바꿀 수 있음
+
+  // 채팅 패널을 열 때마다 채널 이름 재조회 — 통화 중에 허브 채팅 탭에서 이름을 바꿔도 반영
+  useEffect(() => {
+    if (!chatOpen) return;
+    void api<{ id: number; name: string }>(`/api/meetings/${code}/channels/call`)
+      .then((ch) => {
+        callChannelRef.current = ch.id;
+        setCallChannelName(ch.name);
+      })
+      .catch(() => {});
+  }, [chatOpen, code]);
   const onLeaveRef = useRef(onLeave);
   onLeaveRef.current = onLeave;
   // SpeechRecognition 인스턴스 — 크롬 계열만 지원, 없으면 STT 기능 숨김
@@ -393,10 +405,11 @@ export default function MeetingView({
 
       // 채팅: 통화 전용 채널("화상회의") 확보 → 그 채널 히스토리 로드 + 채팅 룸 구독
       // 통화 중 패널은 통화 채널에 고정 — 기본 채널과 안 섞이고, 허브 채팅 탭의 화상회의 채널과 연동
-      void api<{ id: number }>(`/api/meetings/${code}/channels/call`)
+      void api<{ id: number; name: string }>(`/api/meetings/${code}/channels/call`)
         .then((ch) => {
           if (closed) return;
           callChannelRef.current = ch.id;
+          setCallChannelName(ch.name);
           return api<ChatMessage[]>(`/api/meetings/${code}/messages?channel=${ch.id}`).then(
             (history) => {
               if (!closed) setMessages(history);
@@ -1194,7 +1207,7 @@ export default function MeetingView({
           <aside className="chat-panel">
             <div className="chat-head">
               <span className="chat-head-title">
-                <ChatIcon size={16} /> 채팅 <span className="chat-head-channel"># 화상회의</span>
+                <ChatIcon size={16} /> 채팅 <span className="chat-head-channel"># {callChannelName}</span>
               </span>
               <button onClick={() => setChatOpen(false)}>×</button>
             </div>
