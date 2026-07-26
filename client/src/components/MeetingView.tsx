@@ -17,6 +17,8 @@ interface RemotePeer {
   audioTrack?: MediaStreamTrack;
   screenTrack?: MediaStreamTrack;
   videoPaused?: boolean;
+  /** 상대 마이크 음소거 (producer pause) — 이름표 옆 아이콘 표시용 */
+  audioMuted?: boolean;
 }
 
 interface ProducerInfo {
@@ -25,6 +27,8 @@ interface ProducerInfo {
   username: string;
   kind: 'audio' | 'video';
   source?: string;
+  /** 입장 시점의 pause 상태 — 늦게 들어와도 음소거·카메라 꺼짐 반영 */
+  paused?: boolean;
 }
 
 export interface ChatFile {
@@ -84,6 +88,7 @@ function VideoTile({
   isLocal,
   isScreen,
   paused,
+  micMuted,
   onKick,
 }: {
   track?: MediaStreamTrack;
@@ -93,6 +98,8 @@ function VideoTile({
   isLocal?: boolean;
   isScreen?: boolean;
   paused?: boolean;
+  /** 마이크 음소거 — 이름표 옆 아이콘 */
+  micMuted?: boolean;
   onKick?: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -162,6 +169,18 @@ function VideoTile({
         {isScreen && '🖥️ '}
         {username}
         {isLocal && ' (나)'}
+        {micMuted && !isScreen && (
+          <span className="tile-off-ic" title="마이크 꺼짐">
+            <MicIcon size={11} />
+            <SlashIcon size={11} />
+          </span>
+        )}
+        {paused && !isScreen && (
+          <span className="tile-off-ic" title="카메라 꺼짐">
+            <CamIcon size={11} />
+            <SlashIcon size={11} />
+          </span>
+        )}
       </span>
       {onKick && (
         <button className="kick-btn" title="강퇴" onClick={onKick}>
@@ -351,7 +370,9 @@ export default function MeetingView({
     function upsertPeer(
       peerId: string,
       username: string,
-      patch?: Partial<Pick<RemotePeer, 'videoTrack' | 'audioTrack' | 'screenTrack' | 'videoPaused'>>,
+      patch?: Partial<
+        Pick<RemotePeer, 'videoTrack' | 'audioTrack' | 'screenTrack' | 'videoPaused' | 'audioMuted'>
+      >,
     ) {
       setRemotePeers((prev) => {
         const next = new Map(prev);
@@ -383,11 +404,17 @@ export default function MeetingView({
         source,
       });
       if (info.kind === 'audio') {
-        upsertPeer(info.peerId, info.username, { audioTrack: consumer.track });
+        upsertPeer(info.peerId, info.username, {
+          audioTrack: consumer.track,
+          audioMuted: !!info.paused,
+        });
       } else if (source === 'screen') {
         upsertPeer(info.peerId, info.username, { screenTrack: consumer.track });
       } else {
-        upsertPeer(info.peerId, info.username, { videoTrack: consumer.track });
+        upsertPeer(info.peerId, info.username, {
+          videoTrack: consumer.track,
+          videoPaused: !!info.paused,
+        });
       }
     }
 
@@ -570,28 +597,30 @@ export default function MeetingView({
           return next;
         });
       });
-      socket.on('producer:paused', ({ producerId }: { producerId: string }) => {
+      // 상대 pause/resume — 비디오는 placeholder 전환, 오디오는 이름표 옆 음소거 아이콘
+      const setPeerPaused = (producerId: string, paused: boolean) => {
         const meta = consumerMapRef.current.get(producerId);
-        if (meta?.kind === 'video' && meta.source === 'camera') {
-          setRemotePeers((prev) => {
-            const next = new Map(prev);
-            const p = next.get(meta.peerId);
-            if (p) next.set(meta.peerId, { ...p, videoPaused: true });
-            return next;
-          });
-        }
-      });
-      socket.on('producer:resumed', ({ producerId }: { producerId: string }) => {
-        const meta = consumerMapRef.current.get(producerId);
-        if (meta?.kind === 'video' && meta.source === 'camera') {
-          setRemotePeers((prev) => {
-            const next = new Map(prev);
-            const p = next.get(meta.peerId);
-            if (p) next.set(meta.peerId, { ...p, videoPaused: false });
-            return next;
-          });
-        }
-      });
+        if (!meta) return;
+        const patch: Partial<RemotePeer> | null =
+          meta.kind === 'video' && meta.source === 'camera'
+            ? { videoPaused: paused }
+            : meta.kind === 'audio'
+              ? { audioMuted: paused }
+              : null;
+        if (!patch) return;
+        setRemotePeers((prev) => {
+          const next = new Map(prev);
+          const p = next.get(meta.peerId);
+          if (p) next.set(meta.peerId, { ...p, ...patch });
+          return next;
+        });
+      };
+      socket.on('producer:paused', ({ producerId }: { producerId: string }) =>
+        setPeerPaused(producerId, true),
+      );
+      socket.on('producer:resumed', ({ producerId }: { producerId: string }) =>
+        setPeerPaused(producerId, false),
+      );
       socket.on('chat:message', (msg: ChatMessage) => {
         if (msg.code && msg.code !== code.toUpperCase()) return; // 다른 회의 채팅 무시
         // 통화 패널은 통화 채널("화상회의") 고정 — 다른 채널 메시지는 허브 채팅 탭에서
@@ -1054,6 +1083,7 @@ export default function MeetingView({
                 avatar={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
                 isLocal
                 paused={!camOn}
+                micMuted={!micOn}
               />
             </div>
             {/* 미리보기 위 통합 컨트롤 — 원형 토글 */}
@@ -1194,6 +1224,7 @@ export default function MeetingView({
               avatar={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
               isLocal
               paused={!camOn}
+              micMuted={!micOn}
             />
             {peers.map((p) => (
               <div key={p.peerId} className="peer-cell">
@@ -1202,6 +1233,7 @@ export default function MeetingView({
                   username={dn(p.username)}
                   avatar={peerAvatars ? (peerAvatars[p.username] ?? null) : null}
                   paused={p.videoPaused}
+                  micMuted={p.audioMuted}
                   onKick={
                     isHost
                       ? () => void request(getSocket(), 'room:kick', { peerId: p.peerId })

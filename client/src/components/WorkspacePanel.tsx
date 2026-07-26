@@ -53,6 +53,13 @@ function WorkspacePanel({ meetingRequest }: Props) {
   );
   const [active, setActive] = useState<ActiveTab | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null); // 오버레이 전체화면 회의 코드
+
+  // 전체화면 동안 body 클래스 — 모바일은 스와이프 레이어 transform이 fixed를 가둬
+  // 오버레이가 nowbar를 못 덮으므로, CSS에서 nowbar 자체를 숨기는 용도
+  useEffect(() => {
+    document.body.classList.toggle('call-fullscreen', expanded != null);
+    return () => document.body.classList.remove('call-fullscreen');
+  }, [expanded]);
   // 탭별 확대 토글 콜백 — 매 렌더 새 함수를 만들면 memo(MeetingHub)가 무력화돼 캐시
   const expandHandlers = useRef(new Map<string, () => void>());
   const toggleExpandFor = (code: string) => {

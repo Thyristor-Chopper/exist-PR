@@ -13049,6 +13049,13 @@ input:focus {
   height: 100vh;
 }
 
+/* 통화 전체화면 — 모바일은 스와이프 레이어 transform이 fixed 오버레이를 가둬 상단바가 남음 → 상단바 숨김 */
+@media (max-width: 1023px) {
+  body.call-fullscreen .nowbar {
+    display: none;
+  }
+}
+
 /* 확대 중엔 서브탭 숨김 — 통화만 풀스크린 */
 .meeting-tab-host.fullscreen .hub-tabs {
   display: none;
@@ -13542,6 +13549,19 @@ input:focus {
 .cam-off-label {
   font-size: 12px;
   color: #8a909c;
+}
+
+/* 이름표 옆 마이크·카메라 꺼짐 아이콘 — 아이콘 위에 슬래시 겹침 */
+.video-name .tile-off-ic {
+  display: inline-grid;
+  place-items: center;
+  margin-left: 5px;
+  color: #ff8a8a;
+  vertical-align: -2px;
+}
+
+.video-name .tile-off-ic svg {
+  grid-area: 1 / 1;
 }
 
 /* 카메라 꺼짐 자리의 프로필 아바타 — 앱 공통 규칙(정사각+살짝 radius, 원형 금지) */

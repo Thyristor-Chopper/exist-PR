@@ -216,6 +216,7 @@ export function attachSfu(io: Server) {
           username: string;
           kind: MediaKind;
           source: string;
+          paused: boolean;
         }[] = [];
         for (const p of room.peers.values()) {
           if (p.socketId === socket.id) continue;
@@ -226,6 +227,8 @@ export function attachSfu(io: Server) {
               username: p.username,
               kind: producer.kind,
               source: (producer.appData as { source?: string })?.source ?? 'camera',
+              // 늦게 들어온 사람도 상대 음소거·카메라 꺼짐 상태를 바로 보게
+              paused: producer.paused,
             });
           }
         }
