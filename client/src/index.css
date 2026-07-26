@@ -3550,6 +3550,28 @@ input:focus {
   border-color: transparent;
 }
 
+/* 담당자 칩 hover — 전체 담당자 리스트 툴팁 (칩은 2명+N 축약이라).
+   칩 자체는 overflow:hidden이라 ::after가 잘림 → 행(.hub-todo)에 달고 :has로 hover 감지 */
+.hub-todo[data-assignees]:has(.hub-todo-assign:hover)::after {
+  content: attr(data-assignees);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 2px);
+  z-index: 31;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 5px 9px;
+  border-radius: 7px;
+  box-shadow: var(--shadow-md);
+  max-width: min(90%, 260px);
+  white-space: normal;
+  word-break: break-all;
+  pointer-events: none;
+}
+
 .hub-assign-pop {
   position: absolute;
   right: 0;

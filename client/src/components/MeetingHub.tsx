@@ -1181,7 +1181,13 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                         {[...todos]
                           .sort((a, b) => a.done - b.done)
                           .map((t) => (
-                            <div key={t.id} className={`hub-todo${t.done ? ' done' : ''}`}>
+                            <div
+                              key={t.id}
+                              className={`hub-todo${t.done ? ' done' : ''}`}
+                              data-assignees={
+                                (t.assignees ?? []).length ? t.assignees!.join(', ') : undefined
+                              }
+                            >
                               <label className="hub-todo-label">
                                 <input
                                   type="checkbox"
@@ -1197,7 +1203,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 type="button"
                                 className={`hub-todo-assign${(t.assignees ?? []).length ? ' has' : ''}`}
                                 onClick={() => setAssignPick(assignPick === t.id ? null : t.id)}
-                                title="담당자 지정"
+                                title={(t.assignees ?? []).length ? undefined : '담당자 지정'}
                               >
                                 {(t.assignees ?? []).length
                                   ? `${t.assignees!.slice(0, 2).join(', ')}${t.assignees!.length > 2 ? ` +${t.assignees!.length - 2}` : ''}`
