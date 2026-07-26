@@ -16110,6 +16110,30 @@ input:focus {
     width: 25px;
     height: 48px;
   }
+
+  /* 스플릿 도입으로 바 총폭이 늘어 flex 수축이 원형 버튼(공유·CC·채팅)을 타원으로 찌그러뜨림 — 수축 금지 */
+  .meeting-controls {
+    gap: 8px;
+    padding: 10px 8px;
+    overflow-x: auto; /* 아주 좁은 폰에선 바 자체가 가로 스크롤 */
+  }
+
+  .meeting-controls button,
+  .meeting-controls .ctl-split {
+    flex-shrink: 0;
+  }
+
+  /* 장치 메뉴 — 좁은 화면에서 뷰포트·클리핑 경계에 걸리지 않게 화면 중앙 고정 */
+  .dev-menu,
+  .dev-menu.align-right {
+    position: fixed;
+    left: 50%;
+    right: auto;
+    top: auto;
+    bottom: 86px;
+    transform: translateX(-50%);
+    max-width: 92vw;
+  }
 }
 
 /* 폰 폭: 3명 이상 통화는 2열 정사각 그리드 (1열 16:9 스택은 5인에 2.5명만 보임 — Meet식) */
