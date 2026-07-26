@@ -5,6 +5,7 @@ import { getSocket, request } from '../lib/socket';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import Logo from './Logo';
+import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
 import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon } from './Icons';
 
@@ -183,6 +184,8 @@ interface MeetingViewProps {
   onJoined?: () => void;
   /** 현재 통화 중인 사람 이름 (프리뷰에 표시) */
   onlinePeers?: string[];
+  /** username → 아바타 — 프리뷰 접속자 스택용 (허브가 참가자 명단에서 내려줌) */
+  peerAvatars?: Record<string, string | null>;
   /** 채팅 @멘션 후보 — 허브가 회의 전체 명단을 내려줌 (없으면 통화 피어로 폴백) */
   mentionCandidates?: MentionCandidate[];
 }
@@ -195,6 +198,7 @@ export default function MeetingView({
   onLeave,
   onJoined,
   onlinePeers = [],
+  peerAvatars,
   mentionCandidates,
 }: MeetingViewProps) {
   const user = useAuthStore((s) => s.user);
@@ -940,8 +944,40 @@ export default function MeetingView({
           </h2>
           <div style={{ fontSize: 12, color: 'var(--text-sub)', marginBottom: 6 }}>코드 {code}</div>
           {onlinePeers.length > 0 ? (
-            <div style={{ fontSize: 13, color: '#21C818', fontWeight: 700, marginBottom: 16 }}>
-              ● 지금 통화 중 · {onlinePeers.join(', ')}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                fontSize: 13,
+                color: '#21C818',
+                fontWeight: 700,
+                marginBottom: 16,
+              }}
+            >
+              <span>● {onlinePeers.length}명 통화 중</span>
+              {/* 겹친 아바타 스택 + hover 전체 프로필 리스트 (공동편집 접속자와 동일 톤) */}
+              <span className="cf-presence">
+                {onlinePeers.slice(0, 4).map((name) => (
+                  <Avatar
+                    key={name}
+                    value={peerAvatars?.[name] ?? null}
+                    className="cf-presence-avatar"
+                  />
+                ))}
+                {onlinePeers.length > 4 && (
+                  <span className="cf-presence-more">+{onlinePeers.length - 4}</span>
+                )}
+                <span className="hub-assign-tip cf-presence-tip" aria-hidden>
+                  {onlinePeers.map((name) => (
+                    <span key={name} className="hub-assign-tip-row">
+                      <Avatar value={peerAvatars?.[name] ?? null} className="hub-assign-avatar" />
+                      <span>{name}</span>
+                    </span>
+                  ))}
+                </span>
+              </span>
             </div>
           ) : (
             <div style={{ fontSize: 12.5, color: 'var(--text-sub)', marginBottom: 16 }}>

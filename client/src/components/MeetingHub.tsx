@@ -1650,6 +1650,9 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
               onToggleExpand={onToggleExpand}
               onJoined={() => setInCall(true)}
               onlinePeers={detail?.callPeers ?? []}
+              peerAvatars={Object.fromEntries(
+                (detail?.participants ?? []).map((p) => [p.username, p.avatar]),
+              )}
               mentionCandidates={mentionCandidates}
               onLeave={(message) => {
                 setInCall(false);
