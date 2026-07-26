@@ -456,7 +456,7 @@ export default function MeetingView({
         ]);
       } catch {
         localStream = makeFallbackStream(user?.username ?? 'me');
-        setStatus('카메라 없음 — 데모 화면 송출 중');
+        setStatus('카메라·마이크를 잡지 못했어요 — 데모 화면 송출 중 (다른 프로그램 점유 확인)');
       }
       if (closed) return;
 
@@ -699,7 +699,15 @@ export default function MeetingView({
 
   function toggleMic() {
     const p = producersRef.current.audio;
-    if (!p) return;
+    if (!p) {
+      // 입장 시 장치를 못 잡아 폴백(데모 화면)으로 도는 상태 — 조용히 무시하지 않고 알림
+      window.dispatchEvent(
+        new CustomEvent('app:error', {
+          detail: '마이크를 잡지 못했어요 — 다른 프로그램이 카메라·마이크를 쓰고 있는지 확인하고 다시 입장해주세요',
+        }),
+      );
+      return;
+    }
     const socket = getSocket();
     if (micOn) {
       p.pause();
@@ -713,7 +721,14 @@ export default function MeetingView({
 
   function toggleCam() {
     const p = producersRef.current.video;
-    if (!p) return;
+    if (!p) {
+      window.dispatchEvent(
+        new CustomEvent('app:error', {
+          detail: '카메라를 잡지 못했어요 — 다른 프로그램이 카메라를 쓰고 있는지 확인하고 다시 입장해주세요',
+        }),
+      );
+      return;
+    }
     const socket = getSocket();
     if (camOn) {
       p.pause();
