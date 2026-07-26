@@ -334,6 +334,21 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: 할 일 다중 담당자 — 회의 할 일 전용 조인 테이블 (개인 todo는 user_id 소유 그대로)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS todo_assignees (
+    todo_id INTEGER NOT NULL REFERENCES todos(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    PRIMARY KEY (todo_id, user_id)
+  )
+`);
+// 기존 회의 할 일의 user_id(단일 담당)를 담당자로 1회 백필 — meta 플래그로 재실행 방지
+if (!db.prepare("SELECT 1 FROM meta WHERE key = 'todo_assignees_v1'").get()) {
+  db.exec(`INSERT OR IGNORE INTO todo_assignees (todo_id, user_id)
+           SELECT id, user_id FROM todos WHERE meeting_id IS NOT NULL`);
+  db.prepare("INSERT INTO meta (key, value) VALUES ('todo_assignees_v1', '1')").run();
+}
+
 // 마이그레이션: 회의 일정 이벤트 종료 시간 (통화 시작~종료 블록) — null이면 종료 시간 없음
 try {
   db.exec(`ALTER TABLE meeting_events ADD COLUMN end_time TEXT`);
