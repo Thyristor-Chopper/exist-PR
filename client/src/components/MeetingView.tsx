@@ -94,15 +94,54 @@ function VideoTile({
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const showVideo = !!track && !paused;
+  // RTP가 끊기면 브라우저는 트랙을 mute시키고 <video>는 마지막 프레임에 얼어붙는다
+  // — 얼어 보이는 대신 수신 대기 상태를 표시 (원격 트랙만)
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    if (!track || isLocal) {
+      setStalled(false);
+      return;
+    }
+    setStalled(track.muted);
+    const onMute = () => setStalled(true);
+    const onUnmute = () => setStalled(false);
+    track.addEventListener('mute', onMute);
+    track.addEventListener('unmute', onUnmute);
+    track.addEventListener('ended', onMute);
+    return () => {
+      track.removeEventListener('mute', onMute);
+      track.removeEventListener('unmute', onUnmute);
+      track.removeEventListener('ended', onMute);
+    };
+  }, [track, isLocal]);
   useEffect(() => {
     if (ref.current && track && showVideo) {
       ref.current.srcObject = new MediaStream([track]);
+      void ref.current.play().catch(() => {}); // autoplay 거부 시 폴백 (실패해도 autoPlay 속성이 재시도)
     }
   }, [track, showVideo]);
   return (
     <div className={`video-tile${isScreen ? ' screen' : ''}`}>
       {showVideo ? (
-        <video ref={ref} autoPlay playsInline muted={muted} />
+        <>
+          <video ref={ref} autoPlay playsInline muted={muted} />
+          {stalled && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(0,0,0,.45)',
+                color: '#fff',
+                fontSize: '.8rem',
+              }}
+            >
+              화면 수신 대기 중…
+            </div>
+          )}
+        </>
       ) : (
         <div className="video-placeholder">
           <div className="avatar-circle">{username.slice(0, 1).toUpperCase()}</div>
@@ -212,6 +251,9 @@ export default function MeetingView({
   const sttRef = useRef<{ stop(): void; start(): void } | null>(null);
   const sttWantedRef = useRef(true); // onend 자동 재시작 여부 (침묵으로 자주 끊기므로)
   const captionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 소켓이 순간 끊겼다 붙으면 서버는 이미 이 피어의 transport를 전부 파괴한 뒤다
+  // — 재입장 외에 복구 방법이 없으므로, 재연결 시 이 값을 올려 통화 이펙트를 처음부터 다시 돈다
+  const [rejoinTick, setRejoinTick] = useState(0);
   const sttSupported =
     typeof window !== 'undefined' &&
     !!(window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
@@ -265,6 +307,13 @@ export default function MeetingView({
     let localStream: MediaStream | null = null;
     let closed = false;
 
+    const onReconnect = () => {
+      if (closed) return;
+      setStatus('연결이 끊겨 다시 연결 중…');
+      setRejoinTick((t) => t + 1);
+    };
+    socket.io.on('reconnect', onReconnect);
+
     function upsertPeer(
       peerId: string,
       username: string,
@@ -280,6 +329,7 @@ export default function MeetingView({
 
     async function consume(device: Device, info: ProducerInfo) {
       if (!recvTransport) return;
+      if (consumerMapRef.current.has(info.producerId)) return; // 중복 consume 방지 (큐 드레인과 실시간 이벤트 경합)
       const params = await request<{
         id: string;
         producerId: string;
@@ -308,6 +358,10 @@ export default function MeetingView({
     }
 
     async function run() {
+      // 재입장(재연결) 대비 — 이전 세션의 원격 트랙·컨슈머 맵을 비우고 시작
+      setRemotePeers(new Map());
+      consumerMapRef.current.clear();
+
       // 0. 회의 참여 등록 (코드 = 입장 권한) + 제목 표시
       const meeting = await api<{ title: string }>('/api/meetings/join', {
         method: 'POST',
@@ -338,9 +392,21 @@ export default function MeetingView({
       setIsHost(joined.isHost);
       setLocked(joined.locked);
 
+      // producer:new는 방에 든 직후부터 수신 — 준비(transport·초기 consume) 전에 도착한 것은
+      // 큐에 모았다가 나중에 소비 (기존엔 초기 consume 루프 뒤에 등록해서, getUserMedia 대기
+      // ~수 초 동안 생긴 producer를 영영 놓쳐 상대 화면이 안 붙었음)
+      let dev: Device | null = null;
+      let consumeReady = false;
+      const pendingProducers: ProducerInfo[] = [];
+      socket.on('producer:new', (info: ProducerInfo) => {
+        if (!consumeReady || !dev) pendingProducers.push(info);
+        else void consume(dev, info).catch(() => {});
+      });
+
       // 2. Device 로드
       const device = new Device();
       await device.load({ routerRtpCapabilities: joined.rtpCapabilities });
+      dev = device;
 
       // 3. 송신 transport
       const sendParams = await request<{
@@ -417,22 +483,40 @@ export default function MeetingView({
         }
       }
 
-      // 6. 기존 참가자 + producer consume
+      // 6. 기존 참가자 + producer consume — 한 명의 실패가 나머지 전체를 막지 않게 개별 격리
       for (const p of joined.peers) {
         if (p.peerId !== socket.id) upsertPeer(p.peerId, p.username);
       }
-      for (const info of joined.producers) await consume(device, info);
+      for (const info of joined.producers) {
+        try {
+          await consume(device, info);
+        } catch {
+          /* 개별 consume 실패 무시 — 나머지 피어는 정상 표시 */
+        }
+      }
+      // 준비되기 전에 도착해 큐에 쌓인 producer 소비
+      consumeReady = true;
+      for (const info of pendingProducers.splice(0)) {
+        try {
+          await consume(device, info);
+        } catch {
+          /* 개별 실패 무시 */
+        }
+      }
 
       // 7. 실시간 이벤트
       socket.on('peer:joined', ({ peerId, username }) => upsertPeer(peerId, username));
       socket.on('peer:left', ({ peerId }) => {
+        // 이 피어의 컨슈머 매핑도 정리 — 같은 유저가 새 socket.id로 재참가할 때 옛 매핑 잔존 방지
+        for (const [pid, meta] of consumerMapRef.current) {
+          if (meta.peerId === peerId) consumerMapRef.current.delete(pid);
+        }
         setRemotePeers((prev) => {
           const next = new Map(prev);
           next.delete(peerId);
           return next;
         });
       });
-      socket.on('producer:new', (info: ProducerInfo) => void consume(device, info));
       socket.on('producer:closed', ({ producerId }: { producerId: string }) => {
         const meta = consumerMapRef.current.get(producerId);
         if (!meta) return;
@@ -504,6 +588,7 @@ export default function MeetingView({
 
     return () => {
       closed = true;
+      socket.io.off('reconnect', onReconnect);
       socket.off('peer:joined');
       socket.off('peer:left');
       socket.off('producer:new');
@@ -520,9 +605,10 @@ export default function MeetingView({
       // 통화 중 장치 교체(replaceTrack)로 갈아탄 트랙은 localStream 밖에 있다 — 같이 꺼야 캠 불이 꺼짐
       producersRef.current.audio?.track?.stop();
       producersRef.current.video?.track?.stop();
+      producersRef.current = {}; // 재입장 시 죽은 producer 참조 잔존 방지
       socket.disconnect();
     };
-  }, [code, user?.username, phase]);
+  }, [code, user?.username, phase, rejoinTick]);
 
   // ── 음성 전사(STT) — 통화 중 + 마이크 켜짐 + 자막 켜짐일 때 내 발화를 전사해 서버로 ──
   useEffect(() => {

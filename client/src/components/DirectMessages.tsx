@@ -96,6 +96,15 @@ export function DmWindow({
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
+  // 이 상대의 DM 창을 보고 있음을 서버에 알림 — 보는 동안은 서버가 알림(notifyUser) 생략
+  useEffect(() => {
+    const socket = getSocket();
+    socket.emit('dm:viewing', { peerId: peer.userId });
+    return () => {
+      socket.emit('dm:viewing', { peerId: null });
+    };
+  }, [peer.userId]);
+
   // 히스토리 로드 (열면서 상대 메시지 읽음 처리됨)
   useEffect(() => {
     let alive = true;

@@ -59,6 +59,12 @@ io.on('connection', (socket) => {
   else online.set(userId, { username, count: 1 });
   broadcastPresence();
 
+  // DM 창 열람 상태 — 보고 있는 상대의 메시지는 알림(notifyUser) 생략용
+  socket.on('dm:viewing', (p: { peerId?: number | null } | undefined) => {
+    const id = Number(p?.peerId);
+    socket.data.dmPeer = Number.isInteger(id) ? id : null;
+  });
+
   socket.on('disconnect', () => {
     const e = online.get(userId);
     if (!e) return;
