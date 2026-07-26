@@ -13019,6 +13019,72 @@ html:not(.dark) .meeting-controls .leave {
   color: #fff;
 }
 
+/* ── 프리뷰 마이크·카메라 알약 — 테마 추종 (다크=어두운 알약, 라이트=흰 알약, 꺼짐=빨강) ── */
+.pv-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.pv-pill.off {
+  background: #e5484d;
+  border-color: #e5484d;
+}
+
+.pv-pill button {
+  border: none;
+  cursor: pointer;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pv-pill .pv-main {
+  position: relative;
+  width: 42px;
+  height: 46px;
+  padding-left: 4px;
+  color: var(--text);
+}
+
+.pv-pill .pv-arrow {
+  width: 24px;
+  height: 46px;
+  padding-right: 6px;
+  color: var(--text-sub);
+}
+
+.pv-pill.off .pv-main {
+  color: #fff;
+}
+
+.pv-pill.off .pv-arrow {
+  color: #ffd7d7;
+}
+
+.pv-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.pv-slash {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.pv-chev {
+  display: grid;
+  place-items: center;
+  transform: rotate(180deg);
+}
+
 /* 대시보드 탭 임베드 모드 */
 .meeting-room.embedded {
   height: 100%;

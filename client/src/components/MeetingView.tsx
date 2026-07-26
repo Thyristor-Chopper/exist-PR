@@ -919,71 +919,31 @@ export default function MeetingView({
   };
 
   // 입장 전 프리뷰용 알약 — 통화 중 컨트롤 바와 같은 형태 (토글 + ˄ 장치 메뉴)
+  // 프리뷰 알약 — 테마 추종은 CSS(.pv-pill)가 담당 (다크=어두운 알약, 라이트=흰 알약, 꺼짐=빨강)
   const previewPill = (kind: 'mic' | 'cam') => {
     const on = kind === 'mic' ? micOn : camOn;
     const toggle = () => (kind === 'mic' ? setMicOn((v) => !v) : setCamOn((v) => !v));
     const noun = kind === 'mic' ? '마이크' : '카메라';
     const Icon = kind === 'mic' ? MicIcon : CamIcon;
-    const segBtn: React.CSSProperties = {
-      border: 'none',
-      cursor: 'pointer',
-      background: 'none',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    };
     return (
-      <div
-        style={{
-          position: 'relative',
-          display: 'inline-flex',
-          alignItems: 'center',
-          borderRadius: 999,
-          background: on ? 'rgba(255,255,255,0.92)' : '#e5484d',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-        }}
-      >
-        <button
-          onClick={toggle}
-          title={on ? `${noun} 끄기` : `${noun} 켜기`}
-          style={{
-            ...segBtn,
-            position: 'relative',
-            width: 42,
-            height: 46,
-            color: on ? '#222' : '#fff',
-            paddingLeft: 4,
-          }}
-        >
+      <div className={`pv-pill${on ? '' : ' off'}`}>
+        <button className="pv-main" onClick={toggle} title={on ? `${noun} 끄기` : `${noun} 켜기`}>
           {/* 슬래시는 버튼이 아니라 아이콘 박스에 겹침 — 버튼 패딩과 무관하게 항상 아이콘 정중앙 */}
-          <span style={{ position: 'relative', display: 'inline-flex' }}>
+          <span className="pv-icon">
             <Icon size={20} />
             {!on && (
-              <span
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
+              <span className="pv-slash">
                 <SlashIcon size={20} />
               </span>
             )}
           </span>
         </button>
         <button
+          className="pv-arrow"
           onClick={() => setDevMenu((v) => (v === kind ? null : kind))}
           title={`${noun} 선택`}
-          style={{
-            ...segBtn,
-            width: 24,
-            height: 46,
-            color: on ? '#666' : '#ffd7d7',
-            paddingRight: 6,
-          }}
         >
-          <span style={{ display: 'grid', placeItems: 'center', transform: 'rotate(180deg)' }}>
+          <span className="pv-chev">
             <ChevronIcon size={12} />
           </span>
         </button>
