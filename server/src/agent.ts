@@ -268,15 +268,17 @@ interface BriefResult {
   reason: string;
 }
 
-// 사용자별 브리핑 캐시 (2분 — 단 라이브 통화 인원이 바뀌면 즉시 무효)
-const briefCache = new Map<number, BriefResult & { at: number; liveSig: string }>();
+// 브리핑 캐시 — 키 `${userId}:${scope}` (2분 — 단 라이브 통화 인원이 바뀌면 즉시 무효).
+// nowbar 카드(그룹·일정)가 현재 탭 스코프라 브리핑도 같은 스코프를 따라간다
+const briefCache = new Map<string, BriefResult & { at: number; liveSig: string }>();
 const CACHE_MS = 2 * 60 * 1000;
 
-export async function generateBrief(userId: number): Promise<BriefResult> {
-  const ctx = getUserContext(userId);
+export async function generateBrief(userId: number, scope?: AgentScope): Promise<BriefResult> {
+  const key = `${userId}:${scope ?? 'all'}`;
+  const ctx = getUserContext(userId, scope);
   const liveSig = ctx.meetings.map((m) => `${m.code}:${m.in_call}`).join(',');
 
-  const cached = briefCache.get(userId);
+  const cached = briefCache.get(key);
   if (cached && Date.now() - cached.at < CACHE_MS && cached.liveSig === liveSig) {
     return { text: cached.text, source: cached.source, card: cached.card, reason: cached.reason };
   }
@@ -296,13 +298,13 @@ export async function generateBrief(userId: number): Promise<BriefResult> {
     result = { text: ruleBasedBrief(ctx), source: 'rule', card: dec.card, reason: dec.reason };
   }
 
-  briefCache.set(userId, { ...result, at: Date.now(), liveSig });
+  briefCache.set(key, { ...result, at: Date.now(), liveSig });
   return result;
 }
 
-/** 투두/회의/메시지 변경 시 캐시 무효화용 — nowbar 브리핑 + 오늘 브리핑(전 스코프) */
+/** 투두/회의/메시지 변경 시 캐시 무효화용 — nowbar 브리핑 + 오늘 브리핑 (전 스코프) */
 export function invalidateBrief(userId: number) {
-  briefCache.delete(userId);
+  for (const k of briefCache.keys()) if (k.startsWith(`${userId}:`)) briefCache.delete(k);
   for (const k of dailyCache.keys()) if (k.startsWith(`${userId}:`)) dailyCache.delete(k);
 }
 
@@ -618,8 +620,9 @@ function parseScope(req: AuthedRequest, res: Response): AgentScope | null {
 }
 
 router.get('/brief', async (req: AuthedRequest, res) => {
-  const brief = await generateBrief(req.userId!);
-  res.json(brief);
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  res.json(await generateBrief(req.userId!, scope));
 });
 
 /** 오늘 브리핑 — 홈 대시보드 상단 문단 (?org= 스코프) */

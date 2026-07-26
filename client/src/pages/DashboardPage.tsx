@@ -128,7 +128,7 @@ export default function DashboardPage() {
       const [meetings, sched, todoList] = await Promise.all([
         api<Meeting[]>(`/api/meetings/recent?org=${param}`),
         api<Meeting[]>(`/api/meetings/schedule?org=${param}`),
-        api<Todo[]>('/api/todos'),
+        api<Todo[]>(`/api/todos?org=${param}`),
       ]);
       setRecent(meetings);
       setSchedule(sched);

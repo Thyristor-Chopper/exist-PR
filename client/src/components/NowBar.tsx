@@ -471,13 +471,14 @@ function NowBar({
     };
   }, []);
 
-  // AI 브리핑 — 2분마다 갱신
+  // AI 브리핑 — 2분마다 갱신. 카드(그룹·일정)가 현재 탭 스코프라 브리핑도 같은 범위로
+  const orgCurrent = useOrgStore((s) => s.current);
   useEffect(() => {
     let alive = true;
     async function load() {
       try {
         const b = await api<{ text: string; card?: number; reason?: string; source?: 'ai' | 'rule' }>(
-          '/api/agent/brief',
+          `/api/agent/brief?org=${useOrgStore.getState().contextParam()}`,
         );
         if (!alive) return;
         setBrief(b.text);
@@ -494,7 +495,7 @@ function NowBar({
       alive = false;
       clearInterval(t);
     };
-  }, [meetings, groups]);
+  }, [meetings, groups, orgCurrent]);
 
   // 알림 플래시 즉시 해제 (사용자가 직접 조작하면)
   function dismissFlash() {
