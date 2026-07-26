@@ -6,7 +6,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import Logo from './Logo';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, GearIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -39,6 +39,20 @@ export interface ChatMessage {
   /** 소속 채팅 채널 (없으면 기본 채널) */
   channelId?: number | null;
   ts: number;
+}
+
+/** 선택한 장치 우선 getUserMedia — 선택 장치가 뽑혔거나 못 잡으면 기본 장치로 재시도 */
+async function getUserMediaPreferred(camId: string, micId: string): Promise<MediaStream> {
+  const prefer: MediaStreamConstraints = {
+    video: camId ? { deviceId: { exact: camId } } : true,
+    audio: micId ? { deviceId: { exact: micId } } : true,
+  };
+  try {
+    return await navigator.mediaDevices.getUserMedia(prefer);
+  } catch (err) {
+    if (!camId && !micId) throw err;
+    return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  }
 }
 
 /** 카메라가 없을 때 쓰는 캔버스 기반 가짜 비디오 (개발·데모용) */
@@ -153,6 +167,16 @@ export default function MeetingView({
   const [remotePeers, setRemotePeers] = useState<Map<string, RemotePeer>>(new Map());
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  // 입력 장치 선택 — 마이크·카메라가 여러 개일 때. ''는 브라우저 기본 장치
+  const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
+  const [cams, setCams] = useState<MediaDeviceInfo[]>([]);
+  const [micId, setMicId] = useState(() => localStorage.getItem('exist:mic-device') ?? '');
+  const [camId, setCamId] = useState(() => localStorage.getItem('exist:cam-device') ?? '');
+  const [devOpen, setDevOpen] = useState(false); // 통화 중 장치 선택 팝오버
+  const micIdRef = useRef(micId);
+  micIdRef.current = micId;
+  const camIdRef = useRef(camId);
+  camIdRef.current = camId;
   const [phase, setPhase] = useState<'preview' | 'live'>('preview');
   const [previewTrack, setPreviewTrack] = useState<MediaStreamTrack>();
   const [chatOpen, setChatOpen] = useState(false);
@@ -196,13 +220,28 @@ export default function MeetingView({
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, chatOpen]);
 
-  // 입장 전 디바이스 프리뷰 — 로컬 미리보기만(서버로 송출하지 않음)
+  // 장치 목록 — 권한 허용 후에야 label이 채워지므로 프리뷰 스트림을 잡은 뒤 다시 조회
+  const refreshDevices = useCallback(() => {
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((ds) => {
+        setMics(ds.filter((d) => d.kind === 'audioinput'));
+        setCams(ds.filter((d) => d.kind === 'videoinput'));
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshDevices();
+    navigator.mediaDevices.addEventListener?.('devicechange', refreshDevices);
+    return () => navigator.mediaDevices.removeEventListener?.('devicechange', refreshDevices);
+  }, [refreshDevices]);
+
+  // 입장 전 디바이스 프리뷰 — 로컬 미리보기만(서버로 송출하지 않음). 장치를 바꾸면 다시 잡는다
   useEffect(() => {
     if (phase !== 'preview') return;
     let stream: MediaStream | null = null;
     let closed = false;
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: true })
+    getUserMediaPreferred(camId, micId)
       .then((s) => {
         if (closed) {
           s.getTracks().forEach((t) => t.stop());
@@ -210,13 +249,14 @@ export default function MeetingView({
         }
         stream = s;
         setPreviewTrack(s.getVideoTracks()[0]);
+        refreshDevices();
       })
       .catch(() => setPreviewTrack(undefined));
     return () => {
       closed = true;
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [phase]);
+  }, [phase, camId, micId, refreshDevices]);
 
   useEffect(() => {
     if (!code || phase !== 'live') return;
@@ -339,7 +379,7 @@ export default function MeetingView({
       // 5. 로컬 미디어 (거부/부재/5초 무응답 시 캔버스 폴백)
       try {
         localStream = await Promise.race([
-          navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
+          getUserMediaPreferred(camIdRef.current, micIdRef.current),
           new Promise<never>((_, rej) =>
             setTimeout(() => rej(new Error('getUserMedia timeout')), 5000),
           ),
@@ -477,6 +517,9 @@ export default function MeetingView({
       sendTransportRef.current?.close();
       recvTransport?.close();
       localStream?.getTracks().forEach((t) => t.stop());
+      // 통화 중 장치 교체(replaceTrack)로 갈아탄 트랙은 localStream 밖에 있다 — 같이 꺼야 캠 불이 꺼짐
+      producersRef.current.audio?.track?.stop();
+      producersRef.current.video?.track?.stop();
       socket.disconnect();
     };
   }, [code, user?.username, phase]);
@@ -592,6 +635,39 @@ export default function MeetingView({
     setCamOn(!camOn);
   }
 
+  /** 장치 선택 — 프리뷰는 effect가 다시 잡고, 통화 중엔 producer 트랙을 교체(replaceTrack) */
+  async function pickDevice(kind: 'mic' | 'cam', id: string) {
+    if (kind === 'mic') {
+      setMicId(id);
+      localStorage.setItem('exist:mic-device', id);
+    } else {
+      setCamId(id);
+      localStorage.setItem('exist:cam-device', id);
+    }
+    if (phase !== 'live') return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(
+        kind === 'mic'
+          ? { audio: id ? { deviceId: { exact: id } } : true }
+          : { video: id ? { deviceId: { exact: id } } : true },
+      );
+      const track = kind === 'mic' ? stream.getAudioTracks()[0] : stream.getVideoTracks()[0];
+      const p = kind === 'mic' ? producersRef.current.audio : producersRef.current.video;
+      if (!p || !track) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const old = p.track;
+      await p.replaceTrack({ track });
+      old?.stop();
+      if (kind === 'cam') setLocalTrack(track);
+    } catch {
+      window.dispatchEvent(
+        new CustomEvent('app:error', { detail: '장치를 바꾸지 못했어요 — 연결 상태를 확인해주세요' }),
+      );
+    }
+  }
+
   const stopScreenShare = useCallback(() => {
     const p = producersRef.current.screen;
     if (!p) return;
@@ -631,6 +707,58 @@ export default function MeetingView({
   }
 
   const peers = [...remotePeers.values()];
+
+  // 마이크·카메라 선택 셀렉트 — 프리뷰 카드와 통화 중 팝오버 공용
+  const selStyle: React.CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    padding: '7px 8px',
+    borderRadius: 8,
+    border: '1px solid var(--border)',
+    background: 'var(--bg)',
+    color: 'var(--text)',
+    fontSize: 13,
+  };
+  const selRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    color: 'var(--text-sub)',
+  };
+  const deviceSelects = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <label style={selRowStyle}>
+        <MicIcon size={15} />
+        <select
+          value={micId}
+          onChange={(e) => void pickDevice('mic', e.target.value)}
+          style={selStyle}
+        >
+          <option value="">기본 마이크</option>
+          {mics.map((d, i) => (
+            <option key={d.deviceId || i} value={d.deviceId}>
+              {d.label || `마이크 ${i + 1}`}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label style={selRowStyle}>
+        <CamIcon size={15} />
+        <select
+          value={camId}
+          onChange={(e) => void pickDevice('cam', e.target.value)}
+          style={selStyle}
+        >
+          <option value="">기본 카메라</option>
+          {cams.map((d, i) => (
+            <option key={d.deviceId || i} value={d.deviceId}>
+              {d.label || `카메라 ${i + 1}`}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
 
   // 공유 중인 화면 전부 (로컬 + 원격 여러 명 동시 지원)
   const screens: { key: string; track: MediaStreamTrack; username: string; isLocal?: boolean }[] =
@@ -751,6 +879,8 @@ export default function MeetingView({
               </button>
             </div>
           </div>
+          {/* 마이크·카메라가 여러 개면 여기서 고르고 입장 */}
+          <div style={{ textAlign: 'left', marginBottom: 16 }}>{deviceSelects}</div>
           <button
             onClick={() => {
               setPhase('live');
@@ -933,6 +1063,44 @@ export default function MeetingView({
             </span>
           )}
         </button>
+        <div style={{ position: 'relative', display: 'inline-flex' }}>
+          <button
+            className={devOpen ? 'active' : ''}
+            onClick={() => setDevOpen((v) => !v)}
+            title="마이크·카메라 선택"
+          >
+            <GearIcon size={20} />
+          </button>
+          {devOpen && (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 39 }}
+              onClick={() => setDevOpen(false)}
+            />
+          )}
+          {devOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 'calc(100% + 10px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 'min(280px, 84vw)',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                padding: 12,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+                zIndex: 40,
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sub)', marginBottom: 8 }}>
+                입력 장치
+              </div>
+              {deviceSelects}
+            </div>
+          )}
+        </div>
         <button
           className={localScreen ? 'active' : ''}
           onClick={toggleScreenShare}
