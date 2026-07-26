@@ -208,8 +208,10 @@ try {
 // member:edit → edit-position + edit-department, group:manage → group:* 전체
 {
   const GROUP_ALL = [
+    'group:lock',
     'group:settings',
-    'group:edit',
+    'group:edit-info',
+    'group:edit-period',
     'group:schedule',
     'group:kick',
     'group:transfer',
@@ -241,6 +243,38 @@ try {
       /* 손상된 perms는 그대로 둠 */
     }
   }
+}
+
+// 마이그레이션 v3 (1회 플래그) — 그룹 액션 세분: group:edit → edit-info+edit-period,
+// group:settings 보유자에게 group:lock 부여(기존 의미 보존). 플래그 없이 돌리면
+// 소유자가 나중에 lock만 빼도 재부팅마다 되살아나는 함정이 있어 meta로 1회만 실행
+db.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+if (!db.prepare("SELECT 1 FROM meta WHERE key = 'org_roles_v3'").get()) {
+  const v3roles = db.prepare('SELECT id, perms FROM org_roles').all() as {
+    id: number;
+    perms: string;
+  }[];
+  for (const r of v3roles) {
+    try {
+      const perms = JSON.parse(r.perms) as string[];
+      const next = new Set<string>();
+      for (const p of perms) {
+        if (p === 'group:edit') {
+          next.add('group:edit-info');
+          next.add('group:edit-period');
+        } else {
+          next.add(p);
+          if (p === 'group:settings') next.add('group:lock');
+        }
+      }
+      const encoded = JSON.stringify([...next]);
+      if (encoded !== r.perms)
+        db.prepare('UPDATE org_roles SET perms = ? WHERE id = ?').run(encoded, r.id);
+    } catch {
+      /* 손상 perms 무시 */
+    }
+  }
+  db.prepare("INSERT INTO meta (key, value) VALUES ('org_roles_v3', '1')").run();
 }
 
 // 감사 로그(CloudTrail식) — 조직 인사·권한 변경의 책임 추적. text는 한국어 스냅샷

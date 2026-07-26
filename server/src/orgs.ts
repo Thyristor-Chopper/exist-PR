@@ -71,8 +71,10 @@ export const ORG_ACTIONS = [
   'member:edit-department',
   'member:remove',
   // 그룹 — 스코프: 자기 부서원이 호스트인 조직 그룹
+  'group:lock',
   'group:settings',
-  'group:edit',
+  'group:edit-info',
+  'group:edit-period',
   'group:schedule',
   'group:kick',
   'group:transfer',

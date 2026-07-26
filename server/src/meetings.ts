@@ -574,14 +574,29 @@ router.get('/:code', (req: AuthedRequest, res) => {
 /** 회의 설정/권한 변경 (호스트·조직 관리자) */
 router.patch('/:code/settings', (req: AuthedRequest, res) => {
   const meeting = db
-    .prepare('SELECT id, host_id, org_id FROM meetings WHERE code = ?')
+    .prepare('SELECT id, host_id, org_id, settings FROM meetings WHERE code = ?')
     .get(String(req.params.code ?? '').toUpperCase()) as
-    | { id: number; host_id: number; org_id: number | null }
+    | { id: number; host_id: number; org_id: number | null; settings: string | null }
     | undefined;
   if (!meeting) return res.status(404).json({ error: '회의를 찾을 수 없어요' });
-  if (!canManageMeeting(meeting, req.userId!, 'group:settings')) return res.status(403).json({ error: '호스트나 조직 관리자만 변경할 수 있어요' });
   const { locked, guestEdit, muteOnJoin } = req.body ?? {};
+  let cur: { locked?: boolean; guestEdit?: boolean; muteOnJoin?: boolean } = {};
+  try {
+    cur = meeting.settings ? (JSON.parse(meeting.settings) as typeof cur) : {};
+  } catch {
+    /* 손상 settings — 기본값 취급 */
+  }
   const settings = { locked: !!locked, guestEdit: guestEdit !== false, muteOnJoin: !!muteOnJoin };
+  // 바꾸려는 필드별로 액션 검사 — 잠금(group:lock)과 운영 설정(group:settings)은 별개 권한
+  if (settings.locked !== !!cur.locked && !canManageMeeting(meeting, req.userId!, 'group:lock')) {
+    return res.status(403).json({ error: '입장 잠금을 변경할 권한이 없어요' });
+  }
+  if (
+    (settings.guestEdit !== (cur.guestEdit !== false) || settings.muteOnJoin !== !!cur.muteOnJoin) &&
+    !canManageMeeting(meeting, req.userId!, 'group:settings')
+  ) {
+    return res.status(403).json({ error: '그룹 설정을 변경할 권한이 없어요' });
+  }
   db.prepare('UPDATE meetings SET settings = ? WHERE id = ?').run(JSON.stringify(settings), meeting.id);
   res.json({ settings });
 });
@@ -594,7 +609,7 @@ router.patch('/:code/period', (req: AuthedRequest, res) => {
     | { id: number; host_id: number; org_id: number | null }
     | undefined;
   if (!meeting) return res.status(404).json({ error: '회의를 찾을 수 없어요' });
-  if (!canManageMeeting(meeting, req.userId!, 'group:edit')) return res.status(403).json({ error: '호스트나 조직 관리자만 변경할 수 있어요' });
+  if (!canManageMeeting(meeting, req.userId!, 'group:edit-period')) return res.status(403).json({ error: '호스트나 조직 관리자만 변경할 수 있어요' });
   const clean = (v: unknown) =>
     typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
   const start = clean(req.body?.start);
@@ -658,7 +673,7 @@ router.patch('/:code', (req: AuthedRequest, res) => {
     | { id: number; host_id: number; org_id: number | null }
     | undefined;
   if (!meeting) return res.status(404).json({ error: '존재하지 않는 회의입니다' });
-  if (!canManageMeeting(meeting, req.userId!, 'group:edit')) {
+  if (!canManageMeeting(meeting, req.userId!, 'group:edit-info')) {
     return res.status(403).json({ error: '호스트나 조직 관리자만 수정할 수 있어요' });
   }
   const { title, starts_at, ends_at } = req.body ?? {};
@@ -692,7 +707,7 @@ router.post('/:code/thumbnail', (req: AuthedRequest, res) => {
     | { id: number; host_id: number; org_id: number | null }
     | undefined;
   if (!meeting) return res.status(404).json({ error: '존재하지 않는 회의입니다' });
-  if (!canManageMeeting(meeting, req.userId!, 'group:edit')) {
+  if (!canManageMeeting(meeting, req.userId!, 'group:edit-info')) {
     return res.status(403).json({ error: '호스트나 조직 관리자만 사진을 바꿀 수 있어요' });
   }
   const ct = String(req.headers['content-type'] ?? '');

@@ -16,6 +16,7 @@ import type {
 import db from './db.js';
 import { scheduleRecap, cancelScheduledRecap } from './recap.js';
 import { invalidateBriefForMeeting } from './agent.js';
+import { canManageMeeting } from './perm.js';
 import { resolveChannel } from './channels.js';
 import { AGENT_MENTION, handleAgentQuery, maybeSuggestDecision } from './steward.js';
 
@@ -325,19 +326,29 @@ export function attachSfu(io: Server) {
       ack?.({ ok: true });
     });
 
-    /** 호스트: 회의 잠금/해제 */
+    /** 통화 중 회의 잠금/해제 — 호스트·조직 관리자·group:lock 권한자 */
     socket.on('room:lock', ({ locked }: { locked: boolean }, ack) => {
       if (!room || !peer) return ack?.({ error: '방에 입장하지 않았습니다' });
-      if (peer.userId !== room.hostUserId) return ack?.({ error: '호스트만 가능합니다' });
+      const meetingRef = db
+        .prepare('SELECT host_id, org_id FROM meetings WHERE code = ?')
+        .get(room.code) as { host_id: number; org_id: number | null } | undefined;
+      if (!meetingRef || !canManageMeeting(meetingRef, peer.userId, 'group:lock')) {
+        return ack?.({ error: '잠금 권한이 없습니다' });
+      }
       room.locked = !!locked;
       io.to(`room:${room.code}`).emit('room:locked', { locked: room.locked });
       ack?.({ ok: true });
     });
 
-    /** 호스트: 참가자 강퇴 */
+    /** 통화 중 참가자 강퇴 — 호스트·조직 관리자·group:kick 권한자 */
     socket.on('room:kick', ({ peerId }: { peerId: string }, ack) => {
       if (!room || !peer) return ack?.({ error: '방에 입장하지 않았습니다' });
-      if (peer.userId !== room.hostUserId) return ack?.({ error: '호스트만 가능합니다' });
+      const kickRef = db
+        .prepare('SELECT host_id, org_id FROM meetings WHERE code = ?')
+        .get(room.code) as { host_id: number; org_id: number | null } | undefined;
+      if (!kickRef || !canManageMeeting(kickRef, peer.userId, 'group:kick')) {
+        return ack?.({ error: '강퇴 권한이 없습니다' });
+      }
       const target = io.sockets.sockets.get(peerId);
       const targetPeer = room.peers.get(peerId);
       if (!target || !targetPeer) return ack?.({ error: '대상이 없습니다' });

@@ -25,8 +25,10 @@ export function isOrgMember(orgId: number, userId: number): boolean {
 
 /** 그룹(회의) 관련 세분 액션 — AWS IAM식. 스코프는 "자기 부서원이 호스트인 조직 그룹" */
 export type GroupAction =
+  | 'group:lock'
   | 'group:settings'
-  | 'group:edit'
+  | 'group:edit-info'
+  | 'group:edit-period'
   | 'group:schedule'
   | 'group:kick'
   | 'group:transfer'
