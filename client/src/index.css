@@ -13177,11 +13177,6 @@ input:focus {
   bottom: 5px;
 }
 
-.hub-call.mini .avatar-circle {
-  width: 36px;
-  height: 36px;
-  font-size: 15px;
-}
 
 .hub-call.mini .cam-off-label {
   display: none;
@@ -13466,31 +13461,29 @@ input:focus {
   color: #8a909c;
 }
 
-.avatar-circle {
+/* 카메라 꺼짐 자리의 프로필 아바타 — 앱 공통 규칙(정사각+살짝 radius, 원형 금지) */
+.video-avatar {
   width: 72px;
   height: 72px;
-  border-radius: 22px; /* 아바타 규칙: 정사각 + 살짝 radius (원형 금지) */
-  background: var(--green);
-  display: grid;
-  place-items: center;
-  font-size: 30px;
-  font-weight: 600;
-  color: #fff;
+  border-radius: 18px;
+  background: var(--surface-2);
+  font-size: 40px;
 }
 
-.filmstrip .avatar-circle {
+.filmstrip .video-avatar {
   width: 44px;
   height: 44px;
+  border-radius: 12px;
+  font-size: 24px;
+}
+
+.hub-call.mini .video-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   font-size: 18px;
 }
 
-/* 카메라 꺼짐 placeholder — 실제 프로필 아바타 (이미지·이모지, 정사각+radius) */
-.video-placeholder .video-ph-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 22px;
-  font-size: 40px;
-}
 
 .video-placeholder .video-ph-avatar .avatar-photo {
   width: 100%;

@@ -88,7 +88,7 @@ function VideoTile({
 }: {
   track?: MediaStreamTrack;
   username: string;
-  /** 카메라 꺼짐 placeholder에 표시할 프로필 아바타 (없으면 이니셜) */
+  /** 프로필 아바타 (이모지/사진) — 카메라 꺼짐 자리에 표시 */
   avatar?: string | null;
   isLocal?: boolean;
   isScreen?: boolean;
@@ -153,11 +153,8 @@ function VideoTile({
         </>
       ) : (
         <div className="video-placeholder">
-          {avatar ? (
-            <Avatar value={avatar} className="video-ph-avatar" />
-          ) : (
-            <div className="avatar-circle">{username.slice(0, 1).toUpperCase()}</div>
-          )}
+          {/* 프로필 아바타 그대로 — 앱 다른 곳과 같은 모습 (없으면 Avatar 기본 이모지) */}
+          <Avatar value={avatar} className="video-avatar" />
           <span className="cam-off-label">카메라 꺼짐</span>
         </div>
       )}
@@ -1041,7 +1038,11 @@ export default function MeetingView({
               <VideoTile
                 track={previewTrack}
                 username={dn(user?.username ?? '나')}
+<<<<<<< HEAD
                 avatar={user?.avatar ?? null}
+=======
+                avatar={peerAvatars?.[user?.username ?? '']}
+>>>>>>> w1-collab-awareness
                 isLocal
                 paused={!camOn}
               />
@@ -1165,6 +1166,7 @@ export default function MeetingView({
                   key={s.key}
                   track={s.track}
                   username={dn(s.username)}
+                  avatar={peerAvatars?.[s.username]}
                   isLocal={s.isLocal}
                   isScreen
                 />
@@ -1177,7 +1179,11 @@ export default function MeetingView({
             <VideoTile
               track={localTrack}
               username={dn(user?.username ?? '나')}
+<<<<<<< HEAD
               avatar={user?.avatar ?? null}
+=======
+              avatar={peerAvatars?.[user?.username ?? '']}
+>>>>>>> w1-collab-awareness
               isLocal
               paused={!camOn}
             />
@@ -1186,7 +1192,11 @@ export default function MeetingView({
                 <VideoTile
                   track={p.videoTrack}
                   username={dn(p.username)}
+<<<<<<< HEAD
                   avatar={peerAvatars ? (peerAvatars[p.username] ?? null) : null}
+=======
+                  avatar={peerAvatars?.[p.username]}
+>>>>>>> w1-collab-awareness
                   paused={p.videoPaused}
                   onKick={
                     isHost
