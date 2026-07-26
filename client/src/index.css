@@ -10223,6 +10223,7 @@ input:focus {
 
 .ledger-body {
   min-width: 0;
+  flex: 1; /* 확인 칩이 행마다 들쭉날쭉하지 않게 오른쪽 끝으로 고정 */
 }
 
 .ledger-decision {
@@ -14234,6 +14235,10 @@ input:focus {
 .hub-decision-ack,
 .ledger-ack {
   flex: none;
+  /* 행(stretch)에 안 늘어나게 + span(확인함)·button(확인) 세로 정렬 통일 */
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
   border: 1px solid var(--green);
   background: var(--green-soft);
   color: var(--green-dark);
