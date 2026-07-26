@@ -936,14 +936,6 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                         {detail.code}{' '}
                         {copied ? <CheckMarkIcon size={13} /> : <CopyIcon size={13} />}
                       </button>
-                      <button
-                        className="hub-hero-code"
-                        onClick={copyInviteLink}
-                        title="초대 링크 복사 — 링크만 누르면 바로 이 그룹에 참여돼요"
-                      >
-                        {linkCopied ? <CheckMarkIcon size={13} /> : <ShareIcon size={13} />}
-                        {linkCopied ? '복사됨' : '초대 링크'}
-                      </button>
                     </h2>
                     <div className="hub-hero-sub">
                       호스트 <b>{detail.host}</b>
@@ -1355,6 +1347,19 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                     )}
                   </div>
                 ))}
+              </div>
+              {/* 초대 — 참가자를 늘리는 행동이라 참가자 카드에 함께 */}
+              <div className="hub-invite-row">
+                <button className="hub-set-btn" onClick={() => void copyInviteLink()}>
+                  {linkCopied ? <CheckMarkIcon size={13} /> : <ShareIcon size={13} />}{' '}
+                  {linkCopied ? '복사됨' : '초대 링크 복사'}
+                </button>
+                <button className="hub-set-btn" onClick={() => void copyCode()}>
+                  {copied ? <CheckMarkIcon size={13} /> : <CopyIcon size={13} />} 코드 {detail.code}
+                </button>
+                <span className="hub-invite-hint">
+                  링크를 받은 사람은 로그인만 하면 자동으로 이 그룹에 참여돼요
+                </span>
               </div>
             </section>
 
