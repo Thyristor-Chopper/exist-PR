@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { getSocket, request } from '../lib/socket';
 import { useDisplayName } from '../names';
 import Avatar from './Avatar';
 import Marquee from './Marquee';
@@ -61,6 +62,43 @@ export default function UnifiedInbox({ scope }: { scope: DmScope }) {
     setHits([]);
     loadGroups();
     loadThreads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope]);
+
+  // 그룹 채팅 룸 구독 — 목록에 있는 그룹의 새 메시지를 소켓으로 받기 위해 (join은 멱등)
+  useEffect(() => {
+    const socket = getSocket();
+    for (const g of groups) void request(socket, 'chat:join', { code: g.code }).catch(() => {});
+  }, [groups]);
+
+  // 실시간 갱신 — 새 그룹 채팅/DM이 오면 새로고침 없이 목록·안읽음·미리보기 반영.
+  // 서버가 안읽음을 정확히 계산하므로 재조회 방식, 버스트는 300ms로 묶음
+  useEffect(() => {
+    const socket = getSocket();
+    let gt: ReturnType<typeof setTimeout> | null = null;
+    let dt: ReturnType<typeof setTimeout> | null = null;
+    const onChat = () => {
+      if (gt) return;
+      gt = setTimeout(() => {
+        gt = null;
+        loadGroups();
+      }, 300);
+    };
+    const onDm = () => {
+      if (dt) return;
+      dt = setTimeout(() => {
+        dt = null;
+        loadThreads();
+      }, 300);
+    };
+    socket.on('chat:message', onChat);
+    socket.on('dm:message', onDm);
+    return () => {
+      socket.off('chat:message', onChat);
+      socket.off('dm:message', onDm);
+      if (gt) clearTimeout(gt);
+      if (dt) clearTimeout(dt);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope]);
 
