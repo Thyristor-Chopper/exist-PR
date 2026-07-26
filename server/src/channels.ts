@@ -12,6 +12,8 @@ export interface Channel {
   isDefault: boolean;
   /** 'call' = 통화 전용 채널 (통화 중 채팅이 쌓임) */
   kind: string | null;
+  /** 만든 사람 — 클라가 이름 수정 버튼 노출 판단용 (수정 권한: 만든 사람·호스트·조직 관리자) */
+  createdBy: number;
 }
 
 /** 기본 채널 확보 — 없으면 "일반" 생성 + 레거시 메시지(channel_id NULL) 백필.
@@ -50,9 +52,16 @@ export function ensureCallChannel(meetingId: number, createdBy: number): { id: n
 export function listChannels(meetingId: number, callerId: number): Channel[] {
   const defaultId = ensureDefaultChannel(meetingId, callerId);
   const rows = db
-    .prepare('SELECT id, name, kind FROM chat_channels WHERE meeting_id = ? ORDER BY id')
-    .all(meetingId) as { id: number; name: string; kind: string | null }[];
-  return rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind, isDefault: r.id === defaultId }));
+    .prepare('SELECT id, name, kind, created_by FROM chat_channels WHERE meeting_id = ? ORDER BY id')
+    .all(meetingId) as { id: number; name: string; kind: string | null; created_by: number }[];
+  // isDefault는 ensureDefaultChannel 기준 — 통화(kind=call) 채널이 첫 행이어도 기본을 못 뺏게
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    kind: r.kind,
+    isDefault: r.id === defaultId,
+    createdBy: r.created_by,
+  }));
 }
 
 /** 채널이 이 회의 소속인지 검증 — 맞으면 id, 아니면 null */

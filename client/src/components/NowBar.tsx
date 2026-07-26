@@ -423,8 +423,18 @@ function NowBar({
   onToggleSidebar,
 }: Props) {
   const dn = useDisplayName();
+  const me = useAuthStore((s) => s.user);
   const [newTodo, setNewTodo] = useState('');
   const [groupTodos, setGroupTodos] = useState<Todo[]>([]);
+  // nowbar는 "지금 내가 챙길 것" — 그룹 할 일 중 내 담당(또는 담당자 없는 공용)만.
+  // 그룹 전체 목록은 허브 할 일 섹션이 담당.
+  const myTodos = (list: Todo[]) =>
+    list.filter(
+      (t) =>
+        !t.assigneeProfiles ||
+        t.assigneeProfiles.length === 0 ||
+        t.assigneeProfiles.some((p) => p.username === me?.username),
+    );
   const [now, setNow] = useState(() => new Date());
   const [brief, setBrief] = useState('');
   const [aiCard, setAiCard] = useState<number | null>(null);
@@ -625,7 +635,7 @@ function NowBar({
     let alive = true;
     void api<Todo[]>(`/api/todos?meeting=${code}`)
       .then((t) => {
-        if (alive) setGroupTodos(t);
+        if (alive) setGroupTodos(myTodos(t));
       })
       .catch(() => {});
     return () => {
@@ -636,7 +646,7 @@ function NowBar({
   async function refetchGroupTodos() {
     if (!fg?.code) return;
     try {
-      setGroupTodos(await api<Todo[]>(`/api/todos?meeting=${fg.code}`));
+      setGroupTodos(myTodos(await api<Todo[]>(`/api/todos?meeting=${fg.code}`)));
     } catch {
       /* 무시 */
     }
@@ -806,7 +816,7 @@ function NowBar({
               </div>
             ))}
             {groupTodos.length === 0 && (
-              <div className="nowbar-todo">이 회의 할 일이 없어요</div>
+              <div className="nowbar-todo">이 회의에 내 할 일이 없어요</div>
             )}
           </div>
         </div>
@@ -984,7 +994,7 @@ function NowBar({
                     <TodoAssignees profiles={todo.assigneeProfiles} />
                   </label>
                 ))}
-                {groupTodos.length === 0 && <div className="nb-next-empty">이 회의 할 일이 없어요</div>}
+                {groupTodos.length === 0 && <div className="nb-next-empty">이 회의에 내 할 일이 없어요</div>}
                 {fg && (
                   <form
                     className="nb-todo-add"

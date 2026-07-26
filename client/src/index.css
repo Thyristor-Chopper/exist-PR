@@ -10103,6 +10103,23 @@ input:focus {
   flex-shrink: 0;
 }
 
+/* 채널 이름 수정 연필 — 삭제 ×와 같은 hover 노출 패턴 */
+.hub-channel-edit {
+  opacity: 0;
+  font-size: 12px;
+  padding: 0 3px;
+  flex-shrink: 0;
+}
+
+.hub-channel-item:hover .hub-channel-edit {
+  opacity: 0.5;
+}
+
+.hub-channel-edit:hover {
+  opacity: 1 !important;
+  color: var(--green-dark);
+}
+
 .hub-channel-item:hover .hub-channel-del {
   opacity: 0.5;
 }

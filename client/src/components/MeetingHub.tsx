@@ -52,6 +52,8 @@ interface ChatChannel {
   id: number;
   name: string;
   isDefault: boolean;
+  /** 만든 사람 — 이름 수정 버튼 노출 판단 (수정 권한: 만든 사람·호스트·조직 관리자) */
+  createdBy?: number;
 }
 
 interface MeetingDetail {
@@ -374,6 +376,8 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   const [channelUnread, setChannelUnread] = useState<Record<number, number>>({}); // 세션 내 안읽음 점
   const [newChannelOpen, setNewChannelOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
+  const [editChannelId, setEditChannelId] = useState<number | null>(null);
+  const [editChannelName, setEditChannelName] = useState('');
   const activeChannelRef = useRef<number | null>(null);
   activeChannelRef.current = activeChannel;
   const [filesMounted, setFilesMounted] = useState(false); // 공동편집(파일시스템)은 한 번 열면 마운트 유지
@@ -710,6 +714,25 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
       setActiveChannel(ch.id);
       setNewChannelName('');
       setNewChannelOpen(false);
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
+  async function renameChannel(e: React.FormEvent) {
+    e.preventDefault();
+    const name = editChannelName.trim();
+    if (!name || editChannelId == null) {
+      setEditChannelId(null);
+      return;
+    }
+    try {
+      const r = await api<{ id: number; name: string }>(
+        `/api/meetings/${code}/channels/${editChannelId}`,
+        { method: 'PATCH', body: { name } },
+      );
+      setChannels((prev) => prev.map((c) => (c.id === r.id ? { ...c, name: r.name } : c)));
+      setEditChannelId(null);
     } catch {
       /* 전역 토스트 */
     }
@@ -1702,29 +1725,57 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                 </button>
               </div>
               <div className="hub-channels-list">
-                {channels.map((ch) => (
-                  <button
-                    key={ch.id}
-                    className={`hub-channel-item${ch.id === activeChannel ? ' active' : ''}`}
-                    onClick={() => setActiveChannel(ch.id)}
-                  >
-                    <span className="hub-channel-hash">#</span>
-                    <Marquee className="hub-channel-name">{ch.name}</Marquee>
-                    {(channelUnread[ch.id] ?? 0) > 0 && <i className="hub-channel-dot" />}
-                    {(detail?.isHost || detail?.canManage) && !ch.isDefault && (
-                      <span
-                        className="hub-channel-del"
-                        title="채널 삭제"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void deleteChannel(ch);
+                {channels.map((ch) =>
+                  editChannelId === ch.id ? (
+                    <form key={ch.id} className="hub-channel-new" onSubmit={renameChannel}>
+                      <input
+                        autoFocus
+                        value={editChannelName}
+                        onChange={(e) => setEditChannelName(e.target.value)}
+                        onBlur={() => setEditChannelId(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') setEditChannelId(null);
                         }}
-                      >
-                        ×
-                      </span>
-                    )}
-                  </button>
-                ))}
+                        maxLength={24}
+                      />
+                    </form>
+                  ) : (
+                    <button
+                      key={ch.id}
+                      className={`hub-channel-item${ch.id === activeChannel ? ' active' : ''}`}
+                      onClick={() => setActiveChannel(ch.id)}
+                    >
+                      <span className="hub-channel-hash">#</span>
+                      <Marquee className="hub-channel-name">{ch.name}</Marquee>
+                      {(channelUnread[ch.id] ?? 0) > 0 && <i className="hub-channel-dot" />}
+                      {(detail?.isHost || detail?.canManage || ch.createdBy === user?.id) && (
+                        <span
+                          className="hub-channel-edit"
+                          title="채널 이름 수정"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditChannelId(ch.id);
+                            setEditChannelName(ch.name);
+                          }}
+                        >
+                          ✎
+                        </span>
+                      )}
+                      {(detail?.isHost || detail?.canManage) && !ch.isDefault && (
+                        <span
+                          className="hub-channel-del"
+                          title="채널 삭제"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void deleteChannel(ch);
+                          }}
+                        >
+                          ×
+                        </span>
+                      )}
+                    </button>
+                  ),
+                )}
                 {newChannelOpen && (
                   <form className="hub-channel-new" onSubmit={createChannel}>
                     <input
