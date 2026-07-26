@@ -13412,7 +13412,7 @@ input:focus {
 .avatar-circle {
   width: 72px;
   height: 72px;
-  border-radius: 50%;
+  border-radius: 22px; /* 아바타 규칙: 정사각 + 살짝 radius (원형 금지) */
   background: var(--green);
   display: grid;
   place-items: center;
@@ -13424,6 +13424,35 @@ input:focus {
 .filmstrip .avatar-circle {
   width: 44px;
   height: 44px;
+  font-size: 18px;
+}
+
+/* 카메라 꺼짐 placeholder — 실제 프로필 아바타 (이미지·이모지, 정사각+radius) */
+.video-placeholder .video-ph-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  font-size: 40px;
+}
+
+.video-placeholder .video-ph-avatar .avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.filmstrip .video-ph-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 22px;
+}
+
+.hub-call.mini .video-ph-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   font-size: 18px;
 }
 
@@ -14057,6 +14086,13 @@ input:focus {
 
   .video-grid.filmstrip {
     flex: 0 0 96px;
+  }
+
+  /* 3명 이상: 1열 스택은 행 높이가 그리드를 넘쳐 타일이 서로 겹침(5인 실측) —
+     행 시작 정렬 + 세로 스크롤로 잘림 방지 */
+  .video-grid:not(.filmstrip):not(.count-1):not(.count-2) {
+    align-content: start;
+    overflow-y: auto;
   }
 
   .video-grid.filmstrip .video-tile {
@@ -15928,5 +15964,16 @@ input:focus {
   .meeting-controls .ctl-split button.dev-arrow {
     width: 25px;
     height: 48px;
+  }
+}
+
+/* 폰 폭: 3명 이상 통화는 2열 정사각 그리드 (1열 16:9 스택은 5인에 2.5명만 보임 — Meet식) */
+@media (max-width: 640px) {
+  .video-grid:not(.filmstrip):not(.count-1):not(.count-2) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .video-grid:not(.filmstrip):not(.count-1):not(.count-2) .video-tile {
+    aspect-ratio: 1 / 1;
   }
 }
