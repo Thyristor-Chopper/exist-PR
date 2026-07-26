@@ -12121,10 +12121,14 @@ input:focus {
 }
 
 .orgchart-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
   border: 1px dashed var(--green);
   background: var(--green-soft);
   border-radius: 9px;
-  padding: 9px 13px;
+  padding: 0 13px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-sub);

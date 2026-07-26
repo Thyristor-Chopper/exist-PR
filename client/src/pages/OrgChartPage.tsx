@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useOrgStore } from '../orgStore';
 import Logo from '../components/Logo';
 import Avatar from '../components/Avatar';
-import { BuildingIcon, UsersIcon } from '../components/Icons';
+import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon } from '../components/Icons';
 import { POSITIONS } from '../lib/positions';
 import InsightsPanel from '../components/InsightsPanel';
 
@@ -189,7 +189,8 @@ export default function OrgChartPage() {
                   onClick={() => void copyInviteLink()}
                   title="초대 링크 복사 — 받은 사람은 링크만 누르면 자동으로 가입 신청돼요"
                 >
-                  {linkCopied ? '✓ 복사됨' : '🔗 초대 링크'}
+                  {linkCopied ? <CheckMarkIcon size={13} /> : <ShareIcon size={13} />}
+                  {linkCopied ? '복사됨' : '초대 링크'}
                 </button>
               </span>
             )}
