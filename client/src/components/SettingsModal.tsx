@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useAuthStore } from '../store';
+import { useNameStore } from '../names';
 import Avatar from './Avatar';
 import { SunIcon, MoonIcon } from './Icons';
 
@@ -60,6 +61,7 @@ export default function SettingsModal({ open, onClose, avatar, onAvatarChange }:
           const u = useAuthStore.getState().user;
           if (u) useAuthStore.setState({ user: { ...u, name: r.name } });
         }
+        void useNameStore.getState().load();
       }
       if (next) {
         await api('/api/auth/password', {

@@ -15,6 +15,7 @@ import RecapPanel from './RecapPanel';
 import { DmWindow, type DmScope, type Thread } from './DirectMessages';
 import MentionInput, { type MentionCandidate } from './MentionInput';
 import { togglePin, isPinned, PINS_EVENT } from '../lib/pins';
+import { useDisplayName } from '../names';
 import {
   PhoneIcon,
   CalendarIcon,
@@ -189,6 +190,7 @@ const PIP_TILE_H = 180;
 function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }: Props) {
   const user = useAuthStore((s) => s.user);
   const presence = usePresence();
+  const dn = useDisplayName();
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [subtab, setSubtab] = useState<SubTab>('dash');
   const [inCall, setInCall] = useState(false);
@@ -777,7 +779,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     };
   }, [code]);
   async function kickParticipant(username: string) {
-    if (!confirm(`${username} 님을 그룹에서 내보낼까요?`)) return;
+    if (!confirm(`${dn(username)} 님을 그룹에서 내보낼까요?`)) return;
     try {
       await api(`/api/meetings/${code}/participants/${encodeURIComponent(username)}`, {
         method: 'DELETE',
@@ -788,7 +790,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }
   }
   async function transferHost(username: string) {
-    if (!confirm(`${username} 님에게 호스트를 위임할까요?`)) return;
+    if (!confirm(`${dn(username)} 님에게 호스트를 위임할까요?`)) return;
     try {
       await api(`/api/meetings/${code}/host`, { method: 'PATCH', body: { username } });
       void reloadDetail();
@@ -956,7 +958,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                       </button>
                     </h2>
                     <div className="hub-hero-sub">
-                      호스트 <b>{detail.host}</b>
+                      호스트 <b>{dn(detail.host)}</b>
                       {detail.isHost && ' (나)'}
                       {detail.orgName && <span className="hub-sub-org"> · {detail.orgName}</span>}
                     </div>
@@ -1146,7 +1148,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                         <div className="hub-preview">
                           {messages.slice(-3).map((m, i) => (
                             <div key={i} className="hub-preview-msg">
-                              <b>{m.from}</b>
+                              <b>{dn(m.from)}</b>
                               <Marquee className="hub-preview-text">{m.text}</Marquee>
                             </div>
                           ))}
@@ -1235,7 +1237,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                           value={p?.avatar ?? null}
                                           className="hub-assign-avatar"
                                         />
-                                        <span>{name}</span>
+                                        <span>{dn(name)}</span>
                                       </div>
                                     );
                                   })}
@@ -1254,7 +1256,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                         <CheckMarkIcon size={13} />
                                       </span>
                                       <Avatar value={p.avatar} className="hub-assign-avatar" />
-                                      <span className="hub-assign-name">{p.username}</span>
+                                      <span className="hub-assign-name">{dn(p.username)}</span>
                                     </label>
                                   ))}
                                 </div>
@@ -1305,7 +1307,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                   <CheckMarkIcon size={13} />
                                 </span>
                                 <Avatar value={p.avatar} className="hub-assign-avatar" />
-                                <span className="hub-assign-name">{p.username}</span>
+                                <span className="hub-assign-name">{dn(p.username)}</span>
                               </label>
                             ))}
                           </div>
@@ -1333,7 +1335,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                   <Avatar value={p.avatar} className="hub-pcard-avatar" />
                                   <span className="hub-pcard-info">
                                     <span className="hub-pcard-name">
-                                      {p.username}
+                                      {dn(p.username)}
                                       {p.role === 'owner' && (
                                         <span className="hub-pcard-badge">소유자</span>
                                       )}
@@ -1354,7 +1356,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                     <button
                                       type="button"
                                       className="hub-pcard-dm"
-                                      title={`${p.username}님에게 메시지`}
+                                      title={`${dn(p.username)}님에게 메시지`}
                                       onClick={() => openDm(p)}
                                     >
                                       <ChatIcon size={14} />
@@ -1436,7 +1438,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                     <Avatar value={p.avatar} className="hub-set-avatar" />
                     <span className="hub-set-info">
                       <span className="hub-set-name">
-                        {p.username}
+                        {dn(p.username)}
                         {p.isHost && <span className="hub-set-badge host">호스트</span>}
                         {p.role === 'owner' && <span className="hub-set-badge">소유자</span>}
                         {p.role === 'admin' && <span className="hub-set-badge admin">관리자</span>}
@@ -1786,7 +1788,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             onMouseEnter={(e) => showProfileCard(m.from, e.currentTarget)}
                             onMouseLeave={hideProfileCardSoon}
                           >
-                            {m.from}
+                            {dn(m.from)}
                           </span>
                         )}
                         <div className="chat-line">
@@ -1882,7 +1884,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
             <Avatar value={pcard.p.avatar} className="profile-card-avatar" />
             <div className="profile-card-meta">
               <b>
-                {pcard.p.username}
+                {dn(pcard.p.username)}
                 {pcard.p.isHost && <span className="profile-card-host">호스트</span>}
               </b>
               <span>

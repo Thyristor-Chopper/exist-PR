@@ -20,6 +20,7 @@ import {
 } from './Icons';
 import { getSocket } from '../lib/socket';
 import { useOrgStore } from '../orgStore';
+import { useDisplayName } from '../names';
 
 function ThemeToggle() {
   const [dark, setDark] = useState(() =>
@@ -349,13 +350,14 @@ function ProfileMenu({
 }) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const dn = useDisplayName();
   return (
     <div className="nowbar-profile">
       <Avatar value={avatar} className="nowbar-avatar" />
       <div className="profile-menu">
         <div className="profile-menu-box">
           <div className="profile-name">
-            <Avatar value={avatar} className="profile-name-avatar" /> <b>{user?.username}</b>
+            <Avatar value={avatar} className="profile-name-avatar" /> <b>{dn(user?.username)}</b>
           </div>
           <button className="profile-item" onClick={onOpenSettings}>
             <GearIcon size={16} /> 설정
@@ -377,6 +379,7 @@ function NowBar({
   onSchedule,
   onToggleSidebar,
 }: Props) {
+  const dn = useDisplayName();
   const [newTodo, setNewTodo] = useState('');
   const [groupTodos, setGroupTodos] = useState<Todo[]>([]);
   const [now, setNow] = useState(() => new Date());
@@ -800,7 +803,7 @@ function NowBar({
             <div className="nb-current-text">
               {notifs.length > 0 ? (
                 <>
-                  <Marquee className="title">{notifs[0].from}</Marquee>
+                  <Marquee className="title">{dn(notifs[0].from)}</Marquee>
                   <Marquee className="countdown">{notifs[0].text}</Marquee>
                 </>
               ) : (
@@ -1009,7 +1012,7 @@ function NowBar({
                       )}
                       <div className="nb-notif-erow-body">
                         <div className="nb-notif-erow-top">
-                          <span className="nb-notif-from">{n.from}</span>
+                          <span className="nb-notif-from">{dn(n.from)}</span>
                           <span className="nb-notif-etime">{relTime(n.ts)}</span>
                         </div>
                         <div className="nb-notif-etext">{n.text}</div>

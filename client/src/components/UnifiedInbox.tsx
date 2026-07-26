@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useDisplayName } from '../names';
 import Avatar from './Avatar';
 import Marquee from './Marquee';
 import MeetingThumb from './MeetingThumb';
@@ -40,6 +41,7 @@ interface UItem {
 }
 
 export default function UnifiedInbox({ scope }: { scope: DmScope }) {
+  const dn = useDisplayName();
   const [groups, setGroups] = useState<InboxItem[]>([]);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activePeer, setActivePeer] = useState<Thread | null>(null);
@@ -96,7 +98,7 @@ export default function UnifiedInbox({ scope }: { scope: DmScope }) {
       (t): UItem => ({
         key: 'd' + t.userId,
         kind: 'dm',
-        name: t.username,
+        name: dn(t.username),
         avatar: t.avatar,
         lastText: t.lastText,
         lastTs: t.lastTs ?? 0,
@@ -157,7 +159,7 @@ export default function UnifiedInbox({ scope }: { scope: DmScope }) {
             {hits.map((h) => (
               <button key={h.userId} className="dm-search-hit" onClick={() => openHit(h)}>
                 <Avatar value={h.avatar} className="dm-item-avatar" />
-                <span className="dm-item-name">{h.username}</span>
+                <span className="dm-item-name">{dn(h.username)}</span>
               </button>
             ))}
           </div>

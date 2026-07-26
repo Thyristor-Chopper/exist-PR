@@ -207,6 +207,12 @@ router.get('/me', requireAuth, (req: AuthedRequest, res) => {
   res.json(me);
 });
 
+/** 표시 이름 디렉터리 — username → name. 클라가 아이디 대신 이름을 보여줄 때 쓴다 */
+router.get('/names', requireAuth, (_req, res) => {
+  const rows = db.prepare('SELECT username, name FROM users WHERE name IS NOT NULL').all();
+  res.json(rows);
+});
+
 /** 프로필 수정 — 아바타·이름·이메일·전화번호·주소 (넘어온 필드만 갱신, 빈 문자열 = 지움) */
 router.patch('/me', requireAuth, (req: AuthedRequest, res) => {
   const { avatar, name, email, phone, address } = req.body ?? {};

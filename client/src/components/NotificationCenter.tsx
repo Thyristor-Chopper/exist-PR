@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { getSocket } from '../lib/socket';
+import { useDisplayName } from '../names';
 import { BellIcon, PhoneIcon, SparklesIcon } from './Icons';
 import MeetingThumb from './MeetingThumb';
 
@@ -32,6 +33,7 @@ export default function NotificationCenter() {
   const [open, setOpen] = useState(false);
   const [past, setPast] = useState(false); // 지난(치운) 알림까지 보기
   const ref = useRef<HTMLDivElement>(null);
+  const dn = useDisplayName(); // 발신자 아이디 → 표시 이름 (과거 저장 알림 커버)
 
   // 초기 로드 (현재 알림 + 안읽음 수)
   useEffect(() => {
@@ -168,7 +170,7 @@ export default function NotificationCenter() {
                   )}
                   <div className="notif-item-main">
                     <div className="notif-item-top">
-                      <span className="notif-from">{n.from}</span>
+                      <span className="notif-from">{dn(n.from)}</span>
                       <span className="notif-time">{relTime(n.ts)}</span>
                     </div>
                     <div className="notif-text">{n.text}</div>

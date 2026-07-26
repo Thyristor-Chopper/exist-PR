@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { getSocket } from '../lib/socket';
 import { useAuthStore } from '../store';
+import { useDisplayName } from '../names';
 import Avatar from './Avatar';
 import Marquee from './Marquee';
 import { ChatIcon, CloseIcon } from './Icons';
@@ -91,6 +92,7 @@ export function DmWindow({
   onActivity: () => void;
 }) {
   const scopeOrg = scope === 'personal' ? null : scope;
+  const dn = useDisplayName();
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -198,7 +200,7 @@ export function DmWindow({
       <div className="dm-window-head">
         <Avatar value={peer.avatar} className="dm-head-avatar" />
         <div className="dm-head-info">
-          <span className="dm-head-name">{peer.username}</span>
+          <span className="dm-head-name">{dn(peer.username)}</span>
           {(peer.department || peer.position) && (
             <span className="dm-head-sub">
               {[peer.department, peer.position].filter(Boolean).join(' · ')}
@@ -214,7 +216,7 @@ export function DmWindow({
         {messages.length === 0 && (
           <div className="chat-empty">
             <ChatIcon size={34} />
-            <p>{peer.username}님과의 대화</p>
+            <p>{dn(peer.username)}님과의 대화</p>
             <span>첫 메시지를 보내보세요</span>
           </div>
         )}
@@ -275,6 +277,7 @@ export interface SearchHit {
 }
 
 export default function DirectMessages({ scope }: { scope: DmScope }) {
+  const dn = useDisplayName();
   const myId = useAuthStore((s) => s.user?.id);
   const personal = scope === 'personal';
   const scopeOrg = personal ? null : scope;
@@ -390,7 +393,7 @@ export default function DirectMessages({ scope }: { scope: DmScope }) {
               {hits.map((h) => (
                 <button key={h.userId} className="dm-search-hit" onClick={() => openHit(h)}>
                   <Avatar value={h.avatar} className="dm-item-avatar" />
-                  <span className="dm-item-name">{h.username}</span>
+                  <span className="dm-item-name">{dn(h.username)}</span>
                 </button>
               ))}
             </div>
@@ -413,7 +416,7 @@ export default function DirectMessages({ scope }: { scope: DmScope }) {
             <Avatar value={t.avatar} className="dm-item-avatar" />
             <div className="dm-item-main">
               <div className="dm-item-top">
-                <Marquee className="dm-item-name">{t.username}</Marquee>
+                <Marquee className="dm-item-name">{dn(t.username)}</Marquee>
                 {t.lastTs && <span className="dm-item-time">{relTime(t.lastTs)}</span>}
               </div>
               <div className="dm-item-preview">

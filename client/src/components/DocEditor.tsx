@@ -296,7 +296,7 @@ export default function DocEditor({
     if (!p) return;
     if (active) {
       const cur = p.awareness.getLocalState();
-      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.username ?? '익명', color } });
+      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.name || user?.username || '익명', color } });
     } else {
       p.awareness.setLocalState(null);
     }
@@ -479,7 +479,7 @@ export default function DocEditor({
               Collaboration.configure({ document: conn.ydoc, field: `doc:${activeId}` }),
               CollaborationCaret.configure({
                 provider: conn.provider,
-                user: { name: user?.username ?? '익명', color },
+                user: { name: user?.name || user?.username || '익명', color },
               }),
             ]
           : baseExtensions,

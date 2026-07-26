@@ -8,6 +8,7 @@ import MeetingRoomPage from './pages/MeetingRoomPage';
 import OrgChartPage from './pages/OrgChartPage';
 import JoinPage from './pages/JoinPage';
 import ErrorToasts from './components/ErrorToasts';
+import { useLoadNames } from './names';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -15,6 +16,7 @@ function Protected({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useLoadNames(); // 표시 이름 디렉터리 — 아이디 대신 이름으로 보여주기 위한 전역 맵
   return (
     <BrowserRouter>
       <ErrorToasts />

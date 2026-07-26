@@ -161,7 +161,7 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
     };
     provider.awareness.on('change', onAwareness);
     const color = COLORS[(user?.id ?? 0) % COLORS.length];
-    provider.awareness.setLocalStateField('user', { name: user?.username ?? '익명', color });
+    provider.awareness.setLocalStateField('user', { name: user?.name || user?.username || '익명', color });
 
     return () => {
       slidesMap.unobserve(syncSlides);
@@ -205,7 +205,7 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
     if (active) {
       const color = COLORS[(user?.id ?? 0) % COLORS.length];
       const cur = p.awareness.getLocalState();
-      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.username ?? '익명', color } });
+      p.awareness.setLocalState({ ...(cur ?? {}), user: { name: user?.name || user?.username || '익명', color } });
     } else {
       p.awareness.setLocalState(null);
     }

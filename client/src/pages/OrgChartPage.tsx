@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useOrgStore } from '../orgStore';
+import { useDisplayName } from '../names';
 import Logo from '../components/Logo';
 import Avatar from '../components/Avatar';
 import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon, PenIcon } from '../components/Icons';
@@ -123,6 +124,7 @@ export default function OrgChartPage() {
   const { id } = useParams();
   const orgId = Number(id);
   const navigate = useNavigate();
+  const dn = useDisplayName();
   const reloadOrgs = useOrgStore((s) => s.load);
   const [detail, setDetail] = useState<OrgDetail | null>(null);
   const [copied, setCopied] = useState(false);
@@ -167,8 +169,8 @@ export default function OrgChartPage() {
   async function remove(userId: number, mode: 'remove' | 'reject' = 'remove', username = '') {
     const msg =
       mode === 'reject'
-        ? `${username}님의 가입 신청을 거절할까요?`
-        : `${username}님을 조직에서 내보낼까요?\n소속 정보(직급·부서·역할)가 사라져요.`;
+        ? `${dn(username)}님의 가입 신청을 거절할까요?`
+        : `${dn(username)}님을 조직에서 내보낼까요?\n소속 정보(직급·부서·역할)가 사라져요.`;
     if (!window.confirm(msg)) return;
     await api(`/api/orgs/${orgId}/members/${userId}`, { method: 'DELETE' });
     await refresh();
@@ -237,7 +239,7 @@ export default function OrgChartPage() {
     const holders = (detail?.members ?? []).filter((m) => m.roleId === role.id);
     const warn =
       holders.length > 0
-        ? `\n이 역할을 가진 ${holders.length}명(${holders.slice(0, 3).map((h) => h.username).join(', ')}${holders.length > 3 ? '…' : ''})은 일반 멤버로 돌아가요.`
+        ? `\n이 역할을 가진 ${holders.length}명(${holders.slice(0, 3).map((h) => dn(h.username)).join(', ')}${holders.length > 3 ? '…' : ''})은 일반 멤버로 돌아가요.`
         : '';
     if (!window.confirm(`역할 "${role.name}"을(를) 삭제할까요?${warn}`)) return;
     await api(`/api/orgs/${orgId}/roles/${role.id}`, { method: 'DELETE' });
@@ -420,7 +422,7 @@ export default function OrgChartPage() {
                 <div key={p.userId} className="orgchart-pending-row">
                   <span className="orgchart-pending-id">
                     <Avatar value={p.avatar} className="orgchart-avatar sm" />
-                    {p.username}
+                    {dn(p.username)}
                   </span>
                   <select
                     className="org-field-select"
@@ -599,7 +601,7 @@ export default function OrgChartPage() {
                         <Avatar value={m.avatar} className="orgchart-avatar" />
                         <div className="orgchart-info">
                           <div className="orgchart-name">
-                            {m.username}
+                            {dn(m.username)}
                             {m.role !== 'member' && (
                               <span className={`org-role ${m.role}`}>{ROLE_LABEL[m.role]}</span>
                             )}
@@ -706,7 +708,7 @@ export default function OrgChartPage() {
                       {auditRows.map((r) => (
                         <div key={r.id} className="org-audit-row">
                           <span className="org-audit-time">{r.at.slice(5, 16)}</span>
-                          <b className="org-audit-actor">{r.actor}</b>
+                          <b className="org-audit-actor">{dn(r.actor)}</b>
                           <span className="org-audit-text">{r.text}</span>
                         </div>
                       ))}

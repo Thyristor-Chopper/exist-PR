@@ -224,7 +224,7 @@ export default function CodeDocEditor({
       const cur = p.awareness.getLocalState();
       p.awareness.setLocalState({
         ...(cur ?? {}),
-        user: { name: user?.username ?? '익명', color, colorLight: color + '33' },
+        user: { name: user?.name || user?.username || '익명', color, colorLight: color + '33' },
       });
     } else {
       p.awareness.setLocalState(null);
@@ -278,7 +278,7 @@ export default function CodeDocEditor({
 
     const color = CURSOR_COLORS[(user?.id ?? 0) % CURSOR_COLORS.length];
     provider.awareness.setLocalStateField('user', {
-      name: user?.username ?? '익명',
+      name: user?.name || user?.username || '익명',
       color,
       colorLight: color + '33',
     });

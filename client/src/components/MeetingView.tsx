@@ -4,6 +4,7 @@ import type { Transport, Producer } from 'mediasoup-client/types';
 import { getSocket, request } from '../lib/socket';
 import { api } from '../api';
 import { useAuthStore } from '../store';
+import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
@@ -202,6 +203,7 @@ export default function MeetingView({
   mentionCandidates,
 }: MeetingViewProps) {
   const user = useAuthStore((s) => s.user);
+  const dn = useDisplayName();
 
   const [status, setStatus] = useState('연결 중…');
   const [title, setTitle] = useState('');
@@ -455,7 +457,7 @@ export default function MeetingView({
           ),
         ]);
       } catch {
-        localStream = makeFallbackStream(user?.username ?? 'me');
+        localStream = makeFallbackStream(displayNameOf(user?.username ?? 'me'));
         setStatus('카메라·마이크를 잡지 못했어요 — 데모 화면 송출 중 (다른 프로그램 점유 확인)');
       }
       if (closed) return;
@@ -972,7 +974,7 @@ export default function MeetingView({
               }}
             >
               <span>● {onlinePeers.length}명 통화 중</span>
-              {/* 겹친 아바타 스택 + hover 전체 프로필 리스트 (공동편집 접속자와 동일 톤) */}
+              {/* 겹친 아바타 스택 + hover 전체 프로필 리스트 (공동편집 접속자와 동일 톤, 이름 우선) */}
               <span className="cf-presence">
                 {onlinePeers.slice(0, 4).map((name) => (
                   <Avatar
@@ -988,7 +990,7 @@ export default function MeetingView({
                   {onlinePeers.map((name) => (
                     <span key={name} className="hub-assign-tip-row">
                       <Avatar value={peerAvatars?.[name] ?? null} className="hub-assign-avatar" />
-                      <span>{name}</span>
+                      <span>{dn(name)}</span>
                     </span>
                   ))}
                 </span>
@@ -1019,7 +1021,7 @@ export default function MeetingView({
             >
               <VideoTile
                 track={previewTrack}
-                username={user?.username ?? '나'}
+                username={dn(user?.username ?? '나')}
                 muted
                 isLocal
                 paused={!camOn}
@@ -1127,7 +1129,7 @@ export default function MeetingView({
                 <VideoTile
                   key={s.key}
                   track={s.track}
-                  username={s.username}
+                  username={dn(s.username)}
                   muted={s.isLocal}
                   isLocal={s.isLocal}
                   isScreen
@@ -1140,7 +1142,7 @@ export default function MeetingView({
           >
             <VideoTile
               track={localTrack}
-              username={user?.username ?? '나'}
+              username={dn(user?.username ?? '나')}
               muted
               isLocal
               paused={!camOn}
@@ -1149,7 +1151,7 @@ export default function MeetingView({
               <div key={p.peerId} className="peer-cell">
                 <VideoTile
                   track={p.videoTrack}
-                  username={p.username}
+                  username={dn(p.username)}
                   paused={p.videoPaused}
                   onKick={
                     isHost
@@ -1166,7 +1168,7 @@ export default function MeetingView({
         {/* 라이브 자막 — 발화가 전사되는 순간 표시 (recap·결정 원장의 근거가 됨) */}
         {caption && (
           <div className={`call-caption${caption.interim ? ' interim' : ''}`}>
-            <b>{caption.username}</b> {caption.text}
+            <b>{dn(caption.username)}</b> {caption.text}
             {caption.interim && '…'}
           </div>
         )}
@@ -1183,7 +1185,7 @@ export default function MeetingView({
               {messages.length === 0 && <div className="chat-empty">아직 메시지가 없어요</div>}
               {messages.map((m, i) => (
                 <div key={i} className={`chat-msg${m.from === user?.username ? ' mine' : ''}`}>
-                  <span className="chat-from">{m.from}</span>
+                  <span className="chat-from">{dn(m.from)}</span>
                   <div className="chat-bubble">{m.text}</div>
                 </div>
               ))}
