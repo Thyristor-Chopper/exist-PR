@@ -265,16 +265,6 @@ router.post('/:scope/with/:userId', (req: AuthedRequest, res) => {
   const text = String(req.body?.text ?? '').trim().slice(0, 2000);
   if (!text) return res.status(400).json({ error: '메시지를 입력하세요' });
 
-  // 알림 스팸 방지: 이미 안읽음이 쌓여 있으면(=이번 버스트에서 이미 알림 감) 추가 알림 생략
-  const sc = scopeClause(orgId);
-  const unreadBefore = (
-    db
-      .prepare(
-        `SELECT COUNT(*) AS c FROM dm_messages WHERE ${sc.sql} AND from_id = ? AND to_id = ? AND read = 0`,
-      )
-      .get(...sc.args, me, peer) as { c: number }
-  ).c;
-
   const info = db
     .prepare('INSERT INTO dm_messages (org_id, from_id, to_id, text) VALUES (?, ?, ?, ?)')
     .run(orgId, me, peer, text);
@@ -299,8 +289,8 @@ router.post('/:scope/with/:userId', (req: AuthedRequest, res) => {
   emitToUser(me, 'dm:message', payload);
   invalidateBrief(peer); // 받는 쪽 안읽음이 늘었다 — 브리핑 갱신
 
-  // 알림 센터·웹푸시 연결 — 이 DM 창을 보고 있는 중이거나 버스트 중복이면 생략
-  if (!isViewingDm(peer, me) && unreadBefore === 0) {
+  // 알림 센터·웹푸시 연결 — 메시지마다 알림, 단 이 DM 창을 보고 있는 중이면 생략 (7/27 버스트 억제 제거, 주호 결정)
+  if (!isViewingDm(peer, me)) {
     notifyUser(peer, {
       from: req.username!,
       text: text.length > 80 ? `${text.slice(0, 80)}…` : text,
