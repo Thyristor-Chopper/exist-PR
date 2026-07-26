@@ -1038,7 +1038,7 @@ export default function MeetingView({
               <VideoTile
                 track={previewTrack}
                 username={dn(user?.username ?? '나')}
-                avatar={user?.avatar ?? null}
+                avatar={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
                 isLocal
                 paused={!camOn}
               />
@@ -1175,7 +1175,7 @@ export default function MeetingView({
             <VideoTile
               track={localTrack}
               username={dn(user?.username ?? '나')}
-              avatar={user?.avatar ?? null}
+              avatar={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
               isLocal
               paused={!camOn}
             />
