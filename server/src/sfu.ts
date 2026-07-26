@@ -17,6 +17,7 @@ import db from './db.js';
 import { scheduleRecap, cancelScheduledRecap } from './recap.js';
 import { invalidateBriefForMeeting } from './agent.js';
 import { canManageMeeting } from './perm.js';
+import { audit as orgAudit } from './orgs.js';
 import { resolveChannel } from './channels.js';
 import { AGENT_MENTION, handleAgentQuery, maybeSuggestDecision } from './steward.js';
 
@@ -330,11 +331,13 @@ export function attachSfu(io: Server) {
     socket.on('room:lock', ({ locked }: { locked: boolean }, ack) => {
       if (!room || !peer) return ack?.({ error: '방에 입장하지 않았습니다' });
       const meetingRef = db
-        .prepare('SELECT host_id, org_id FROM meetings WHERE code = ?')
-        .get(room.code) as { host_id: number; org_id: number | null } | undefined;
+        .prepare('SELECT host_id, org_id, title FROM meetings WHERE code = ?')
+        .get(room.code) as { host_id: number; org_id: number | null; title: string } | undefined;
       if (!meetingRef || !canManageMeeting(meetingRef, peer.userId, 'group:lock')) {
         return ack?.({ error: '잠금 권한이 없습니다' });
       }
+      if (meetingRef.org_id && room.locked !== !!locked)
+        orgAudit(meetingRef.org_id, peer.userId, 'group.lock', null, `그룹 "${meetingRef.title}" 통화 중 잠금 ${locked ? '설정' : '해제'}`);
       room.locked = !!locked;
       io.to(`room:${room.code}`).emit('room:locked', { locked: room.locked });
       ack?.({ ok: true });
@@ -352,6 +355,8 @@ export function attachSfu(io: Server) {
       const target = io.sockets.sockets.get(peerId);
       const targetPeer = room.peers.get(peerId);
       if (!target || !targetPeer) return ack?.({ error: '대상이 없습니다' });
+      if (kickRef.org_id)
+        orgAudit(kickRef.org_id, peer.userId, 'group.kick', targetPeer.userId, `통화에서 ${targetPeer.username}님 강퇴`);
       room.kickedUserIds.add(targetPeer.userId); // 방이 닫힐 때까지 재입장 차단
       target.emit('room:kicked');
       // 알림 패킷 플러시 후 끊기 — disconnect 핸들러가 transport 정리 + peer:left 전파

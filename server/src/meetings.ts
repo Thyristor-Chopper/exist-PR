@@ -8,7 +8,7 @@ import { requireAuth, type AuthedRequest } from './auth.js';
 import { invalidateBrief } from './agent.js';
 import { emitToUser, notifyUser } from './notify.js';
 import { getRoomSize, getRoomPeers } from './sfu.js';
-import { isMember } from './orgs.js';
+import { isMember, audit as orgAudit } from './orgs.js';
 import { canManageMeeting } from './perm.js';
 import { byPositionDesc } from './positions.js';
 import {
@@ -574,9 +574,9 @@ router.get('/:code', (req: AuthedRequest, res) => {
 /** 회의 설정/권한 변경 (호스트·조직 관리자) */
 router.patch('/:code/settings', (req: AuthedRequest, res) => {
   const meeting = db
-    .prepare('SELECT id, host_id, org_id, settings FROM meetings WHERE code = ?')
+    .prepare('SELECT id, host_id, org_id, title, settings FROM meetings WHERE code = ?')
     .get(String(req.params.code ?? '').toUpperCase()) as
-    | { id: number; host_id: number; org_id: number | null; settings: string | null }
+    | { id: number; host_id: number; org_id: number | null; title: string; settings: string | null }
     | undefined;
   if (!meeting) return res.status(404).json({ error: '회의를 찾을 수 없어요' });
   const { locked, guestEdit, muteOnJoin } = req.body ?? {};
@@ -598,6 +598,12 @@ router.patch('/:code/settings', (req: AuthedRequest, res) => {
     return res.status(403).json({ error: '그룹 설정을 변경할 권한이 없어요' });
   }
   db.prepare('UPDATE meetings SET settings = ? WHERE id = ?').run(JSON.stringify(settings), meeting.id);
+  if (meeting.org_id) {
+    if (settings.locked !== !!cur.locked)
+      orgAudit(meeting.org_id, req.userId!, 'group.lock', null, `그룹 "${meeting.title}" 입장 잠금 ${settings.locked ? '설정' : '해제'}`);
+    if (settings.guestEdit !== (cur.guestEdit !== false) || settings.muteOnJoin !== !!cur.muteOnJoin)
+      orgAudit(meeting.org_id, req.userId!, 'group.settings', null, `그룹 "${meeting.title}" 설정 변경`);
+  }
   res.json({ settings });
 });
 
@@ -645,6 +651,8 @@ router.delete('/:code/participants/:username', (req: AuthedRequest, res) => {
     text: '회의에서 내보내졌어요.',
     meetingCode: code,
   });
+  if (meeting.org_id)
+    orgAudit(meeting.org_id, req.userId!, 'group.kick', target.id, `그룹 "${meeting.title}"에서 ${target.username}님 내보내기`);
   res.json({ ok: true });
 });
 
@@ -662,6 +670,10 @@ router.patch('/:code/host', (req: AuthedRequest, res) => {
     .get(String(req.body?.username)) as { id: number } | undefined;
   if (!target) return res.status(404).json({ error: '사용자를 찾을 수 없어요' });
   db.prepare('UPDATE meetings SET host_id = ? WHERE id = ?').run(target.id, meeting.id);
+  if (meeting.org_id) {
+    const t = db.prepare('SELECT title FROM meetings WHERE id = ?').get(meeting.id) as { title: string };
+    orgAudit(meeting.org_id, req.userId!, 'group.transfer', target.id, `그룹 "${t.title}" 호스트를 ${String(req.body?.username)}님에게 위임`);
+  }
   res.json({ ok: true });
 });
 
@@ -747,6 +759,10 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   if (!meeting) return res.status(404).json({ error: '존재하지 않는 회의입니다' });
   if (!canManageMeeting(meeting, req.userId!, 'group:delete')) {
     return res.status(403).json({ error: '호스트나 조직 관리자만 삭제할 수 있어요' });
+  }
+  if (meeting.org_id) {
+    const t = db.prepare('SELECT title FROM meetings WHERE id = ?').get(meeting.id) as { title: string };
+    orgAudit(meeting.org_id, req.userId!, 'group.delete', null, `그룹 "${t.title}" 삭제`);
   }
   db.prepare('DELETE FROM messages WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM meeting_participants WHERE meeting_id = ?').run(meeting.id);

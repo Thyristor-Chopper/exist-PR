@@ -85,8 +85,35 @@ export const ORG_ACTIONS = [
 ] as const;
 export type OrgAction = (typeof ORG_ACTIONS)[number];
 
+/** 액션 한국어 라벨 — 알림·감사 로그 문구용 */
+const ACTION_LABEL_KO: Record<string, string> = {
+  'member:approve': '가입 승인',
+  'member:reject': '가입 거절',
+  'member:edit-position': '직급 수정',
+  'member:edit-department': '부서 수정',
+  'member:remove': '멤버 내보내기',
+  'group:lock': '그룹 입장 잠금',
+  'group:settings': '그룹 설정',
+  'group:edit-info': '그룹 정보 수정',
+  'group:edit-period': '그룹 기간 수정',
+  'group:schedule': '그룹 일정 관리',
+  'group:kick': '통화 강퇴',
+  'group:transfer': '호스트 위임',
+  'group:delete': '그룹 삭제',
+  'group:channels': '채널 관리',
+  'group:files': '파일 관리',
+  'group:recap': '회의 정리 실행',
+};
+
+function orgNameOf(orgId: number): string {
+  const o = db.prepare('SELECT name FROM organizations WHERE id = ?').get(orgId) as
+    | { name: string }
+    | undefined;
+  return o?.name ?? '조직';
+}
+
 /** 감사 로그(CloudTrail식) — 인사·권한 변경을 남긴다. text는 사람이 읽는 한국어 스냅샷 */
-function audit(
+export function audit(
   orgId: number,
   actorId: number,
   action: string,
@@ -681,6 +708,22 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
         ? `${usernameOf(targetId)}님에게 역할 "${roleName}" 부여`
         : `${usernameOf(targetId)}님 역할 해제`,
     );
+    // 당사자에게 알림 — 무슨 권한이 생겼는지까지
+    if (roleName && roleId != null) {
+      const permsKo = rolePerms(roleId).map((p) => ACTION_LABEL_KO[p] ?? p);
+      const summary = permsKo.slice(0, 4).join(', ') + (permsKo.length > 4 ? ` 외 ${permsKo.length - 4}개` : '');
+      notifyUser(targetId, {
+        from: orgNameOf(orgId),
+        text: `"${roleName}" 역할을 받았어요 — 부서 안에서 ${summary} 권한이 생겼어요`,
+        kind: 'org-role',
+      });
+    } else {
+      notifyUser(targetId, {
+        from: orgNameOf(orgId),
+        text: '역할이 해제됐어요 — 일반 멤버로 돌아갑니다',
+        kind: 'org-role',
+      });
+    }
   }
 
   // 역할 변경 — 소유자 전용
@@ -707,6 +750,14 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
       targetId,
       `${usernameOf(targetId)}님을 ${role === 'admin' ? '관리자로 지정' : '일반 멤버로 변경'}`,
     );
+    notifyUser(targetId, {
+      from: orgNameOf(orgId),
+      text:
+        role === 'admin'
+          ? '관리자로 지정됐어요 — 조직 전체를 관리할 수 있어요'
+          : '일반 멤버로 변경됐어요',
+      kind: 'org-role',
+    });
   }
 
   // 직급·부서 변경 — 관리자(owner/admin) 또는 해당 액션 권한의 중간관리자(자기 부서 멤버만).

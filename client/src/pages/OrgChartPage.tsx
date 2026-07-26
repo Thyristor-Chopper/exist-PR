@@ -269,6 +269,10 @@ export default function OrgChartPage() {
   }
 
   const groups = detail ? groupByDept(detail.members) : [];
+  // 부서 자동완성 — 부서명이 IAM 스코프 경계라 오타("QA"/"qa")로 갈라지면 권한이 깨진다
+  const deptOptions = [
+    ...new Set((detail?.members ?? []).map((m) => m.department).filter((d): d is string => !!d)),
+  ].sort((a, b) => a.localeCompare(b, 'ko'));
   const manager = !!detail?.isManager;
   const owner = detail?.myRole === 'owner';
   const perms = detail?.myPerms ?? [];
@@ -299,6 +303,12 @@ export default function OrgChartPage() {
         <div className="orgchart-loading">조직도를 불러오는 중…</div>
       ) : (
         <main className="orgchart-main">
+          {/* 부서 자동완성 목록 — 부서 입력들이 공용으로 사용 */}
+          <datalist id="org-depts">
+            {deptOptions.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
           <div className="orgchart-header">
             <div className="orgchart-title">
               <span className="orgchart-icon">
@@ -387,6 +397,7 @@ export default function OrgChartPage() {
                       value={draft[p.userId]?.department ?? ''}
                       placeholder="부서 (선택)"
                       maxLength={30}
+                      list="org-depts"
                       onChange={(e) => setDraft_(p.userId, { department: e.target.value })}
                     />
                   ) : (
@@ -559,6 +570,7 @@ export default function OrgChartPage() {
                               placeholder="부서"
                               maxLength={30}
                               title="부서"
+                              list="org-depts"
                               onBlur={(e) => {
                                 if ((e.target.value || '') !== (m.department ?? '')) {
                                   void setDepartment(m.userId, e.target.value);
