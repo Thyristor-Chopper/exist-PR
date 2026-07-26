@@ -83,7 +83,8 @@ export default function ProfileDashboard() {
     let alive = true;
     api<Overview>('/api/agent/overview').then((d) => alive && setOv(d)).catch(() => {});
     api<Todo[]>('/api/todos').then((d) => alive && setTodos(d)).catch(() => {});
-    api<Meeting[]>('/api/meetings/schedule?org=personal')
+    // 일정은 현재 컨텍스트(개인/조직) 범위로
+    api<Meeting[]>(`/api/meetings/schedule?org=${org === 'personal' ? 'personal' : org}`)
       .then((d) => alive && setSchedule(d))
       .catch(() => {});
     // 오늘 브리핑 — AI 총무의 하루 세팅 문단
@@ -97,7 +98,7 @@ export default function ProfileDashboard() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [org]);
 
   const openMeeting = (code: string, title: string) =>
     window.dispatchEvent(new CustomEvent('exist:open-meeting', { detail: { code, title } }));
@@ -163,13 +164,34 @@ export default function ProfileDashboard() {
           </div>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          {orgManager ? <InsightsPanel orgId={org} /> : <MyOrgFocus orgId={org} />}
-        </div>
+        {/* 2컬럼: 왼쪽 = (관리자: 인사이트 / 멤버: 내 포커스) + 오늘 브리핑 + 전체 일정, 오른쪽 = 통합 메시지 */}
+        <div className="pd-quad">
+          <div className="pd-quad-col">
+            {orgManager ? <InsightsPanel orgId={org} /> : <MyOrgFocus orgId={org} />}
 
-        <div className="pd-org-inbox" style={{ ...section, minHeight: 420 }}>
-          <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>
-          <UnifiedInbox scope={org} />
+            <div style={cellCard}>
+              <div style={sectionHead}><span style={headIcon}><SparklesIcon size={16} /></span> 오늘 브리핑</div>
+              {daily ? (
+                <div className="pd-daily-text">{daily}</div>
+              ) : (
+                <div className="pd-daily-text" style={{ color: 'var(--text-sub)' }}>
+                  오늘 하루를 정리하는 중…
+                </div>
+              )}
+            </div>
+
+            <div style={cellCard}>
+              <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
+              <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
+            </div>
+          </div>
+
+          <div className="pd-quad-col">
+            <div className="pd-org-inbox" style={{ ...cellCard, minHeight: 420 }}>
+              <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>
+              <UnifiedInbox scope={org} />
+            </div>
+          </div>
         </div>
       </div>
     );
