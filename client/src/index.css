@@ -13534,6 +13534,7 @@ input:focus {
 .nb-pill-count,
 .drawer-home,
 .drawer-add,
+.drawer-join,
 .org-menu-scrim,
 .hub-m-menu,
 .hub-m-back,
@@ -14050,7 +14051,8 @@ input:focus {
     display: none;
   }
 
-  .drawer-add {
+  .drawer-add,
+  .drawer-join {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -14062,6 +14064,20 @@ input:focus {
     font-size: 24px;
     font-weight: 600;
     color: var(--green);
+  }
+
+  .drawer-join {
+    font-size: 20px;
+    color: var(--text-sub);
+  }
+
+  /* 그룹이 없을 때 — 빈 상태 카드(레일에선 안 보이는데 자리만 차지)와 구분선 제거 */
+  .dashboard > aside .recent-empty {
+    display: none;
+  }
+
+  .dashboard > aside .recent-list:has(.recent-empty)::before {
+    display: none;
   }
 
   /* 별도 알림 센터·벨 없음 — 알림은 nowbar 카드에 통합 (뱃지 + 알림 카드) */

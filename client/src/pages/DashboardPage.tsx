@@ -77,6 +77,7 @@ export default function DashboardPage() {
   }
 
   const [code, setCode] = useState('');
+  const [joinOpen, setJoinOpen] = useState(false); // 모바일 — 코드로 참여 모달
   const [recent, setRecent] = useState<Meeting[]>([]);
   const [schedule, setSchedule] = useState<Meeting[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -191,6 +192,7 @@ export default function DashboardPage() {
       const m = await api<Meeting>('/api/meetings/join', { method: 'POST', body: { code } });
       openMeetingTab(m.code, m.title);
       setCode('');
+      setJoinOpen(false);
       void refresh();
     } catch {
       /* 전역 에러 토스트가 표시 */
@@ -353,7 +355,7 @@ export default function DashboardPage() {
               </div>
             ))}
             {sortedGroups.length === 0 && (
-              <div className="recent-card">
+              <div className="recent-card recent-empty">
                 <div>아직 그룹이 없어요. + 버튼으로 만들어보세요.</div>
               </div>
             )}
@@ -363,8 +365,40 @@ export default function DashboardPage() {
           <button className="drawer-add" onClick={() => openCreate(false)} title="새 그룹 만들기">
             +
           </button>
+          {/* 모바일 레일 전용 — 그룹 코드로 참여 (데스크톱은 그룹 입장 카드) */}
+          <button className="drawer-join" onClick={() => setJoinOpen(true)} title="코드로 참여">
+            #
+          </button>
 
         </aside>
+
+        {/* 모바일 — 그룹 코드로 참여 모달 */}
+        {joinOpen && (
+          <div className="modal-overlay" onClick={() => setJoinOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">그룹 코드로 참여</div>
+              <form onSubmit={joinMeeting}>
+                <label className="modal-label">
+                  그룹 코드
+                  <input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="예: 66J78C"
+                    autoFocus
+                  />
+                </label>
+                <div className="modal-actions">
+                  <button type="button" className="modal-cancel" onClick={() => setJoinOpen(false)}>
+                    취소
+                  </button>
+                  <button type="submit" className="modal-primary">
+                    참여
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* 모바일 전용 — 상단 얇은 조직 컨텍스트 바 (탭하면 조직 전환 메뉴) */}
         <button
