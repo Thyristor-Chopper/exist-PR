@@ -52,11 +52,12 @@ export interface Todo {
   assigneeProfiles?: { username: string; name: string | null; avatar: string | null }[];
 }
 
-/** 할 일 담당자 미니 아바타 스택 + hover 전체 프로필 리스트 (허브·공동편집과 동일 톤)
- *  nowbar 확장 패널이 overflow 스크롤 컨테이너라 절대배치 팁이 잘림 — 포털(fixed)로 띄운다 */
+/** 할 일 담당자 미니 아바타 스택 + hover 전체 프로필 리스트 (허브·공동편집과 동일 톤).
+ *  nowbar 카드는 overflow:hidden + transform이라 팝업이 잘림 → portal로 body에 띄우고 fixed 좌표 */
 function TodoAssignees({ profiles }: { profiles?: Todo['assigneeProfiles'] }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
-  const [tip, setTip] = useState<{ x: number; y: number } | null>(null);
+  // up: 앵커가 화면 아래쪽(모바일 하단 바)이면 위로, 위쪽(데스크톱 상단 바)이면 아래로 연다
+  const [tip, setTip] = useState<{ x: number; y: number; up: boolean } | null>(null);
   if (!profiles?.length) return null;
   return (
     <span
@@ -64,7 +65,10 @@ function TodoAssignees({ profiles }: { profiles?: Todo['assigneeProfiles'] }) {
       ref={anchorRef}
       onMouseEnter={() => {
         const r = anchorRef.current?.getBoundingClientRect();
-        if (r) setTip({ x: r.right, y: r.bottom + 6 }); // nowbar는 상단바 — 아래로 연다
+        if (r) {
+          const up = r.top > window.innerHeight / 2;
+          setTip({ x: r.right, y: up ? r.top : r.bottom, up });
+        }
       }}
       onMouseLeave={() => setTip(null)}
     >
@@ -75,7 +79,7 @@ function TodoAssignees({ profiles }: { profiles?: Todo['assigneeProfiles'] }) {
       {tip &&
         createPortal(
           <span
-            className="hub-assign-tip nb-portal"
+            className={`hub-assign-tip nb-tip-portal ${tip.up ? 'dir-up' : 'dir-down'}`}
             style={{ left: tip.x, top: tip.y }}
             aria-hidden
           >
