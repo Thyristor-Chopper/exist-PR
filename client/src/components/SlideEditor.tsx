@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { useAuthStore } from '../store';
-import { PlusIcon, CloseIcon, PlayIcon } from './Icons';
+import { PlusIcon, CloseIcon, PlayIcon, CopyIcon } from './Icons';
 import ColorGrid from './ColorGrid';
 import OverflowToolbar from './OverflowToolbar';
 import { exportPptx } from '../lib/pptx';
@@ -1211,7 +1211,9 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
                 </button>
               )}
               <div className="slide-thumb-acts">
-                <button title="복제" onClick={(e) => duplicateSlide(s.id, e)}>⧉</button>
+                <button title="복제" onClick={(e) => duplicateSlide(s.id, e)}>
+                  <CopyIcon size={11} />
+                </button>
                 {i > 0 && (
                   <button title="위로" onClick={(e) => moveSlide(s.id, -1, e)}>↑</button>
                 )}
