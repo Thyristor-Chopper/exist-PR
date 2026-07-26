@@ -10091,12 +10091,12 @@ input:focus {
   flex-shrink: 0;
 }
 
-/* 채널 알림 상태 — 맨 오른쪽 상시 표시, 클릭 시 다받기→멘션만→끔 순환 */
+/* 채널 알림 상태 — 맨 오른쪽 상시 표시(단색 아이콘), 클릭 시 다받기→멘션만→끔 순환 */
 .hub-channel-notify {
   margin-left: auto;
   flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
   padding: 0 3px;
   opacity: 0.55;
 }
@@ -10120,27 +10120,30 @@ input:focus {
   margin-left: 0;
 }
 
-/* 채팅 헤더 오른쪽 — 현재 채널 알림 토글 */
+/* 채팅 헤더 오른쪽 — 현재 채널 알림 토글 (아이콘만, 무테두리) */
 .hub-chhead-notify {
   margin-left: auto;
-  border: 1px solid var(--border);
+  border: none;
   background: none;
   color: var(--text-sub);
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
   border-radius: 7px;
   flex-shrink: 0;
 }
 
+.hub-chhead-notify:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 .hub-chhead-notify.mode-mention {
   color: var(--green-dark);
-  background: var(--green-soft);
-  border-color: transparent;
 }
 
 .hub-chhead-notify.mode-off {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 /* 채널 이름 수정 연필 — 삭제 ×와 같은 hover 노출 패턴 */
