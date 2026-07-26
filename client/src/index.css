@@ -13002,7 +13002,9 @@ html:not(.dark) .meeting-controls .chat-toggle {
 
 html:not(.dark) .video-tile {
   background: var(--surface-3);
-  border: 1px solid var(--border);
+  /* 보더+진한 그림자 조합이 radius 둘레에 이중 테두리처럼 보임 — 연한 그림자만 */
+  border: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
 }
 
 html:not(.dark) .video-placeholder {
@@ -13017,6 +13019,12 @@ html:not(.dark) .meeting-controls .leave {
   background: #d33;
   border-color: #d33;
   color: #fff;
+}
+
+/* 나가기 hover는 양 테마 동일(진한 빨강) — 라이트 공통 hover(회색)가 먹지 않게 */
+html:not(.dark) .meeting-controls .leave:hover {
+  background: #b62b2b;
+  border-color: #b62b2b;
 }
 
 /* ── 프리뷰 마이크·카메라 알약 — 테마 추종 (다크=어두운 알약, 라이트=흰 알약, 꺼짐=빨강) ── */
