@@ -267,11 +267,10 @@ export default function MeetingView({
   const [locked, setLocked] = useState(false);
   // 음성 전사(STT) — 내 발화를 브라우저가 전사해 서버로 (recap·결정 원장·AI 총무 근거)
   const [sttOn, setSttOn] = useState(true);
-  const [caption, setCaption] = useState<{
-    username: string;
-    text: string;
-    interim?: boolean;
-  } | null>(null);
+  // 발화자별 자막 — 여러 명이 동시에 말하면 줄로 쌓아서 함께 표시 (최근 발화 순)
+  const [captions, setCaptions] = useState<
+    Record<string, { text: string; interim?: boolean; ts: number }>
+  >({});
 
   const producersRef = useRef<{
     audio?: Producer;
@@ -303,7 +302,7 @@ export default function MeetingView({
   // SpeechRecognition 인스턴스 — 크롬 계열만 지원, 없으면 STT 기능 숨김
   const sttRef = useRef<{ stop(): void; start(): void } | null>(null);
   const sttWantedRef = useRef(true); // onend 자동 재시작 여부 (침묵으로 자주 끊기므로)
-  const captionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const captionTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // 소켓이 순간 끊겼다 붙으면 서버는 이미 이 피어의 transport를 전부 파괴한 뒤다
   // — 재입장 외에 복구 방법이 없으므로, 재연결 시 이 값을 올려 통화 이펙트를 처음부터 다시 돈다
   const [rejoinTick, setRejoinTick] = useState(0);
@@ -628,14 +627,26 @@ export default function MeetingView({
         setMessages((prev) => [...prev, msg]);
         if (!chatOpenRef.current) setUnread((n) => n + 1);
       });
-      // 라이브 자막 — 누군가의 발화가 전사되면 하단에 잠깐 표시
+      // 라이브 자막 — 발화자별로 쌓아서 동시 발화도 전부 표시. 만료 타이머는 발화자 단위
       socket.on(
         'voice:caption',
         ({ username, text, interim }: { username: string; text: string; interim?: boolean }) => {
-          setCaption({ username, text, interim });
-          if (captionTimer.current) clearTimeout(captionTimer.current);
+          setCaptions((prev) => ({ ...prev, [username]: { text, interim, ts: Date.now() } }));
+          const old = captionTimers.current.get(username);
+          if (old) clearTimeout(old);
           // 미확정은 짧게(다음 갱신이 금방 옴), 확정은 읽을 시간 확보
-          captionTimer.current = setTimeout(() => setCaption(null), interim ? 2500 : 4000);
+          captionTimers.current.set(
+            username,
+            setTimeout(
+              () =>
+                setCaptions((prev) => {
+                  const next = { ...prev };
+                  delete next[username];
+                  return next;
+                }),
+              interim ? 2500 : 4000,
+            ),
+          );
         },
       );
       socket.on('room:locked', ({ locked }: { locked: boolean }) => setLocked(locked));
@@ -659,6 +670,8 @@ export default function MeetingView({
       socket.off('producer:resumed');
       socket.off('chat:message');
       socket.off('voice:caption');
+      captionTimers.current.forEach((t) => clearTimeout(t));
+      captionTimers.current.clear();
       socket.off('room:locked');
       socket.off('room:kicked');
       sendTransportRef.current?.close();
@@ -1145,7 +1158,7 @@ export default function MeetingView({
   return (
     <div className={`meeting-room${embedded ? ' embedded' : ''}`}>
       <header className="meeting-header">
-        {!embedded && <Logo light />}
+        {!embedded && <Logo />}
         <div className="meeting-info">
           <span className="meeting-title">{title || '회의'}</span>
           <span className="meeting-code">
@@ -1246,11 +1259,18 @@ export default function MeetingView({
           </div>
         </div>
 
-        {/* 라이브 자막 — 발화가 전사되는 순간 표시 (recap·결정 원장의 근거가 됨) */}
-        {caption && (
-          <div className={`call-caption${caption.interim ? ' interim' : ''}`}>
-            <b>{dn(caption.username)}</b> {caption.text}
-            {caption.interim && '…'}
+        {/* 라이브 자막 — 발화자별로 쌓임(동시 발화 지원, 먼저 말한 순 위→아래, 최대 3명) */}
+        {Object.keys(captions).length > 0 && (
+          <div className="call-captions">
+            {Object.entries(captions)
+              .sort((a, b) => a[1].ts - b[1].ts)
+              .slice(-3)
+              .map(([username, c]) => (
+                <div key={username} className={`call-caption${c.interim ? ' interim' : ''}`}>
+                  <b>{dn(username)}</b> {c.text}
+                  {c.interim && '…'}
+                </div>
+              ))}
           </div>
         )}
 

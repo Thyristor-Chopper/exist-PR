@@ -12959,8 +12959,8 @@ input:focus {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #0f1115;
-  color: #fff;
+  background: var(--bg);
+  color: var(--text);
 }
 
 /* 대시보드 탭 임베드 모드 */
@@ -12978,20 +12978,29 @@ input:focus {
   padding: 0 14px;
 }
 
-/* 라이브 자막 — 통화 화면 하단 중앙 */
-.call-caption {
+/* 라이브 자막 — 통화 화면 하단 중앙. 발화자별 줄로 쌓임(동시 발화) */
+.call-captions {
   position: absolute;
   left: 50%;
   bottom: 84px;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   max-width: min(80%, 720px);
+  z-index: 6;
+  pointer-events: none;
+}
+
+.call-caption {
+  max-width: 100%;
   background: rgba(0, 0, 0, 0.72);
   color: #fff;
   font-size: 14.5px;
   line-height: 1.5;
   padding: 8px 16px;
   border-radius: 12px;
-  z-index: 6;
   text-align: center;
 }
 
@@ -13076,7 +13085,7 @@ input:focus {
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-  border: 1px solid #2a2e37;
+  border: 1px solid var(--border);
   cursor: move;
 }
 
@@ -13399,7 +13408,7 @@ input:focus {
 
 .meeting-code {
   font-size: 13px;
-  color: #aaa;
+  color: var(--text-sub);
 }
 
 .meeting-code b {
@@ -13408,10 +13417,10 @@ input:focus {
 }
 
 .lock-btn {
-  border: 1px solid #3a3f4a;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #20242c;
-  color: #ddd;
+  background: var(--surface-2);
+  color: var(--text);
   font-size: 13px;
   font-weight: 600;
   padding: 8px 14px;
@@ -13427,7 +13436,7 @@ input:focus {
 }
 
 .lock-btn:hover {
-  background: #2a2f39;
+  background: color-mix(in srgb, var(--text) 10%, var(--surface-2));
 }
 
 .kick-btn {
@@ -13764,8 +13773,8 @@ input:focus {
   height: 54px;
   border: none;
   border-radius: 50%;
-  background: #2a2e37;
-  color: #fff;
+  background: var(--surface-2);
+  color: var(--text);
   display: grid;
   place-items: center;
 }
@@ -13792,24 +13801,26 @@ input:focus {
 }
 
 .meeting-controls button:hover {
-  background: #353a45;
+  background: color-mix(in srgb, var(--text) 12%, var(--surface-2));
 }
 
 .meeting-controls button.off {
   background: #d33;
+  color: #fff;
 }
 
 .meeting-controls button.active {
   background: var(--green);
+  color: #fff;
 }
 
 /* 채팅 토글 — 말풍선 내부까지 상태를 따라가게: 기본은 버튼색(아웃라인 룩), 켜짐은 흰색 채움 */
 .meeting-controls .chat-toggle {
-  --chat-icon-fill: #2a2e37;
+  --chat-icon-fill: var(--surface-2);
 }
 
 .meeting-controls .chat-toggle:hover {
-  --chat-icon-fill: #353a45;
+  --chat-icon-fill: color-mix(in srgb, var(--text) 12%, var(--surface-2));
 }
 
 .meeting-controls .chat-toggle.active {
@@ -13838,6 +13849,7 @@ input:focus {
   border-radius: 27px;
   padding: 0 24px;
   background: #d33;
+  color: #fff;
   font-size: 15px;
   font-weight: 600;
 }
@@ -15974,7 +15986,7 @@ input:focus {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  background: #2a2e37; /* 타원 배경은 컨테이너가 그린다 — 이음새 없는 한 덩어리 */
+  background: var(--surface-2); /* 타원 배경은 컨테이너가 그린다 — 이음새 없는 한 덩어리 */
 }
 
 .meeting-controls .ctl-split button.main {
@@ -15984,7 +15996,7 @@ input:focus {
 }
 
 .meeting-controls .ctl-split button.main:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .meeting-controls .ctl-split button.dev-arrow {
@@ -15992,13 +16004,13 @@ input:focus {
   height: 54px;
   border-radius: 0 999px 999px 0;
   background: none;
-  color: #aab0bd;
+  color: var(--text-sub);
 }
 
 .meeting-controls .ctl-split button.dev-arrow:hover,
 .meeting-controls .ctl-split button.dev-arrow.active {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 9%, transparent);
 }
 
 /* 음소거/카메라 꺼짐: 타원 전체가 빨강 (토글 자체 배경은 none이므로 컨테이너에 칠함) */
@@ -16050,7 +16062,7 @@ input:focus {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #2a2e37;
+  background: var(--surface-2);
   padding: 0;
 }
 
