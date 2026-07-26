@@ -38,18 +38,28 @@ interface OrgDetail {
   myPerms: string[];
   myDept: string | null;
   roles: OrgRole[];
+  suggestions: { id: string; text: string }[];
   members: Member[];
   pending: Pending[];
+}
+
+interface AuditRow {
+  id: number;
+  action: string;
+  text: string;
+  actor: string;
+  at: string;
 }
 
 const ROLE_LABEL: Record<string, string> = { owner: '소유자', admin: '관리자', member: '멤버' };
 
 /* IAM식 액션 — 커스텀 역할(중간관리자)에 조합해 부여. 스코프는 항상 "자기 부서" */
-const ORG_ACTIONS = ['member:approve', 'member:edit', 'member:remove'] as const;
+const ORG_ACTIONS = ['member:approve', 'member:edit', 'member:remove', 'group:manage'] as const;
 const ACTION_LABEL: Record<string, string> = {
   'member:approve': '가입 승인',
   'member:edit': '직급·부서 수정',
   'member:remove': '멤버 내보내기',
+  'group:manage': '부서 그룹 관리',
 };
 
 /** 부서별 그룹 — 부서 있는 그룹 먼저(가나다), 미지정 마지막. 그룹 내 직급 높은 순 */
@@ -133,6 +143,21 @@ export default function OrgChartPage() {
           : { roleId: Number(value.slice(1)) };
     await api(`/api/orgs/${orgId}/members/${userId}`, { method: 'PATCH', body });
     await load();
+  }
+
+  // ── 활동 기록(감사 로그) — 관리자 전용, 접이식(열 때 로드) ──
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditRows, setAuditRows] = useState<AuditRow[] | null>(null);
+  async function toggleAudit() {
+    const next = !auditOpen;
+    setAuditOpen(next);
+    if (next) {
+      try {
+        setAuditRows(await api<AuditRow[]>(`/api/orgs/${orgId}/audit`));
+      } catch {
+        setAuditRows([]);
+      }
+    }
   }
 
   // ── 역할(정책) 관리 — 소유자 전용, 모달 ──
@@ -273,6 +298,21 @@ export default function OrgChartPage() {
               </span>
             )}
           </div>
+
+          {/* AI 위임 제안 — 소유자에게만, 규칙 기반(사실에서 계산). 실행은 사람이 */}
+          {owner && (detail.suggestions ?? []).length > 0 && (
+            <section className="org-suggest">
+              {detail.suggestions.map((s) => (
+                <div key={s.id} className="org-suggest-row">
+                  <span className="org-suggest-badge">✨ AI 제안</span>
+                  <span className="org-suggest-text">{s.text}</span>
+                  <button className="org-btn approve" onClick={() => setRolesOpen(true)}>
+                    역할 관리 열기
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
 
           {/* 팀 인사이트는 운영자용 — 멤버에겐 관전 정보라 숨긴다 (홈에선 '내 포커스'를 봄) */}
           {manager && <InsightsPanel orgId={orgId} />}
@@ -493,6 +533,39 @@ export default function OrgChartPage() {
               </section>
             ))}
           </div>
+
+          {/* 활동 기록(감사 로그) — 관리자만. 인사·권한 변경의 책임 추적 */}
+          {manager && (
+            <section className="org-perm">
+              <button className="org-perm-head" onClick={() => void toggleAudit()}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ verticalAlign: '-2px', marginRight: 6 }}>
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7.5V12l3 2" />
+                </svg>
+                활동 기록
+                <span className="org-perm-caret">{auditOpen ? '▴' : '▾'}</span>
+              </button>
+              {auditOpen && (
+                <div className="org-perm-body">
+                  {auditRows === null ? (
+                    <div className="org-audit-empty">불러오는 중…</div>
+                  ) : auditRows.length === 0 ? (
+                    <div className="org-audit-empty">아직 기록이 없어요</div>
+                  ) : (
+                    <div className="org-audit-list">
+                      {auditRows.map((r) => (
+                        <div key={r.id} className="org-audit-row">
+                          <span className="org-audit-time">{r.at.slice(5, 16)}</span>
+                          <b className="org-audit-actor">{r.actor}</b>
+                          <span className="org-audit-text">{r.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* 권한 매트릭스 — 역할별로 할 수 있는 일 가시화 */}
           <section className="org-perm">

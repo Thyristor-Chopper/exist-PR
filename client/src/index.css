@@ -11973,6 +11973,79 @@ input:focus {
   min-width: 140px;
 }
 
+/* AI 위임 제안 — 소유자 전용 카드 */
+.org-suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.org-suggest-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--green-soft);
+  border: 1px solid rgba(33, 200, 24, 0.35);
+  border-radius: 12px;
+  padding: 11px 14px;
+}
+
+.org-suggest-badge {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--green);
+  white-space: nowrap;
+}
+
+.org-suggest-text {
+  flex: 1;
+  min-width: 200px;
+  font-size: 13.5px;
+}
+
+/* 활동 기록(감사 로그) */
+.org-audit-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.org-audit-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.org-audit-row:last-child {
+  border-bottom: none;
+}
+
+.org-audit-time {
+  color: var(--text-sub);
+  font-size: 12px;
+  white-space: nowrap;
+  min-width: 78px;
+}
+
+.org-audit-actor {
+  white-space: nowrap;
+}
+
+.org-audit-text {
+  color: var(--text-sub);
+  min-width: 0;
+}
+
+.org-audit-empty {
+  padding: 12px 4px;
+  color: var(--text-sub);
+  font-size: 13px;
+}
+
 /* 중간관리자 승인 시 고정 부서 표시 */
 .org-fixed-dept {
   font-size: 12.5px;

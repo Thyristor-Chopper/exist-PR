@@ -63,8 +63,33 @@ function isManager(orgId: number, userId: number): boolean {
  * 커스텀 역할 = 소유자가 만든 정책(액션 조합)으로, 부여받은 멤버(중간관리자)는
  * "자기 부서" 리소스 안의 일반 멤버에게만 액션을 행사할 수 있다.
  */
-export const ORG_ACTIONS = ['member:approve', 'member:edit', 'member:remove'] as const;
+export const ORG_ACTIONS = [
+  'member:approve',
+  'member:edit',
+  'member:remove',
+  'group:manage',
+] as const;
 export type OrgAction = (typeof ORG_ACTIONS)[number];
+
+/** 감사 로그(CloudTrail식) — 인사·권한 변경을 남긴다. text는 사람이 읽는 한국어 스냅샷 */
+function audit(
+  orgId: number,
+  actorId: number,
+  action: string,
+  targetId: number | null,
+  text: string,
+) {
+  db.prepare(
+    'INSERT INTO org_audit (org_id, actor_id, action, target_id, text) VALUES (?, ?, ?, ?, ?)',
+  ).run(orgId, actorId, action, targetId, text);
+}
+
+function usernameOf(userId: number): string {
+  const u = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as
+    | { username: string }
+    | undefined;
+  return u?.username ?? `#${userId}`;
+}
 
 interface FullMembership {
   role: 'owner' | 'admin' | 'member';
@@ -253,6 +278,7 @@ router.post('/:id/roles', (req: AuthedRequest, res) => {
   const info = db
     .prepare('INSERT INTO org_roles (org_id, name, perms) VALUES (?, ?, ?)')
     .run(orgId, name, JSON.stringify(perms));
+  audit(orgId, req.userId!, 'role.create', null, `역할 "${name}" 생성 (${perms.join(', ')})`);
   res.json({ id: info.lastInsertRowid, name, perms });
 });
 
@@ -264,13 +290,14 @@ router.patch('/:id/roles/:roleId', (req: AuthedRequest, res) => {
     return res.status(403).json({ error: '역할은 소유자만 수정할 수 있어요' });
   }
   const role = db
-    .prepare('SELECT id FROM org_roles WHERE id = ? AND org_id = ?')
-    .get(roleId, orgId);
+    .prepare('SELECT id, name FROM org_roles WHERE id = ? AND org_id = ?')
+    .get(roleId, orgId) as { id: number; name: string } | undefined;
   if (!role) return res.status(404).json({ error: '역할을 찾을 수 없어요' });
   if (req.body?.name !== undefined) {
     const name = String(req.body.name).trim().slice(0, 20);
     if (!name) return res.status(400).json({ error: '역할 이름을 입력하세요' });
     db.prepare('UPDATE org_roles SET name = ? WHERE id = ?').run(name, roleId);
+    audit(orgId, req.userId!, 'role.update', null, `역할 "${role.name}" 이름 → "${name}"`);
   }
   if (req.body?.perms !== undefined) {
     const perms = Array.isArray(req.body.perms)
@@ -278,6 +305,7 @@ router.patch('/:id/roles/:roleId', (req: AuthedRequest, res) => {
       : [];
     if (perms.length === 0) return res.status(400).json({ error: '권한을 하나 이상 선택하세요' });
     db.prepare('UPDATE org_roles SET perms = ? WHERE id = ?').run(JSON.stringify(perms), roleId);
+    audit(orgId, req.userId!, 'role.update', null, `역할 "${role.name}" 권한 → ${perms.join(', ')}`);
   }
   res.json({ ok: true });
 });
@@ -289,11 +317,15 @@ router.delete('/:id/roles/:roleId', (req: AuthedRequest, res) => {
   if (!isOwner(orgId, req.userId!)) {
     return res.status(403).json({ error: '역할은 소유자만 삭제할 수 있어요' });
   }
+  const role = db.prepare('SELECT name FROM org_roles WHERE id = ? AND org_id = ?').get(roleId, orgId) as
+    | { name: string }
+    | undefined;
   db.prepare('UPDATE organization_members SET role_id = NULL WHERE org_id = ? AND role_id = ?').run(
     orgId,
     roleId,
   );
   db.prepare('DELETE FROM org_roles WHERE id = ? AND org_id = ?').run(roleId, orgId);
+  if (role) audit(orgId, req.userId!, 'role.delete', null, `역할 "${role.name}" 삭제`);
   res.json({ ok: true });
 });
 
@@ -363,6 +395,40 @@ router.get('/:id', (req: AuthedRequest, res) => {
     }[]
   ).map((r) => ({ id: r.id, name: r.name, perms: JSON.parse(r.perms) as string[] }));
 
+  // AI 위임 제안(Access Analyzer식, 규칙 기반) — 소유자에게만.
+  // 사실에서 계산만 하고 실행은 사람이 (자동 실행 금지 원칙)
+  const suggestions: { id: string; text: string }[] = [];
+  if (getMembership(orgId, req.userId!)?.role === 'owner') {
+    const roleIdsWithApprove = new Set(
+      roles.filter((r) => r.perms.includes('member:approve')).map((r) => r.id),
+    );
+    const hasApproveDelegate = members.some((m) => m.role_id && roleIdsWithApprove.has(m.role_id));
+    if (pending.length >= 2 && !hasApproveDelegate) {
+      suggestions.push({
+        id: 'delegate-approve',
+        text: `가입 대기가 ${pending.length}건 쌓여 있어요 — "가입 승인" 권한을 부서 리더에게 위임하면 처리가 빨라져요`,
+      });
+    }
+    // 부서에 사람은 많은데(3+) 관리 손이 없는 곳 — 중간관리자 위임 제안 (최대 2곳)
+    const byDept = new Map<string, { total: number; managed: boolean }>();
+    for (const m of members) {
+      if (!m.department) continue;
+      const d = byDept.get(m.department) ?? { total: 0, managed: false };
+      d.total++;
+      if (m.role === 'admin' || m.role === 'owner' || m.role_id) d.managed = true;
+      byDept.set(m.department, d);
+    }
+    for (const [dept, info] of byDept) {
+      if (suggestions.length >= 3) break;
+      if (info.total >= 3 && !info.managed) {
+        suggestions.push({
+          id: `delegate-dept-${dept}`,
+          text: `${dept}(${info.total}명)에 중간관리자가 없어요 — 역할을 만들어 위임해보세요`,
+        });
+      }
+    }
+  }
+
   res.json({
     id: org.id,
     name: org.name,
@@ -373,6 +439,7 @@ router.get('/:id', (req: AuthedRequest, res) => {
     myPerms: mine.perms,
     myDept: mine.dept,
     roles,
+    suggestions,
     members: members.map((m) => ({
       userId: m.user_id,
       username: m.username,
@@ -385,6 +452,22 @@ router.get('/:id', (req: AuthedRequest, res) => {
     })),
     pending: pending.map((p) => ({ userId: p.user_id, username: p.username, avatar: p.avatar })),
   });
+});
+
+/** 감사 로그 — 관리자(owner/admin)만. 인사·권한 변경의 책임 추적 */
+router.get('/:id/audit', (req: AuthedRequest, res) => {
+  const orgId = Number(req.params.id);
+  if (!isManager(orgId, req.userId!)) {
+    return res.status(403).json({ error: '활동 기록은 관리자만 볼 수 있어요' });
+  }
+  const rows = db
+    .prepare(
+      `SELECT a.id, a.action, a.text, a.created_at, u.username AS actor
+       FROM org_audit a JOIN users u ON u.id = a.actor_id
+       WHERE a.org_id = ? ORDER BY a.id DESC LIMIT 60`,
+    )
+    .all(orgId) as { id: number; action: string; text: string; created_at: string; actor: string }[];
+  res.json(rows.map((r) => ({ id: r.id, action: r.action, text: r.text, actor: r.actor, at: r.created_at })));
 });
 
 /** 내 포커스 — 일반 멤버의 조직 홈용: 이 조직에서 내가 지금 챙길 것들
@@ -499,6 +582,13 @@ router.post('/:id/members/:userId/approve', (req: AuthedRequest, res) => {
     text: `${org?.name ?? '조직'} 가입이 승인됐어요${detail ? ` — ${detail}` : ''}`,
     kind: 'org-approved',
   });
+  audit(
+    orgId,
+    req.userId!,
+    'member.approve',
+    targetId,
+    `${usernameOf(targetId)}님 가입 승인${detail ? ` (${detail})` : ''}`,
+  );
   res.json({ ok: true });
 });
 
@@ -515,6 +605,15 @@ router.delete('/:id/members/:userId', (req: AuthedRequest, res) => {
   db.prepare('DELETE FROM organization_members WHERE org_id = ? AND user_id = ?').run(
     orgId,
     targetId,
+  );
+  audit(
+    orgId,
+    req.userId!,
+    m.status === 'pending' ? 'member.reject' : 'member.remove',
+    targetId,
+    m.status === 'pending'
+      ? `${usernameOf(targetId)}님 가입 거절`
+      : `${usernameOf(targetId)}님 내보내기`,
   );
   res.json({ ok: true });
 });
@@ -549,6 +648,19 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
     ).run(roleId, orgId, targetId);
     m.role_id = roleId;
     m.role = 'member';
+    const roleName =
+      roleId == null
+        ? null
+        : (db.prepare('SELECT name FROM org_roles WHERE id = ?').get(roleId) as { name: string }).name;
+    audit(
+      orgId,
+      req.userId!,
+      'member.assign_role',
+      targetId,
+      roleName
+        ? `${usernameOf(targetId)}님에게 역할 "${roleName}" 부여`
+        : `${usernameOf(targetId)}님 역할 해제`,
+    );
   }
 
   // 역할 변경 — 소유자 전용
@@ -568,6 +680,13 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
          role_id = CASE WHEN ? = 'admin' THEN NULL ELSE role_id END
        WHERE org_id = ? AND user_id = ?`,
     ).run(role, role, orgId, targetId);
+    audit(
+      orgId,
+      req.userId!,
+      'member.set_role',
+      targetId,
+      `${usernameOf(targetId)}님을 ${role === 'admin' ? '관리자로 지정' : '일반 멤버로 변경'}`,
+    );
   }
 
   // 직급·부서 변경 — 관리자(owner/admin) 또는 member:edit 권한의 중간관리자(자기 부서 멤버만).
@@ -585,6 +704,13 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
       db.prepare(
         'UPDATE organization_members SET position = ? WHERE org_id = ? AND user_id = ?',
       ).run(position, orgId, targetId);
+      audit(
+        orgId,
+        req.userId!,
+        'member.update',
+        targetId,
+        `${usernameOf(targetId)}님 직급 → ${position ?? '미지정'}`,
+      );
     }
     if (body.department !== undefined) {
       const department =
@@ -592,6 +718,13 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
       db.prepare(
         'UPDATE organization_members SET department = ? WHERE org_id = ? AND user_id = ?',
       ).run(department, orgId, targetId);
+      audit(
+        orgId,
+        req.userId!,
+        'member.update',
+        targetId,
+        `${usernameOf(targetId)}님 부서 → ${department ?? '미지정'}`,
+      );
     }
   }
 

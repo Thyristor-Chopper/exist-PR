@@ -9,7 +9,7 @@ import { invalidateBrief } from './agent.js';
 import { emitToUser, notifyUser } from './notify.js';
 import { getRoomSize, getRoomPeers } from './sfu.js';
 import { isMember } from './orgs.js';
-import { canManageMeeting, isOrgManager } from './perm.js';
+import { canManageMeeting } from './perm.js';
 import { byPositionDesc } from './positions.js';
 import {
   listRecaps,
@@ -547,8 +547,8 @@ router.get('/:code', (req: AuthedRequest, res) => {
     recur_except: [...parseExcept(meeting.recur_except)],
     host: meeting.host,
     isHost: meeting.host_id === req.userId,
-    // 관리 권한 = 호스트 또는 소속 조직의 owner/admin — 클라 관리 UI 노출 기준
-    canManage: meeting.host_id === req.userId || isOrgManager(meeting.org_id, req.userId!),
+    // 관리 권한 — 클라 관리 UI 노출 기준 (호스트/조직 관리자/부서 스코프 중간관리자)
+    canManage: canManageMeeting(meeting, req.userId!),
     orgId: meeting.org_id,
     orgName: meeting.org_name,
     thumbnail: meeting.thumbnail,

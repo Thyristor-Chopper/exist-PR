@@ -204,6 +204,20 @@ try {
   /* 이미 존재 */
 }
 
+// 감사 로그(CloudTrail식) — 조직 인사·권한 변경의 책임 추적. text는 한국어 스냅샷
+db.exec(`
+  CREATE TABLE IF NOT EXISTS org_audit (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id     INTEGER NOT NULL REFERENCES organizations(id),
+    actor_id   INTEGER NOT NULL REFERENCES users(id),
+    action     TEXT NOT NULL,
+    target_id  INTEGER REFERENCES users(id),
+    text       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_org_audit ON org_audit(org_id, id DESC);
+`);
+
 // 마이그레이션: 채팅 첨부 파일 (JSON: {name,url,size}) — 없으면 추가
 try {
   db.exec(`ALTER TABLE messages ADD COLUMN file TEXT`);
