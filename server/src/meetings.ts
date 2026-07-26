@@ -296,6 +296,7 @@ router.get('/inbox', (req: AuthedRequest, res) => {
          lm.text AS lastText, lm.created_at AS lastTs,
          (SELECT COUNT(*) FROM messages msg
             WHERE msg.meeting_id = m.id
+              AND msg.user_id != ?
               AND msg.id > COALESCE((SELECT last_read FROM chat_reads WHERE user_id = ? AND meeting_id = m.id), 0)
          ) AS unread
        FROM meetings m
@@ -307,7 +308,7 @@ router.get('/inbox', (req: AuthedRequest, res) => {
        WHERE 1 = 1 ${orgFilter}
        ORDER BY COALESCE(lm.created_at, '') DESC, m.id DESC`,
     )
-    .all(me, me, ...orgArgs);
+    .all(me, me, me, ...orgArgs);
   res.json(rows);
 });
 

@@ -51,6 +51,13 @@ function scopeSql(scope: AgentScope): { sql: string; args: number[] } {
   return { sql: '', args: [] };
 }
 
+/** dm_messages 기준 스코프 조각 — DM도 조직별로 분리된 대화다 (dm_messages.org_id) */
+function dmScopeSql(scope: AgentScope): { sql: string; args: number[] } {
+  if (scope === 'personal') return { sql: ' AND org_id IS NULL', args: [] };
+  if (typeof scope === 'number') return { sql: ' AND org_id = ?', args: [scope] };
+  return { sql: '', args: [] };
+}
+
 export function getUserContext(userId: number, scope?: AgentScope): UserContext {
   const sc = scopeSql(scope);
   // 개인 todo(meeting_id 없음)는 LEFT JOIN에서 m.org_id가 NULL이라 'personal' 스코프에 자연 포함
@@ -371,20 +378,17 @@ export async function getCatchup(userId: number, scope?: AgentScope): Promise<Ca
     });
   }
 
-  // 3) 안 읽은 DM (읽음 상태 기준 — 시점 무관). DM은 조직 소속이 아니라 개인 컨텍스트 —
-  //    조직 스코프에선 제외한다.
-  const dm =
-    typeof scope === 'number'
-      ? { n: 0, top: null as string | null }
-      : (db
-          .prepare(
-            `SELECT COUNT(*) AS n, (
-               SELECT u.username FROM dm_messages d2 JOIN users u ON u.id = d2.from_id
-               WHERE d2.to_id = ? AND d2.read = 0 ORDER BY d2.id DESC LIMIT 1
-             ) AS top
-             FROM dm_messages WHERE to_id = ? AND read = 0`,
-          )
-          .get(userId, userId) as { n: number; top: string | null });
+  // 3) 안 읽은 DM (읽음 상태 기준 — 시점 무관). DM도 조직별 대화라 같은 스코프로 센다
+  const dsc = dmScopeSql(scope);
+  const dm = db
+    .prepare(
+      `SELECT COUNT(*) AS n, (
+         SELECT u.username FROM dm_messages d2 JOIN users u ON u.id = d2.from_id
+         WHERE d2.to_id = ? AND d2.read = 0${dsc.sql.replace(/org_id/g, 'd2.org_id')} ORDER BY d2.id DESC LIMIT 1
+       ) AS top
+       FROM dm_messages WHERE to_id = ? AND read = 0${dsc.sql}`,
+    )
+    .get(userId, ...dsc.args, userId, ...dsc.args) as { n: number; top: string | null };
   if (dm.n > 0) {
     items.push({
       type: 'dm',
@@ -410,6 +414,18 @@ export async function getCatchup(userId: number, scope?: AgentScope): Promise<Ca
       meeting: { code: c.code, title: c.title },
     });
   }
+  // 항목은 상위 3곳만 싣지만 헤드라인 숫자는 전체 기준으로 (통합 메시지함과 일치)
+  const chatTotal = (
+    db
+      .prepare(
+        `SELECT COUNT(DISTINCT msg.meeting_id) AS n FROM messages msg
+         JOIN meetings m ON m.id = msg.meeting_id
+         JOIN meeting_participants mp ON mp.meeting_id = msg.meeting_id AND mp.user_id = ?
+         LEFT JOIN chat_reads cr ON cr.meeting_id = msg.meeting_id AND cr.user_id = ?
+         WHERE msg.user_id != ? AND msg.id > COALESCE(cr.last_read, 0)${sc.sql}`,
+      )
+      .get(userId, userId, userId, ...sc.args) as { n: number }
+  ).n;
 
   // 헤드라인 — 규칙 요약이 기본, AI가 있으면 자연스러운 한 줄로
   const missedRecaps = items.filter((i) => i.type === 'recap' && i.text.startsWith('놓친')).length;
@@ -417,7 +433,7 @@ export async function getCatchup(userId: number, scope?: AgentScope): Promise<Ca
     missedRecaps > 0 ? `놓친 통화 ${missedRecaps}건` : null,
     newTodos.length > 0 ? `새 할 일 ${newTodos.length}개` : null,
     dm.n > 0 ? `안 읽은 DM ${dm.n}개` : null,
-    chats.length > 0 ? `안 읽은 그룹 채팅 ${chats.length}곳` : null,
+    chatTotal > 0 ? `안 읽은 그룹 채팅 ${chatTotal}곳` : null,
   ].filter(Boolean);
   let headline =
     parts.length > 0 ? `자리 비운 사이: ${parts.join(' · ')}` : '자리 비운 사이 놓친 건 없어요';
@@ -619,15 +635,13 @@ router.get('/overview', (req: AuthedRequest, res) => {
     | { avatar?: string }
     | undefined;
 
-  // 히어로 뱃지 — 안 읽은 합계(DM+그룹 채팅, catchup과 같은 기준). DM은 개인 컨텍스트 — 조직 스코프 제외
-  const dmUnread =
-    typeof scope === 'number'
-      ? 0
-      : (
-          db.prepare('SELECT COUNT(*) AS n FROM dm_messages WHERE to_id = ? AND read = 0').get(
-            req.userId,
-          ) as { n: number }
-        ).n;
+  // 히어로 뱃지 — 안 읽은 합계(DM+그룹 채팅, catchup과 같은 기준). DM도 조직별 대화 — 같은 스코프
+  const dsc = dmScopeSql(scope);
+  const dmUnread = (
+    db
+      .prepare(`SELECT COUNT(*) AS n FROM dm_messages WHERE to_id = ? AND read = 0${dsc.sql}`)
+      .get(req.userId, ...dsc.args) as { n: number }
+  ).n;
   const chatUnread = (
     db
       .prepare(
