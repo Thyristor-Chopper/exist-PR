@@ -15,6 +15,14 @@ export function isOrgManager(orgId: number | null | undefined, userId: number): 
   return !!m && m.status === 'active' && (m.role === 'owner' || m.role === 'admin');
 }
 
+/** 조직의 active한 멤버인지 (역할 무관) */
+export function isOrgMember(orgId: number, userId: number): boolean {
+  const m = db
+    .prepare('SELECT status FROM organization_members WHERE org_id = ? AND user_id = ?')
+    .get(orgId, userId) as { status: string } | undefined;
+  return !!m && m.status === 'active';
+}
+
 /** 그룹(회의) 관리 권한 — 호스트이거나 소속 조직의 관리자 */
 export function canManageMeeting(
   meeting: { host_id: number; org_id?: number | null },

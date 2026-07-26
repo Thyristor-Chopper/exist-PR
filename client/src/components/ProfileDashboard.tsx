@@ -81,18 +81,24 @@ export default function ProfileDashboard() {
 
   useEffect(() => {
     let alive = true;
-    api<Overview>('/api/agent/overview').then((d) => alive && setOv(d)).catch(() => {});
-    api<Todo[]>('/api/todos').then((d) => alive && setTodos(d)).catch(() => {});
+    // AI 콘텐츠는 탭 컨텍스트를 따라간다 — 개인 탭은 개인 그룹만, 조직 탭은 그 조직만
+    const orgQ = `org=${org === 'personal' ? 'personal' : org}`;
+    // 탭 전환 시 이전 스코프 내용이 잠깐 보이지 않게 비운다
+    setOv(null);
+    setDaily('');
+    setCatchup(null);
+    api<Overview>(`/api/agent/overview?${orgQ}`).then((d) => alive && setOv(d)).catch(() => {});
+    api<Todo[]>(`/api/todos?${orgQ}`).then((d) => alive && setTodos(d)).catch(() => {});
     // 일정은 현재 컨텍스트(개인/조직) 범위로
-    api<Meeting[]>(`/api/meetings/schedule?org=${org === 'personal' ? 'personal' : org}`)
+    api<Meeting[]>(`/api/meetings/schedule?${orgQ}`)
       .then((d) => alive && setSchedule(d))
       .catch(() => {});
     // 오늘 브리핑 — AI 총무의 하루 세팅 문단
-    api<{ text: string }>('/api/agent/daily')
+    api<{ text: string }>(`/api/agent/daily?${orgQ}`)
       .then((d) => alive && setDaily(d.text))
       .catch(() => {});
     // P2 — 자리 비운 사이 놓친 것 브리핑
-    api<Catchup>('/api/agent/catchup')
+    api<Catchup>(`/api/agent/catchup?${orgQ}`)
       .then((d) => alive && setCatchup(d))
       .catch(() => {});
     return () => {

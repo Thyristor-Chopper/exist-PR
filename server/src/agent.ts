@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import OpenAI from 'openai';
 import db from './db.js';
 import { requireAuth, type AuthedRequest } from './auth.js';
 import { getRoomSize } from './sfu.js';
+import { isOrgMember } from './perm.js';
 
 /*
  * exist AI agent — 사용자의 일정·투두 상태(목표 vs 현재)를 분석해
@@ -36,18 +37,38 @@ interface UserContext {
   meetings: MeetingRow[];
 }
 
-export function getUserContext(userId: number): UserContext {
+/*
+ * AI 스코프 — 개인 탭과 조직 탭은 완전히 다른 컨텍스트다.
+ * 'personal' = 조직 소속이 아닌 그룹(m.org_id IS NULL)과 개인 할 일만.
+ * number    = 그 조직 소속 그룹만. undefined = 전체(레거시/nowbar).
+ */
+export type AgentScope = 'personal' | number | undefined;
+
+/** meetings 별칭 m 기준 스코프 SQL 조각 + 바인딩 값 */
+function scopeSql(scope: AgentScope): { sql: string; args: number[] } {
+  if (scope === 'personal') return { sql: ' AND m.org_id IS NULL', args: [] };
+  if (typeof scope === 'number') return { sql: ' AND m.org_id = ?', args: [scope] };
+  return { sql: '', args: [] };
+}
+
+export function getUserContext(userId: number, scope?: AgentScope): UserContext {
+  const sc = scopeSql(scope);
+  // 개인 todo(meeting_id 없음)는 LEFT JOIN에서 m.org_id가 NULL이라 'personal' 스코프에 자연 포함
   const todos = db
-    .prepare('SELECT title, done, due_at FROM todos WHERE user_id = ?')
-    .all(userId) as TodoRow[];
+    .prepare(
+      `SELECT t.title, t.done, t.due_at FROM todos t
+       LEFT JOIN meetings m ON m.id = t.meeting_id
+       WHERE t.user_id = ?${sc.sql}`,
+    )
+    .all(userId, ...sc.args) as TodoRow[];
   const meetings = (
     db
       .prepare(
         `SELECT m.code, m.title, m.starts_at, m.ends_at FROM meetings m
          JOIN meeting_participants mp ON mp.meeting_id = m.id
-         WHERE mp.user_id = ?`,
+         WHERE mp.user_id = ?${sc.sql}`,
       )
-      .all(userId) as Omit<MeetingRow, 'in_call'>[]
+      .all(userId, ...sc.args) as Omit<MeetingRow, 'in_call'>[]
   ).map((m) => ({ ...m, in_call: getRoomSize(m.code) }));
   return { now: new Date(), todos, meetings };
 }
@@ -296,11 +317,12 @@ export interface Catchup {
   items: CatchupItem[];
 }
 
-export async function getCatchup(userId: number): Promise<Catchup> {
+export async function getCatchup(userId: number, scope?: AgentScope): Promise<Catchup> {
   const me = db.prepare('SELECT username, last_seen_at FROM users WHERE id = ?').get(userId) as
     | { username: string; last_seen_at: string | null }
     | undefined;
   if (!me) return { since: null, headline: '', source: 'rule', items: [] };
+  const sc = scopeSql(scope);
 
   // 창: 마지막 접속 종료 이후, 최대 7일 (첫 접속이면 24시간)
   const floor7d = new Date(Date.now() - 7 * 24 * 3600_000).toISOString().replace('T', ' ').slice(0, 19);
@@ -316,10 +338,10 @@ export async function getCatchup(userId: number): Promise<Catchup> {
        FROM meeting_recaps r
        JOIN meetings m ON m.id = r.meeting_id
        JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id
-       WHERE mp.user_id = ? AND r.created_at > ?
+       WHERE mp.user_id = ? AND r.created_at > ?${sc.sql}
        ORDER BY r.id DESC LIMIT 5`,
     )
-    .all(userId, since) as { summary: string; attendees: string; decisions: string; code: string; title: string }[];
+    .all(userId, since, ...sc.args) as { summary: string; attendees: string; decisions: string; code: string; title: string }[];
   for (const r of recaps) {
     const missed = !(JSON.parse(r.attendees) as string[]).includes(me.username);
     const decisionCount = (JSON.parse(r.decisions) as string[]).length;
@@ -337,10 +359,10 @@ export async function getCatchup(userId: number): Promise<Catchup> {
     .prepare(
       `SELECT t.title, m.code, m.title AS mtitle FROM todos t
        JOIN meetings m ON m.id = t.meeting_id
-       WHERE t.user_id = ? AND t.done = 0 AND t.created_at > ?
+       WHERE t.user_id = ? AND t.done = 0 AND t.created_at > ?${sc.sql}
        ORDER BY t.id DESC LIMIT 5`,
     )
-    .all(userId, since) as { title: string; code: string; mtitle: string }[];
+    .all(userId, since, ...sc.args) as { title: string; code: string; mtitle: string }[];
   for (const t of newTodos) {
     items.push({
       type: 'todo',
@@ -349,16 +371,20 @@ export async function getCatchup(userId: number): Promise<Catchup> {
     });
   }
 
-  // 3) 안 읽은 DM (읽음 상태 기준 — 시점 무관)
-  const dm = db
-    .prepare(
-      `SELECT COUNT(*) AS n, (
-         SELECT u.username FROM dm_messages d2 JOIN users u ON u.id = d2.from_id
-         WHERE d2.to_id = ? AND d2.read = 0 ORDER BY d2.id DESC LIMIT 1
-       ) AS top
-       FROM dm_messages WHERE to_id = ? AND read = 0`,
-    )
-    .get(userId, userId) as { n: number; top: string | null };
+  // 3) 안 읽은 DM (읽음 상태 기준 — 시점 무관). DM은 조직 소속이 아니라 개인 컨텍스트 —
+  //    조직 스코프에선 제외한다.
+  const dm =
+    typeof scope === 'number'
+      ? { n: 0, top: null as string | null }
+      : (db
+          .prepare(
+            `SELECT COUNT(*) AS n, (
+               SELECT u.username FROM dm_messages d2 JOIN users u ON u.id = d2.from_id
+               WHERE d2.to_id = ? AND d2.read = 0 ORDER BY d2.id DESC LIMIT 1
+             ) AS top
+             FROM dm_messages WHERE to_id = ? AND read = 0`,
+          )
+          .get(userId, userId) as { n: number; top: string | null });
   if (dm.n > 0) {
     items.push({
       type: 'dm',
@@ -373,10 +399,10 @@ export async function getCatchup(userId: number): Promise<Catchup> {
        JOIN meetings m ON m.id = msg.meeting_id
        JOIN meeting_participants mp ON mp.meeting_id = msg.meeting_id AND mp.user_id = ?
        LEFT JOIN chat_reads cr ON cr.meeting_id = msg.meeting_id AND cr.user_id = ?
-       WHERE msg.user_id != ? AND msg.id > COALESCE(cr.last_read, 0)
+       WHERE msg.user_id != ? AND msg.id > COALESCE(cr.last_read, 0)${sc.sql}
        GROUP BY msg.meeting_id ORDER BY n DESC LIMIT 3`,
     )
-    .all(userId, userId, userId) as { code: string; title: string; n: number }[];
+    .all(userId, userId, userId, ...sc.args) as { code: string; title: string; n: number }[];
   for (const c of chats) {
     items.push({
       type: 'chat',
@@ -440,7 +466,8 @@ export interface DailyBrief {
   source: 'ai' | 'rule';
 }
 
-const dailyCache = new Map<number, DailyBrief & { at: number }>();
+// 키: `${userId}:${scope}` — 개인 탭·조직 탭의 브리핑은 서로 다른 문서다
+const dailyCache = new Map<string, DailyBrief & { at: number }>();
 const DAILY_CACHE_MS = 5 * 60 * 1000;
 
 /** 브리핑 재료 — 서버가 데이터에서 직접 만든 사실 문장만.
@@ -484,13 +511,14 @@ function ruleBasedDaily(ctx: UserContext, catchup: Catchup): string {
   return facts.map((f) => f + '요.').join(' ').replace(/다요\./g, '어요.').slice(0, 300);
 }
 
-export async function getDailyBrief(userId: number): Promise<DailyBrief> {
-  const cached = dailyCache.get(userId);
+export async function getDailyBrief(userId: number, scope?: AgentScope): Promise<DailyBrief> {
+  const key = `${userId}:${scope ?? 'all'}`;
+  const cached = dailyCache.get(key);
   if (cached && Date.now() - cached.at < DAILY_CACHE_MS) {
     return { text: cached.text, source: cached.source };
   }
-  const ctx = getUserContext(userId);
-  const catchup = await getCatchup(userId);
+  const ctx = getUserContext(userId, scope);
+  const catchup = await getCatchup(userId, scope);
 
   let result: DailyBrief;
   if (openai) {
@@ -532,31 +560,55 @@ export async function getDailyBrief(userId: number): Promise<DailyBrief> {
   } else {
     result = { text: ruleBasedDaily(ctx, catchup), source: 'rule' };
   }
-  dailyCache.set(userId, { ...result, at: Date.now() });
+  dailyCache.set(key, { ...result, at: Date.now() });
   return result;
 }
 
 const router = Router();
 router.use(requireAuth);
 
+/** ?org= 파싱 — 'personal' | 조직 id(멤버십 검증) | 없으면 전체. 실패 시 응답 쓰고 null */
+function parseScope(req: AuthedRequest, res: Response): AgentScope | null {
+  const raw = req.query.org;
+  if (raw === undefined) return undefined;
+  if (raw === 'personal') return 'personal';
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: '잘못된 org 값입니다' });
+    return null;
+  }
+  if (!isOrgMember(id, req.userId!)) {
+    res.status(403).json({ error: '조직 멤버가 아닙니다' });
+    return null;
+  }
+  return id;
+}
+
 router.get('/brief', async (req: AuthedRequest, res) => {
   const brief = await generateBrief(req.userId!);
   res.json(brief);
 });
 
-/** 오늘 브리핑 — 홈 대시보드 상단 문단 */
+/** 오늘 브리핑 — 홈 대시보드 상단 문단 (?org= 스코프) */
 router.get('/daily', async (req: AuthedRequest, res) => {
-  res.json(await getDailyBrief(req.userId!));
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  res.json(await getDailyBrief(req.userId!, scope));
 });
 
-/** P2 — 자리 비운 사이 놓친 것 브리핑 */
+/** P2 — 자리 비운 사이 놓친 것 브리핑 (?org= 스코프) */
 router.get('/catchup', async (req: AuthedRequest, res) => {
-  res.json(await getCatchup(req.userId!));
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  res.json(await getCatchup(req.userId!, scope));
 });
 
-/** 개인 대시보드 요약 — 참여 회의·미완료 할 일·다음 일정·라이브 통화 */
+/** 개인 대시보드 요약 — 참여 회의·미완료 할 일·다음 일정·라이브 통화 (?org= 스코프) */
 router.get('/overview', (req: AuthedRequest, res) => {
-  const ctx = getUserContext(req.userId!);
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  const sc = scopeSql(scope);
+  const ctx = getUserContext(req.userId!, scope);
   const now = ctx.now.getTime();
   const undone = ctx.todos.filter((t) => !t.done);
   const overdue = undone.filter((t) => t.due_at && new Date(t.due_at).getTime() < now);
@@ -567,30 +619,35 @@ router.get('/overview', (req: AuthedRequest, res) => {
     | { avatar?: string }
     | undefined;
 
-  // 히어로 뱃지 — 안 읽은 합계(DM+그룹 채팅, catchup과 같은 기준)
-  const dmUnread = (
-    db.prepare('SELECT COUNT(*) AS n FROM dm_messages WHERE to_id = ? AND read = 0').get(
-      req.userId,
-    ) as { n: number }
-  ).n;
+  // 히어로 뱃지 — 안 읽은 합계(DM+그룹 채팅, catchup과 같은 기준). DM은 개인 컨텍스트 — 조직 스코프 제외
+  const dmUnread =
+    typeof scope === 'number'
+      ? 0
+      : (
+          db.prepare('SELECT COUNT(*) AS n FROM dm_messages WHERE to_id = ? AND read = 0').get(
+            req.userId,
+          ) as { n: number }
+        ).n;
   const chatUnread = (
     db
       .prepare(
         `SELECT COUNT(*) AS n FROM messages msg
+         JOIN meetings m ON m.id = msg.meeting_id
          JOIN meeting_participants mp ON mp.meeting_id = msg.meeting_id AND mp.user_id = ?
          LEFT JOIN chat_reads cr ON cr.meeting_id = msg.meeting_id AND cr.user_id = ?
-         WHERE msg.user_id != ? AND msg.id > COALESCE(cr.last_read, 0)`,
+         WHERE msg.user_id != ? AND msg.id > COALESCE(cr.last_read, 0)${sc.sql}`,
       )
-      .get(req.userId, req.userId, req.userId) as { n: number }
+      .get(req.userId, req.userId, req.userId, ...sc.args) as { n: number }
   ).n;
 
   // 히어로 뱃지 — 수신확인 대기 결정 (내 그룹의 결정 중 내가 ack 안 한 것)
   const recapRows = db
     .prepare(
       `SELECT r.decisions FROM meeting_recaps r
-       JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = ?`,
+       JOIN meetings m ON m.id = r.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = ?${sc.sql}`,
     )
-    .all(req.userId) as { decisions: string }[];
+    .all(req.userId, ...sc.args) as { decisions: string }[];
   const totalDecisions = recapRows.reduce(
     (s, r) => s + (JSON.parse(r.decisions) as string[]).length,
     0,
@@ -600,10 +657,11 @@ router.get('/overview', (req: AuthedRequest, res) => {
       .prepare(
         `SELECT COUNT(*) AS n FROM decision_acks a
          JOIN meeting_recaps r ON r.id = a.recap_id
+         JOIN meetings m ON m.id = r.meeting_id
          JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = a.user_id
-         WHERE a.user_id = ?`,
+         WHERE a.user_id = ?${sc.sql}`,
       )
-      .get(req.userId) as { n: number }
+      .get(req.userId, ...sc.args) as { n: number }
   ).n;
 
   res.json({

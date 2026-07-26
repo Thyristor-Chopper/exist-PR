@@ -36,13 +36,19 @@ router.get('/', (req: AuthedRequest, res) => {
       .all(mid);
     return res.json(rows);
   }
+  // ?org= 스코프 — 개인 탭(personal)은 조직 소속 그룹 할 일 제외, 조직 탭은 그 조직 것만
+  const org = req.query.org;
+  const orgId = typeof org === 'string' && org !== 'personal' ? Number(org) : NaN;
+  const scopeSql =
+    org === 'personal' ? ' AND m.org_id IS NULL' : Number.isInteger(orgId) ? ' AND m.org_id = ?' : '';
+  const scopeArgs: number[] = Number.isInteger(orgId) ? [orgId] : [];
   const rows = db
     .prepare(
       `SELECT t.id, t.title, t.done, t.due_at, m.code AS meeting_code, m.title AS meeting_title
        FROM todos t LEFT JOIN meetings m ON m.id = t.meeting_id
-       WHERE t.user_id = ? ORDER BY t.created_at`,
+       WHERE t.user_id = ?${scopeSql} ORDER BY t.created_at`,
     )
-    .all(req.userId);
+    .all(req.userId, ...scopeArgs);
   res.json(rows);
 });
 
