@@ -3593,6 +3593,13 @@ input:focus {
   width: 17px;
   height: 17px;
   border-radius: 5px;
+  /* 미체크가 "빈 공간"처럼 안 보이게 — 옅은 채움 + 뚜렷한 테두리로 체크박스임을 표시 */
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-color: color-mix(in srgb, var(--text) 38%, transparent);
+}
+
+.hub-assign-opt:hover .hub-todo-check {
+  border-color: color-mix(in srgb, var(--text) 60%, transparent);
 }
 
 .hub-assign-opt input:checked + .hub-todo-check {
