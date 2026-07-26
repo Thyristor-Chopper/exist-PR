@@ -160,7 +160,7 @@ const box: CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 14,
   padding: 18,
-  margin: '0 0 20px',
+  margin: 0, // 아래 간격은 부모 컬럼(gap)이 책임 — 자체 마진 주면 이중 간격
   boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
 };
 const head: CSSProperties = {

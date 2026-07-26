@@ -22,20 +22,26 @@ function meetingIdOf(code: unknown): number | null {
   return m?.id ?? null;
 }
 
-/** 회의 할 일들의 담당자 — todo_id → username[] */
-function assigneesOf(todoIds: number[]): Map<number, string[]> {
-  const map = new Map<number, string[]>();
+interface AssigneeProfile {
+  username: string;
+  name: string | null;
+  avatar: string | null;
+}
+
+/** 회의 할 일들의 담당자 — todo_id → 프로필(이름·아바타 포함, nowbar 등 표시용) */
+function assigneesOf(todoIds: number[]): Map<number, AssigneeProfile[]> {
+  const map = new Map<number, AssigneeProfile[]>();
   if (todoIds.length === 0) return map;
   const ph = todoIds.map(() => '?').join(',');
   const rows = db
     .prepare(
-      `SELECT ta.todo_id, u.username FROM todo_assignees ta
+      `SELECT ta.todo_id, u.username, u.name, u.avatar FROM todo_assignees ta
        JOIN users u ON u.id = ta.user_id WHERE ta.todo_id IN (${ph}) ORDER BY u.username`,
     )
-    .all(...todoIds) as { todo_id: number; username: string }[];
+    .all(...todoIds) as ({ todo_id: number } & AssigneeProfile)[];
   for (const r of rows) {
     const list = map.get(r.todo_id) ?? [];
-    list.push(r.username);
+    list.push({ username: r.username, name: r.name, avatar: r.avatar });
     map.set(r.todo_id, list);
   }
   return map;
@@ -113,7 +119,13 @@ router.get('/', (req: AuthedRequest, res) => {
       )
       .all(mid) as { id: number }[];
     const amap = assigneesOf(rows.map((r) => r.id));
-    return res.json(rows.map((r) => ({ ...r, assignees: amap.get(r.id) ?? [] })));
+    return res.json(
+      rows.map((r) => {
+        const profs = amap.get(r.id) ?? [];
+        // assignees(아이디 배열)는 기존 소비자(허브 피커) 호환용, 프로필은 표시용
+        return { ...r, assignees: profs.map((p) => p.username), assigneeProfiles: profs };
+      }),
+    );
   }
   // ?org= 스코프 — 개인 탭(personal)은 조직 소속 그룹 할 일 제외, 조직 탭은 그 조직 것만
   const org = req.query.org;

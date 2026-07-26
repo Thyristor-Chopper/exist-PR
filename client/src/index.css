@@ -3529,6 +3529,45 @@ input:focus {
   position: relative;
 }
 
+/* nowbar 할 일 — 미니 담당자 스택 + hover 프로필 리스트 (위로 열림, 바가 하단이라) */
+.nb-todo-assign {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.nb-todo-assign .nb-todo-assign-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  font-size: 10px;
+  border: 1.5px solid var(--surface);
+}
+
+.nb-todo-assign .nb-todo-assign-avatar:not(:first-child) {
+  margin-left: -5px;
+}
+
+.nb-todo-assign .nb-todo-assign-avatar .avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.nb-todo-assign-more {
+  margin-left: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.nb-todo-assign:hover .hub-assign-tip {
+  display: block;
+}
+
 .hub-todo-assign {
   border: 1px solid var(--border);
   background: none;
@@ -10203,6 +10242,7 @@ input:focus {
 
 .ledger-body {
   min-width: 0;
+  flex: 1; /* 확인 칩이 행마다 들쭉날쭉하지 않게 오른쪽 끝으로 고정 */
 }
 
 .ledger-decision {
@@ -14235,6 +14275,10 @@ input:focus {
 .hub-decision-ack,
 .ledger-ack {
   flex: none;
+  /* 행(stretch)에 안 늘어나게 + span(확인함)·button(확인) 세로 정렬 통일 */
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
   border: 1px solid var(--green);
   background: var(--green-soft);
   color: var(--green-dark);

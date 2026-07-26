@@ -47,6 +47,29 @@ export interface Todo {
   /** 회의에서 배정된 할 일이면 그 회의 (recap 자동 배정 표시용) */
   meeting_code?: string | null;
   meeting_title?: string | null;
+  /** 담당자 프로필 (회의 할 일 — 표시용, 이름∥아이디·아바타) */
+  assigneeProfiles?: { username: string; name: string | null; avatar: string | null }[];
+}
+
+/** 할 일 담당자 미니 아바타 스택 + hover 전체 프로필 리스트 (허브·공동편집과 동일 톤) */
+function TodoAssignees({ profiles }: { profiles?: Todo['assigneeProfiles'] }) {
+  if (!profiles?.length) return null;
+  return (
+    <span className="nb-todo-assign">
+      {profiles.slice(0, 3).map((p) => (
+        <Avatar key={p.username} value={p.avatar} className="nb-todo-assign-avatar" />
+      ))}
+      {profiles.length > 3 && <span className="nb-todo-assign-more">+{profiles.length - 3}</span>}
+      <span className="hub-assign-tip" aria-hidden>
+        {profiles.map((p) => (
+          <span key={p.username} className="hub-assign-tip-row">
+            <Avatar value={p.avatar} className="hub-assign-avatar" />
+            <span>{p.name || p.username}</span>
+          </span>
+        ))}
+      </span>
+    </span>
+  );
 }
 
 export interface Meeting {
@@ -759,6 +782,7 @@ function NowBar({
                   <CheckMarkIcon size={14} />
                 </span>
                 <Marquee className="nowbar-todo-text">{todo.title}</Marquee>
+                <TodoAssignees profiles={todo.assigneeProfiles} />
               </div>
             ))}
             {groupTodos.length === 0 && (
@@ -937,6 +961,7 @@ function NowBar({
                       <CheckMarkIcon size={14} />
                     </span>
                     <Marquee className="nowbar-todo-text">{todo.title}</Marquee>
+                    <TodoAssignees profiles={todo.assigneeProfiles} />
                   </label>
                 ))}
                 {groupTodos.length === 0 && <div className="nb-next-empty">이 회의 할 일이 없어요</div>}
