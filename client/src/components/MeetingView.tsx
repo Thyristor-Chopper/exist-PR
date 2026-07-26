@@ -951,19 +951,27 @@ export default function MeetingView({
               position: 'relative',
               width: '100%',
               aspectRatio: '16 / 9',
-              background: '#111',
-              borderRadius: 12,
-              overflow: 'hidden',
               marginBottom: 18,
             }}
           >
-            <VideoTile
-              track={previewTrack}
-              username={user?.username ?? '나'}
-              muted
-              isLocal
-              paused={!camOn}
-            />
+            {/* 라운드 클리핑은 비디오만 — 알약·장치 메뉴는 바깥이라 위로 열려도 안 잘림 */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: '#111',
+                borderRadius: 12,
+                overflow: 'hidden',
+              }}
+            >
+              <VideoTile
+                track={previewTrack}
+                username={user?.username ?? '나'}
+                muted
+                isLocal
+                paused={!camOn}
+              />
+            </div>
             {/* 미리보기 위 통합 컨트롤 — 원형 토글 */}
             <div
               style={{
