@@ -773,6 +773,9 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   db.prepare('DELETE FROM call_transcripts WHERE meeting_id = ?').run(meeting.id);
   deleteMeetingFiles(meeting.id, String(req.params.code).toUpperCase());
   try {
+    db.prepare(
+      'DELETE FROM todo_assignees WHERE todo_id IN (SELECT id FROM todos WHERE meeting_id = ?)',
+    ).run(meeting.id);
     db.prepare('DELETE FROM todos WHERE meeting_id = ?').run(meeting.id);
   } catch {
     /* todos에 meeting_id 컬럼이 없으면 무시 */

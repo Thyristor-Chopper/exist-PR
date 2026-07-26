@@ -131,6 +131,8 @@ interface MeetingTodo {
   title: string;
   done: number;
   author?: string;
+  /** 담당자 username 목록 (회의 할 일 — 여러 명 가능) */
+  assignees?: string[];
 }
 
 function dday(endDate: string): number | null {
@@ -391,6 +393,9 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   const onlineRef = useRef<number>(1); // 통화 인원 — 리사이즈 캡(다 들어가면 그만)용
   const [todos, setTodos] = useState<MeetingTodo[]>([]);
   const [todoInput, setTodoInput] = useState('');
+  // 담당자 피커 — 열려있는 대상(할 일 id 또는 추가 폼 'new')과 추가 폼의 선택 상태
+  const [assignPick, setAssignPick] = useState<number | 'new' | null>(null);
+  const [newAssign, setNewAssign] = useState<string[]>([]);
   const [confirmDelMeeting, setConfirmDelMeeting] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   // 맨 위 고정 토글은 PinToggle(파일 하단)로 분리 — 허브 전체 리렌더 없이 스위치만 갱신
@@ -420,8 +425,19 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   async function addTodo(e: React.FormEvent) {
     e.preventDefault();
     if (!todoInput.trim()) return;
-    await api('/api/todos', { method: 'POST', body: { title: todoInput, meeting: code } });
+    await api('/api/todos', {
+      method: 'POST',
+      body: { title: todoInput, meeting: code, assignees: newAssign },
+    });
     setTodoInput('');
+    setNewAssign([]);
+    setAssignPick(null);
+    void reloadTodos();
+  }
+  async function toggleAssignee(t: MeetingTodo, username: string) {
+    const cur = t.assignees ?? [];
+    const next = cur.includes(username) ? cur.filter((n) => n !== username) : [...cur, username];
+    await api(`/api/todos/${t.id}`, { method: 'PATCH', body: { assignees: next } });
     void reloadTodos();
   }
   async function toggleTodo(t: MeetingTodo) {
@@ -1177,7 +1193,30 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 </span>
                                 <Marquee className="hub-todo-text">{t.title}</Marquee>
                               </label>
-                              {t.author && <span className="hub-todo-author">{t.author}</span>}
+                              <button
+                                type="button"
+                                className={`hub-todo-assign${(t.assignees ?? []).length ? ' has' : ''}`}
+                                onClick={() => setAssignPick(assignPick === t.id ? null : t.id)}
+                                title="담당자 지정"
+                              >
+                                {(t.assignees ?? []).length
+                                  ? `${t.assignees!.slice(0, 2).join(', ')}${t.assignees!.length > 2 ? ` +${t.assignees!.length - 2}` : ''}`
+                                  : '담당'}
+                              </button>
+                              {assignPick === t.id && (
+                                <div className="hub-assign-pop">
+                                  {detail.participants.map((p) => (
+                                    <label key={p.username} className="hub-assign-opt">
+                                      <input
+                                        type="checkbox"
+                                        checked={(t.assignees ?? []).includes(p.username)}
+                                        onChange={() => void toggleAssignee(t, p.username)}
+                                      />
+                                      <span>{p.username}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
                               <button
                                 className="hub-todo-del"
                                 onClick={() => void deleteTodo(t)}
@@ -1197,6 +1236,34 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           onChange={(e) => setTodoInput(e.target.value)}
                           placeholder="할 일 추가"
                         />
+                        <button
+                          type="button"
+                          className={`hub-todo-assign${newAssign.length ? ' has' : ''}`}
+                          onClick={() => setAssignPick(assignPick === 'new' ? null : 'new')}
+                          title="담당자 지정 (없으면 나)"
+                        >
+                          담당{newAssign.length ? ` ${newAssign.length}` : ''}
+                        </button>
+                        {assignPick === 'new' && (
+                          <div className="hub-assign-pop up">
+                            {detail.participants.map((p) => (
+                              <label key={p.username} className="hub-assign-opt">
+                                <input
+                                  type="checkbox"
+                                  checked={newAssign.includes(p.username)}
+                                  onChange={() =>
+                                    setNewAssign((cur) =>
+                                      cur.includes(p.username)
+                                        ? cur.filter((n) => n !== p.username)
+                                        : [...cur, p.username],
+                                    )
+                                  }
+                                />
+                                <span>{p.username}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                         <button type="submit">추가</button>
                       </form>
                     </section>

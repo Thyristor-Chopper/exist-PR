@@ -15,8 +15,8 @@ export function initNotifier(server: Server) {
 export interface NotifyPayload {
   from: string;
   text: string;
-  /** 클라가 받아 후처리(조직 목록 새로고침) / 'call'이면 "지금 들어가기" 버튼 / 'recap'=통화 요약 배달 / 'mention'=문서 멘션 / 'dm'=다이렉트 메시지 */
-  kind?: 'org-approved' | 'org-request' | 'org-role' | 'call' | 'recap' | 'mention' | 'dm';
+  /** 클라가 받아 후처리(조직 목록 새로고침) / 'call'이면 "지금 들어가기" 버튼 / 'recap'=통화 요약 배달 / 'mention'=문서 멘션 / 'dm'=다이렉트 메시지 / 'todo'=할 일 담당 지정 */
+  kind?: 'org-approved' | 'org-request' | 'org-role' | 'call' | 'recap' | 'mention' | 'dm' | 'todo';
   /** 이 알림이 발생한 회의 코드 — 있으면 알림에 회의 썸네일 표시 + 클릭 시 열기 */
   meetingCode?: string;
 }

@@ -65,9 +65,10 @@ export function getUserContext(userId: number, scope?: AgentScope): UserContext 
     .prepare(
       `SELECT t.title, t.done, t.due_at FROM todos t
        LEFT JOIN meetings m ON m.id = t.meeting_id
-       WHERE t.user_id = ?${sc.sql}`,
+       WHERE ((t.meeting_id IS NULL AND t.user_id = ?)
+          OR EXISTS (SELECT 1 FROM todo_assignees ta WHERE ta.todo_id = t.id AND ta.user_id = ?))${sc.sql}`,
     )
-    .all(userId, ...sc.args) as TodoRow[];
+    .all(userId, userId, ...sc.args) as TodoRow[];
   const meetings = (
     db
       .prepare(
@@ -380,7 +381,8 @@ export async function getCatchup(userId: number, scope?: AgentScope): Promise<Ca
     .prepare(
       `SELECT t.title, m.code, m.title AS mtitle FROM todos t
        JOIN meetings m ON m.id = t.meeting_id
-       WHERE t.user_id = ? AND t.done = 0 AND t.created_at > ?${sc.sql}
+       WHERE EXISTS (SELECT 1 FROM todo_assignees ta WHERE ta.todo_id = t.id AND ta.user_id = ?)
+         AND t.done = 0 AND t.created_at > ?${sc.sql}
        ORDER BY t.id DESC LIMIT 5`,
     )
     .all(userId, since, ...sc.args) as { title: string; code: string; mtitle: string }[];

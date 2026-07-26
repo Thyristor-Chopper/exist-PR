@@ -3524,6 +3524,70 @@ input:focus {
   flex-shrink: 0;
 }
 
+/* 할 일 담당자 — 칩 버튼 + 참가자 체크 피커 (행/추가 폼 공용) */
+.hub-todo {
+  position: relative;
+}
+
+.hub-todo-assign {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  max-width: 40%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hub-todo-assign.has {
+  background: var(--green-soft);
+  color: var(--green-dark);
+  border-color: transparent;
+}
+
+.hub-assign-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  min-width: 150px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.hub-assign-pop.up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.hub-assign-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.hub-assign-opt:hover {
+  background: var(--surface-2);
+}
+
+.hub-assign-opt input {
+  accent-color: var(--green);
+}
+
 .hub-todo-del {
   border: none;
   background: none;
@@ -3541,6 +3605,23 @@ input:focus {
 .hub-todo-add {
   display: flex;
   gap: 6px;
+  position: relative; /* 담당자 피커(위로 열림) 기준점 */
+}
+
+/* .hub-todo-add button(초록 채움)보다 우선 — 칩 룩 유지 */
+.hub-todo-add .hub-todo-assign {
+  padding: 0 10px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.hub-todo-add .hub-todo-assign.has {
+  background: var(--green-soft);
+  color: var(--green-dark);
+  border-color: transparent;
 }
 
 .hub-todo-add input {

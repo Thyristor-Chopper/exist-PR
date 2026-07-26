@@ -303,10 +303,12 @@ export async function runRecapForMeeting(
     if (!a.assignee) continue;
     const uid = byName.get(a.assignee);
     if (!uid) continue;
-    db.prepare('INSERT INTO todos (user_id, meeting_id, title) VALUES (?, ?, ?)').run(
+    const todoInfo = db
+      .prepare('INSERT INTO todos (user_id, meeting_id, title) VALUES (?, ?, ?)')
+      .run(uid, meeting.id, a.title.slice(0, 200));
+    db.prepare('INSERT OR IGNORE INTO todo_assignees (todo_id, user_id) VALUES (?, ?)').run(
+      todoInfo.lastInsertRowid,
       uid,
-      meeting.id,
-      a.title.slice(0, 200),
     );
     assignedCount.set(uid, (assignedCount.get(uid) ?? 0) + 1);
   }
