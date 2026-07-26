@@ -52,6 +52,8 @@ interface ChatChannel {
   id: number;
   name: string;
   isDefault: boolean;
+  /** 'call' = 통화 전용 채널 — 삭제 버튼 미노출 (서버도 삭제 보호) */
+  kind?: string | null;
   /** 만든 사람 — 이름 수정 버튼 노출 판단 (수정 권한: 만든 사람·호스트·조직 관리자) */
   createdBy?: number;
 }
@@ -1761,7 +1763,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           ✎
                         </span>
                       )}
-                      {(detail?.isHost || detail?.canManage) && !ch.isDefault && (
+                      {(detail?.isHost || detail?.canManage) && !ch.isDefault && ch.kind !== 'call' && (
                         <span
                           className="hub-channel-del"
                           title="채널 삭제"
