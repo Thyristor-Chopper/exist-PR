@@ -30,6 +30,9 @@ import {
   PinIcon,
   ChevronIcon,
   ShareIcon,
+  BellIcon,
+  BellOffIcon,
+  AtSignIcon,
 } from './Icons';
 
 interface Participant {
@@ -67,12 +70,18 @@ const NOTIFY_CYCLE: Record<ChannelNotifyMode, ChannelNotifyMode> = {
   mention: 'off',
   off: 'all',
 };
-const NOTIFY_ICON: Record<ChannelNotifyMode, string> = { all: '🔔', mention: '@', off: '🔕' };
 const NOTIFY_LABEL: Record<ChannelNotifyMode, string> = {
   all: '알림 다 받기',
   mention: '@멘션만 알림',
   off: '알림 끔',
 };
+
+/** 알림 모드 단색 아이콘 (종/@/종+슬래시) */
+function NotifyModeIcon({ mode, size = 13 }: { mode: ChannelNotifyMode; size?: number }) {
+  if (mode === 'all') return <BellIcon size={size} />;
+  if (mode === 'off') return <BellOffIcon size={size} />;
+  return <AtSignIcon size={size} />;
+}
 
 interface MeetingDetail {
   id: number;
@@ -1812,7 +1821,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           void cycleNotify(ch);
                         }}
                       >
-                        {NOTIFY_ICON[ch.notifyMode ?? 'mention']}
+                        <NotifyModeIcon mode={ch.notifyMode ?? 'mention'} />
                       </span>
                     </button>
                   ),
@@ -1849,7 +1858,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                     title={`${NOTIFY_LABEL[mode]} — 클릭해서 변경`}
                     onClick={() => void cycleNotify(ch)}
                   >
-                    {NOTIFY_ICON[mode]} {NOTIFY_LABEL[mode]}
+                    <NotifyModeIcon mode={mode} size={16} />
                   </button>
                 );
               })()}

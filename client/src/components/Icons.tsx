@@ -349,6 +349,43 @@ export function PenIcon({ size }: IconProps) {
   );
 }
 
+/** @ 기호 — 채널 알림 '멘션만' 상태용 */
+export function AtSignIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M16 12v1.6a2.4 2.4 0 0 0 4.8 0V12a8.8 8.8 0 1 0-3.4 6.95"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+/** 종 + 슬래시 — 채널 알림 '끔' 상태용 */
+export function BellOffIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path
+        d="M18.5 9a6.5 6.5 0 0 0-13 0c0 6-2.5 7.5-2.5 7.5h18S18.5 15 18.5 9z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 20.5a2.3 2.3 0 0 0 4 0"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <path d="M4 3.5 20.5 20" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function BellIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
