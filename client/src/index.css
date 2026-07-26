@@ -11920,28 +11920,24 @@ input:focus {
   color: #ffb54d;
 }
 
-/* ── 역할(정책) 관리 — 소유자 전용, IAM식 ── */
-.org-roles {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px 18px;
-  margin-bottom: 18px;
-}
-
-.org-roles-head {
-  font-size: 15px;
-  font-weight: 700;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
+/* ── 역할(정책) 관리 모달 — 소유자 전용, IAM식 ── */
+.org-roles-modal {
+  width: min(560px, 92vw);
+  max-height: 82dvh;
+  overflow-y: auto;
 }
 
 .org-roles-hint {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
+  color: var(--text-sub);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.org-roles-empty {
+  padding: 14px 0;
+  font-size: 13.5px;
   color: var(--text-sub);
 }
 
@@ -11973,7 +11969,8 @@ input:focus {
 }
 
 .org-roles-row.new .org-field-input {
-  width: 170px;
+  flex: 1 1 160px;
+  min-width: 140px;
 }
 
 /* 중간관리자 승인 시 고정 부서 표시 */

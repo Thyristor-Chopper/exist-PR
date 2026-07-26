@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useOrgStore } from '../orgStore';
 import Logo from '../components/Logo';
 import Avatar from '../components/Avatar';
-import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon } from '../components/Icons';
+import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon } from '../components/Icons';
 import { POSITIONS } from '../lib/positions';
 import InsightsPanel from '../components/InsightsPanel';
 
@@ -135,7 +135,8 @@ export default function OrgChartPage() {
     await load();
   }
 
-  // ── 역할(정책) 관리 — 소유자 전용 ──
+  // ── 역할(정책) 관리 — 소유자 전용, 모달 ──
+  const [rolesOpen, setRolesOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRolePerms, setNewRolePerms] = useState<string[]>([]);
 
@@ -260,6 +261,15 @@ export default function OrgChartPage() {
                   {linkCopied ? <CheckMarkIcon size={13} /> : <ShareIcon size={13} />}
                   {linkCopied ? '복사됨' : '초대 링크'}
                 </button>
+                {owner && (
+                  <button
+                    className="orgchart-code"
+                    onClick={() => setRolesOpen(true)}
+                    title="역할 관리 — 권한 조합을 만들어 중간관리자를 지정해요"
+                  >
+                    <GearIcon size={13} /> 역할 관리
+                  </button>
+                )}
               </span>
             )}
           </div>
@@ -320,65 +330,73 @@ export default function OrgChartPage() {
             </section>
           )}
 
-          {/* 역할(정책) 관리 — 소유자 전용. IAM식: 액션 조합 = 역할, 스코프 = 자기 부서 */}
-          {owner && (
-            <section className="org-roles">
-              <div className="org-roles-head">
-                🛡️ 역할 관리
-                <span className="org-roles-hint">
-                  만든 역할을 멤버에게 주면 중간관리자가 돼요 — 권한은 그 사람의 <b>자기 부서</b> 일반
-                  멤버에게만 적용
-                </span>
-              </div>
-              {detail.roles.map((r) => (
-                <div key={r.id} className="org-roles-row">
-                  <b className="org-roles-name">{r.name}</b>
+          {/* 역할(정책) 관리 모달 — 소유자 전용. IAM식: 액션 조합 = 역할, 스코프 = 자기 부서 */}
+          {owner && rolesOpen && (
+            <div className="modal-overlay" onClick={() => setRolesOpen(false)}>
+              <div className="modal-card org-roles-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-head">역할 관리</div>
+                <div className="org-roles-hint">
+                  만든 역할을 멤버에게 주면 중간관리자가 돼요 — 권한은 그 사람의 <b>자기 부서</b>{' '}
+                  일반 멤버에게만 적용돼요
+                </div>
+                {detail.roles.length === 0 && (
+                  <div className="org-roles-empty">아직 만든 역할이 없어요 — 아래에서 시작해보세요</div>
+                )}
+                {detail.roles.map((r) => (
+                  <div key={r.id} className="org-roles-row">
+                    <b className="org-roles-name">{r.name}</b>
+                    {ORG_ACTIONS.map((a) => (
+                      <label key={a} className="org-roles-perm">
+                        <input
+                          type="checkbox"
+                          checked={r.perms.includes(a)}
+                          onChange={() => void toggleRolePerm(r, a)}
+                        />
+                        {ACTION_LABEL[a]}
+                      </label>
+                    ))}
+                    <button className="org-btn reject" onClick={() => void deleteRole(r.id)}>
+                      삭제
+                    </button>
+                  </div>
+                ))}
+                <form className="org-roles-row new" onSubmit={createRole}>
+                  <input
+                    className="org-field-input"
+                    value={newRoleName}
+                    onChange={(e) => setNewRoleName(e.target.value)}
+                    placeholder="새 역할 이름 (예: 팀장)"
+                    maxLength={20}
+                  />
                   {ORG_ACTIONS.map((a) => (
                     <label key={a} className="org-roles-perm">
                       <input
                         type="checkbox"
-                        checked={r.perms.includes(a)}
-                        onChange={() => void toggleRolePerm(r, a)}
+                        checked={newRolePerms.includes(a)}
+                        onChange={() =>
+                          setNewRolePerms((prev) =>
+                            prev.includes(a) ? prev.filter((p) => p !== a) : [...prev, a],
+                          )
+                        }
                       />
                       {ACTION_LABEL[a]}
                     </label>
                   ))}
-                  <button className="org-btn reject" onClick={() => void deleteRole(r.id)}>
-                    삭제
+                  <button
+                    type="submit"
+                    className="org-btn approve"
+                    disabled={!newRoleName.trim() || newRolePerms.length === 0}
+                  >
+                    만들기
+                  </button>
+                </form>
+                <div className="modal-actions">
+                  <button type="button" className="modal-cancel" onClick={() => setRolesOpen(false)}>
+                    닫기
                   </button>
                 </div>
-              ))}
-              <form className="org-roles-row new" onSubmit={createRole}>
-                <input
-                  className="org-field-input"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="새 역할 이름 (예: 팀장)"
-                  maxLength={20}
-                />
-                {ORG_ACTIONS.map((a) => (
-                  <label key={a} className="org-roles-perm">
-                    <input
-                      type="checkbox"
-                      checked={newRolePerms.includes(a)}
-                      onChange={() =>
-                        setNewRolePerms((prev) =>
-                          prev.includes(a) ? prev.filter((p) => p !== a) : [...prev, a],
-                        )
-                      }
-                    />
-                    {ACTION_LABEL[a]}
-                  </label>
-                ))}
-                <button
-                  type="submit"
-                  className="org-btn approve"
-                  disabled={!newRoleName.trim() || newRolePerms.length === 0}
-                >
-                  만들기
-                </button>
-              </form>
-            </section>
+              </div>
+            </div>
           )}
 
           <div className="orgchart-grid">
