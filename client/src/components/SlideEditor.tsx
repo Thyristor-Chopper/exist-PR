@@ -91,6 +91,9 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
   const [, bump] = useState(0);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [peers, setPeers] = useState(1);
+  // 다른 사용자가 선택 중인 객체 (awareness 'sel' 필드)
+  const [remoteSels, setRemoteSels] = useState<{ name: string; color: string; slideId: string; ids: string[] }[]>([]);
+  const remoteSelsJsonRef = useRef('[]');
   const [slides, setSlides] = useState<SlideMeta[]>([]);
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
   const [selIds, setSelIds] = useState<string[]>([]);
@@ -140,7 +143,22 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
     const onStatus = (e: { status: 'connecting' | 'connected' | 'disconnected' }) =>
       setStatus(e.status);
     provider.on('status', onStatus);
-    const onAwareness = () => setPeers(provider.awareness.getStates().size || 1);
+    const onAwareness = () => {
+      setPeers(provider.awareness.getStates().size || 1);
+      const list: { name: string; color: string; slideId: string; ids: string[] }[] = [];
+      provider.awareness.getStates().forEach((state, clientId) => {
+        if (clientId === provider.awareness.clientID) return;
+        const u = (state as { user?: { name: string; color: string } }).user;
+        const s = (state as { sel?: { slideId: string; ids: string[] } }).sel;
+        if (!u || !s || !s.ids?.length) return;
+        list.push({ name: u.name, color: u.color, slideId: s.slideId, ids: s.ids });
+      });
+      const json = JSON.stringify(list);
+      if (json !== remoteSelsJsonRef.current) {
+        remoteSelsJsonRef.current = json;
+        setRemoteSels(list);
+      }
+    };
     provider.awareness.on('change', onAwareness);
     const color = COLORS[(user?.id ?? 0) % COLORS.length];
     provider.awareness.setLocalStateField('user', { name: user?.username ?? '익명', color });
@@ -193,6 +211,15 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, roomId]);
+
+  // 내 객체 선택을 awareness로 공유 — 다른 사용자 화면에 색 테두리+이름표로 표시
+  // active 의존: 숨김 복귀 시 setLocalState({user})가 sel을 지우므로 여기서 되살림
+  useEffect(() => {
+    const p = providerRef.current;
+    if (!p || !active || !activeSlideId) return;
+    p.awareness.setLocalStateField('sel', { slideId: activeSlideId, ids: selIds });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selIds, activeSlideId, active, status]);
 
   function elsOf(slideId: string): [string, ElData][] {
     const m = ydocRef.current?.getMap<ElData>(`slide-els:${slideId}`);
@@ -708,17 +735,27 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
   const textDecoration = (el: ElData) =>
     [el.underline ? 'underline' : '', el.strike ? 'line-through' : ''].filter(Boolean).join(' ') || undefined;
 
+  // 원격 사용자가 선택 중인 객체 → 표시 정보 (활성 슬라이드만, 먼저 온 사람 우선)
+  const remoteByEl = new Map<string, { name: string; color: string }>();
+  for (const rs of remoteSels) {
+    if (rs.slideId !== activeSlideId) continue;
+    for (const rid of rs.ids) if (!remoteByEl.has(rid)) remoteByEl.set(rid, { name: rs.name, color: rs.color });
+  }
+
   const renderEl = (id: string, el: ElData, editable: boolean) => {
     const isText = (el.type ?? 'text') === 'text';
     const isShape = el.type === 'shape';
     const isImage = el.type === 'image';
     const isLineShape = isShape && (el.shape === 'line' || el.shape === 'arrow');
     const selected = editable && selIds.includes(id);
+    const remote = editable ? remoteByEl.get(id) : undefined;
     return (
       <div
         key={id}
         className={`slide-el${selected ? ' sel' : ''}${isText ? '' : ' bare'}`}
         style={{
+          // 원격 선택 테두리 — 내 선택(.sel 초록)이 우선
+          borderColor: remote && !selected ? remote.color : undefined,
           left: `${el.x}%`,
           top: `${el.y}%`,
           width: `${el.w}%`,
@@ -777,6 +814,11 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
             </button>
             <span className="slide-el-resize" onPointerDown={(e) => startResize(id, el, e)} />
           </>
+        )}
+        {remote && editingEl !== id && (
+          <span className="slide-remote-name" style={{ background: remote.color }}>
+            {remote.name}
+          </span>
         )}
       </div>
     );
