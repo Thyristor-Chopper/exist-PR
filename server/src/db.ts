@@ -474,6 +474,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_channels_meeting ON chat_channels(meeting_id, id);
 `);
 
+// 마이그레이션: 채널 종류 — 'call' = 통화 전용 채널 (통화 중 채팅이 기본 채널과 섞이지 않게 분리)
+try {
+  db.exec(`ALTER TABLE chat_channels ADD COLUMN kind TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 마이그레이션: 메시지의 소속 채널 (null = 레거시, 기본 채널 생성 시 백필됨)
 try {
   db.exec(`ALTER TABLE messages ADD COLUMN channel_id INTEGER REFERENCES chat_channels(id)`);
