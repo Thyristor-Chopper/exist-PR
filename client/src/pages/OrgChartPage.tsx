@@ -63,6 +63,7 @@ export default function OrgChartPage() {
   const reloadOrgs = useOrgStore((s) => s.load);
   const [detail, setDetail] = useState<OrgDetail | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [permOpen, setPermOpen] = useState(false);
   // 승인 전 입력할 직급·부서 (대기자 userId별)
   const [draft, setDraft] = useState<Record<number, { position: string; department: string }>>({});
@@ -133,6 +134,20 @@ export default function OrgChartPage() {
     }
   }
 
+  /** 초대 링크 복사 — 받는 사람은 링크만 누르면 (로그인 후) 자동으로 가입 신청까지 진행 */
+  async function copyInviteLink() {
+    if (!detail?.joinCode) return;
+    try {
+      await navigator.clipboard.writeText(
+        `${location.origin}/join/org/${detail.joinCode.replace(/[^A-Z0-9]/gi, '')}`,
+      );
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      /* 수동 */
+    }
+  }
+
   const groups = detail ? groupByDept(detail.members) : [];
   const manager = !!detail?.isManager;
   const owner = detail?.myRole === 'owner';
@@ -165,9 +180,18 @@ export default function OrgChartPage() {
               </div>
             </div>
             {manager && detail.joinCode && (
-              <button className="orgchart-code" onClick={copyCode} title="가입코드 복사">
-                가입코드 <b>{detail.joinCode}</b> {copied ? '✓' : ''}
-              </button>
+              <span className="orgchart-invite">
+                <button className="orgchart-code" onClick={copyCode} title="가입코드 복사">
+                  가입코드 <b>{detail.joinCode}</b> {copied ? '✓' : ''}
+                </button>
+                <button
+                  className="orgchart-code"
+                  onClick={() => void copyInviteLink()}
+                  title="초대 링크 복사 — 받은 사람은 링크만 누르면 자동으로 가입 신청돼요"
+                >
+                  {linkCopied ? '✓ 복사됨' : '🔗 초대 링크'}
+                </button>
+              </span>
             )}
           </div>
 

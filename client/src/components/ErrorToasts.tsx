@@ -1,25 +1,35 @@
 import { useEffect, useState } from 'react';
 
-interface ErrToast {
+interface Toast {
   id: number;
   text: string;
+  kind: 'error' | 'info';
 }
 
 let nextId = 1;
 
-/** API 오류 전역 토스트 (우상단) — api.ts의 app:error 이벤트 수신 */
+/** 전역 토스트 (우상단) — app:error(오류)·app:info(안내) 이벤트 수신 */
 export default function ErrorToasts() {
-  const [toasts, setToasts] = useState<ErrToast[]>([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
-    function onError(e: Event) {
-      const text = (e as CustomEvent<string>).detail;
+    function push(text: string, kind: Toast['kind']) {
       const id = nextId++;
-      setToasts((prev) => [...prev.slice(-2), { id, text }]); // 최대 3개
+      setToasts((prev) => [...prev.slice(-2), { id, text, kind }]); // 최대 3개
       setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 6000);
     }
+    function onError(e: Event) {
+      push((e as CustomEvent<string>).detail, 'error');
+    }
+    function onInfo(e: Event) {
+      push((e as CustomEvent<string>).detail, 'info');
+    }
     window.addEventListener('app:error', onError);
-    return () => window.removeEventListener('app:error', onError);
+    window.addEventListener('app:info', onInfo);
+    return () => {
+      window.removeEventListener('app:error', onError);
+      window.removeEventListener('app:info', onInfo);
+    };
   }, []);
 
   if (toasts.length === 0) return null;
@@ -27,18 +37,31 @@ export default function ErrorToasts() {
   return (
     <div className="error-toast-stack">
       {toasts.map((t) => (
-        <div key={t.id} className="error-toast">
+        <div key={t.id} className={`error-toast${t.kind === 'info' ? ' info' : ''}`}>
           <span className="error-toast-ic" aria-hidden>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-              <path
-                d="M12 7.5v5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <circle cx="12" cy="16.3" r="1.1" fill="currentColor" />
-            </svg>
+            {t.kind === 'info' ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                <path
+                  d="M8.5 12.5l2.4 2.4 4.6-5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                <path
+                  d="M12 7.5v5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <circle cx="12" cy="16.3" r="1.1" fill="currentColor" />
+              </svg>
+            )}
           </span>
           <span className="error-toast-text">{t.text}</span>
         </div>

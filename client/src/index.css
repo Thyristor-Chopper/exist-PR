@@ -13262,6 +13262,20 @@ input:focus {
   background: rgba(229, 72, 77, 0.16);
 }
 
+/* 안내(성공) 토스트 — 같은 모양, 초록 아이콘 */
+.error-toast.info .error-toast-ic {
+  background: rgba(33, 200, 24, 0.12);
+  color: var(--green);
+}
+
+/* 조직도 헤더 — 가입코드·초대 링크 나란히 */
+.orgchart-invite {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .error-toast-text {
   line-height: 1.4;
   word-break: keep-all;

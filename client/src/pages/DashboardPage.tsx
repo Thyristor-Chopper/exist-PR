@@ -186,20 +186,41 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 초대 링크(/join/:code)로 들어온 경우 — 저장된 코드로 자동 참여 후 그룹 열기
+  // 초대 링크로 들어온 경우 — 그룹(/join/:code)은 자동 참여 후 열기, 조직(/join/org/:code)은 가입 신청
   useEffect(() => {
     const pending = sessionStorage.getItem('exist:pending-join');
-    if (!pending) return;
-    sessionStorage.removeItem('exist:pending-join');
-    void (async () => {
-      try {
-        const m = await api<Meeting>('/api/meetings/join', { method: 'POST', body: { code: pending } });
-        openMeetingTab(m.code, m.title);
-        void refresh();
-      } catch {
-        /* 잘못된 코드 등 — 전역 에러 토스트가 표시 */
-      }
-    })();
+    if (pending) {
+      sessionStorage.removeItem('exist:pending-join');
+      void (async () => {
+        try {
+          const m = await api<Meeting>('/api/meetings/join', { method: 'POST', body: { code: pending } });
+          openMeetingTab(m.code, m.title);
+          void refresh();
+        } catch {
+          /* 잘못된 코드 등 — 전역 에러 토스트가 표시 */
+        }
+      })();
+    }
+    const pendingOrg = sessionStorage.getItem('exist:pending-join-org');
+    if (pendingOrg) {
+      sessionStorage.removeItem('exist:pending-join-org');
+      void (async () => {
+        try {
+          const r = await api<{ orgName: string }>('/api/orgs/join', {
+            method: 'POST',
+            body: { joinCode: pendingOrg },
+          });
+          window.dispatchEvent(
+            new CustomEvent('app:info', {
+              detail: `${r.orgName} 가입 신청 완료 — 관리자가 승인하면 들어갈 수 있어요`,
+            }),
+          );
+          void useOrgStore.getState().load();
+        } catch {
+          /* 이미 멤버·잘못된 코드 등 — 전역 에러 토스트가 표시 */
+        }
+      })();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

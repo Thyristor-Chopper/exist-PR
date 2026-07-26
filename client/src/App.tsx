@@ -23,6 +23,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot" element={<ForgotPage />} />
         {/* 초대 링크 — 로그인 여부를 스스로 판단하므로 Protected 밖 */}
+        <Route path="/join/org/:code" element={<JoinPage org />} />
         <Route path="/join/:code" element={<JoinPage />} />
         <Route
           path="/"
