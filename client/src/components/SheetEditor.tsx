@@ -467,11 +467,16 @@ const SheetCell = memo(function SheetCell({
   onEditBlur,
   onFillStart,
 }: SheetCellProps) {
+  // 원격 선택 안쪽 옅은 칠 — backgroundImage 레이어라 셀 배경(cfBg/스타일)·로컬 선택 하이라이트와 공존
+  const remoteWash = remoteColor
+    ? `linear-gradient(color-mix(in srgb, ${remoteColor} 12%, transparent), color-mix(in srgb, ${remoteColor} 12%, transparent))`
+    : undefined;
   const cellStyle: React.CSSProperties = {
     fontWeight: sty.b ? 700 : undefined,
     fontStyle: sty.i ? 'italic' : undefined,
     color: sty.color || undefined,
-    background: cfBg || sty.bg || undefined,
+    backgroundColor: cfBg || sty.bg || undefined,
+    backgroundImage: remoteWash,
     textAlign: sty.align,
     borderTop: sty.bt ? '2px solid var(--text)' : undefined,
     borderRight: sty.br ? '2px solid var(--text)' : undefined,
