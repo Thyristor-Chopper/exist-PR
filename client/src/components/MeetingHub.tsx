@@ -28,6 +28,7 @@ import {
   CheckMarkIcon,
   PinIcon,
   ChevronIcon,
+  ShareIcon,
 } from './Icons';
 
 interface Participant {
@@ -358,6 +359,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     setSwipeDx(null);
   }
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -835,6 +837,17 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }
   }
 
+  /** 초대 링크 복사 — 받는 사람은 링크만 누르면 (로그인 후) 자동으로 이 그룹에 참여된다 */
+  async function copyInviteLink() {
+    try {
+      await navigator.clipboard.writeText(`${location.origin}/join/${code}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      /* 수동 복사 */
+    }
+  }
+
   function joinCall() {
     // 통화 탭으로 이동 → MeetingView가 프리뷰(디바이스 확인)부터 띄움.
     // 실제 통화 시작(inCall)은 프리뷰의 '입장하기' → onJoined에서 처리.
@@ -919,9 +932,17 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                     <h2 className="hub-hero-title">
                       {/* 제목이 길면 줄바꿈 대신 Marquee로 흘려서 코드 칩 자리를 확보 */}
                       <Marquee className="hub-hero-title-text">{detail.title}</Marquee>
-                      <button className="hub-hero-code" onClick={copyCode} title="클릭해서 복사">
+                      <button className="hub-hero-code" onClick={copyCode} title="그룹 코드 복사">
                         {detail.code}{' '}
                         {copied ? <CheckMarkIcon size={13} /> : <CopyIcon size={13} />}
+                      </button>
+                      <button
+                        className="hub-hero-code"
+                        onClick={copyInviteLink}
+                        title="초대 링크 복사 — 링크만 누르면 바로 이 그룹에 참여돼요"
+                      >
+                        {linkCopied ? <CheckMarkIcon size={13} /> : <ShareIcon size={13} />}
+                        {linkCopied ? '복사됨' : '초대 링크'}
                       </button>
                     </h2>
                     <div className="hub-hero-sub">
