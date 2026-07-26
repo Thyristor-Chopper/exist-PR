@@ -3662,6 +3662,14 @@ input:focus {
   right: auto;
 }
 
+/* nowbar 담당자 팁 — 포털(fixed)이라 스크롤 컨테이너에 안 잘림. 오른쪽 끝 정렬로 아래 펼침 */
+.hub-assign-tip.nb-portal {
+  display: block;
+  position: fixed;
+  transform: translateX(-100%);
+  z-index: 4100; /* nowbar(및 확장 패널)보다 위 */
+}
+
 /* 통화 헤더는 다크 고정 — 팁도 다크로 (라이트 테마 변수 무시) */
 .meeting-room .hub-assign-tip.down {
   background: rgba(24, 27, 33, 0.97);

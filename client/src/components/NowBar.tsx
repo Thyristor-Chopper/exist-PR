@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import Logo from './Logo';
@@ -51,23 +52,42 @@ export interface Todo {
   assigneeProfiles?: { username: string; name: string | null; avatar: string | null }[];
 }
 
-/** 할 일 담당자 미니 아바타 스택 + hover 전체 프로필 리스트 (허브·공동편집과 동일 톤) */
+/** 할 일 담당자 미니 아바타 스택 + hover 전체 프로필 리스트 (허브·공동편집과 동일 톤)
+ *  nowbar 확장 패널이 overflow 스크롤 컨테이너라 절대배치 팁이 잘림 — 포털(fixed)로 띄운다 */
 function TodoAssignees({ profiles }: { profiles?: Todo['assigneeProfiles'] }) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [tip, setTip] = useState<{ x: number; y: number } | null>(null);
   if (!profiles?.length) return null;
   return (
-    <span className="nb-todo-assign">
+    <span
+      className="nb-todo-assign"
+      ref={anchorRef}
+      onMouseEnter={() => {
+        const r = anchorRef.current?.getBoundingClientRect();
+        if (r) setTip({ x: r.right, y: r.bottom + 6 }); // nowbar는 상단바 — 아래로 연다
+      }}
+      onMouseLeave={() => setTip(null)}
+    >
       {profiles.slice(0, 3).map((p) => (
         <Avatar key={p.username} value={p.avatar} className="nb-todo-assign-avatar" />
       ))}
       {profiles.length > 3 && <span className="nb-todo-assign-more">+{profiles.length - 3}</span>}
-      <span className="hub-assign-tip" aria-hidden>
-        {profiles.map((p) => (
-          <span key={p.username} className="hub-assign-tip-row">
-            <Avatar value={p.avatar} className="hub-assign-avatar" />
-            <span>{p.name || p.username}</span>
-          </span>
-        ))}
-      </span>
+      {tip &&
+        createPortal(
+          <span
+            className="hub-assign-tip nb-portal"
+            style={{ left: tip.x, top: tip.y }}
+            aria-hidden
+          >
+            {profiles.map((p) => (
+              <span key={p.username} className="hub-assign-tip-row">
+                <Avatar value={p.avatar} className="hub-assign-avatar" />
+                <span>{p.name || p.username}</span>
+              </span>
+            ))}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }
