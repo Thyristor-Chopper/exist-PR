@@ -354,16 +354,7 @@ export default function OrgChartPage() {
               </div>
             </div>
             <span className="orgchart-invite">
-              {/* 보기/관리 모드 — 편집 권한이 있는 사람에게만. 기본은 깔끔한 보기 모드 */}
-              {(manager || perms.length > 0) && (
-                <button
-                  className={`orgchart-editmode${editMode ? ' on' : ''}`}
-                  onClick={() => setEditMode((v) => !v)}
-                  title={editMode ? '보기 모드로 — 편집 UI를 숨겨요' : '관리 모드로 — 멤버 편집 UI를 켜요'}
-                >
-                  <PenIcon size={13} /> {editMode ? '관리 모드 켜짐' : '관리 모드'}
-                </button>
-              )}
+              {/* 순서 = 초대 존(가입코드·초대 링크) → 관리 존(관리 모드·역할 관리) */}
               {manager && detail.joinCode && (
                 <>
                 <button className="orgchart-code" onClick={copyCode} title="가입코드 복사">
@@ -377,16 +368,26 @@ export default function OrgChartPage() {
                   {linkCopied ? <CheckMarkIcon size={13} /> : <ShareIcon size={13} />}
                   {linkCopied ? '복사됨' : '초대 링크'}
                 </button>
-                {owner && (
-                  <button
-                    className="orgchart-manage"
-                    onClick={() => setRolesOpen(true)}
-                    title="역할 관리 — 권한 조합을 만들어 중간관리자를 지정해요"
-                  >
-                    <GearIcon size={14} /> 역할 관리
-                  </button>
-                )}
                 </>
+              )}
+              {/* 보기/관리 모드 — 편집 권한이 있는 사람에게만. 기본은 깔끔한 보기 모드 */}
+              {(manager || perms.length > 0) && (
+                <button
+                  className={`orgchart-editmode${editMode ? ' on' : ''}`}
+                  onClick={() => setEditMode((v) => !v)}
+                  title={editMode ? '보기 모드로 — 편집 UI를 숨겨요' : '관리 모드로 — 멤버 편집 UI를 켜요'}
+                >
+                  <PenIcon size={13} /> {editMode ? '관리 모드 켜짐' : '관리 모드'}
+                </button>
+              )}
+              {manager && detail.joinCode && owner && (
+                <button
+                  className="orgchart-manage"
+                  onClick={() => setRolesOpen(true)}
+                  title="역할 관리 — 권한 조합을 만들어 중간관리자를 지정해요"
+                >
+                  <GearIcon size={14} /> 역할 관리
+                </button>
               )}
             </span>
           </div>

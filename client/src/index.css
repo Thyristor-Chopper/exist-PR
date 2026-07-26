@@ -13648,7 +13648,8 @@ input:focus {
   height: 38px;
   padding: 0 13px;
   border: 1px dashed var(--border);
-  background: var(--surface);
+  /* 채움 없는 흰 배경이면 이웃 초록 버튼들보다 낮아 보이는 착시가 생김 (실제 높이는 동일) */
+  background: var(--surface-2);
   color: var(--text-sub);
   border-radius: 9px;
   font-size: 13px;
