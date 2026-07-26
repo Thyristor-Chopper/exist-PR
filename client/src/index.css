@@ -13437,6 +13437,20 @@ input:focus {
   background: var(--green);
 }
 
+/* 채팅 토글 — 말풍선 내부까지 상태를 따라가게: 기본은 버튼색(아웃라인 룩), 켜짐은 흰색 채움 */
+.meeting-controls .chat-toggle {
+  --chat-icon-fill: #2a2e37;
+}
+
+.meeting-controls .chat-toggle:hover {
+  --chat-icon-fill: #353a45;
+}
+
+.meeting-controls .chat-toggle.active {
+  --chat-icon-fill: #fff;
+  color: var(--green);
+}
+
 .meeting-controls .badge {
   position: absolute;
   top: -2px;

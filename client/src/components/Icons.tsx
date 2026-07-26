@@ -33,13 +33,13 @@ export function PhoneIcon({ size }: IconProps) {
 export function ChatIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
-      {/* 뒤 말풍선 (받는 쪽) */}
+      {/* 뒤 말풍선 (받는 쪽) — 내부 채움은 --chat-icon-fill로 상태(통화 채팅 토글 등)를 따라감 */}
       <path
         d="M3 6.2A2.2 2.2 0 0 1 5.2 4h8.6A2.2 2.2 0 0 1 16 6.2v3.6A2.2 2.2 0 0 1 13.8 12H8l-3 2.6V12h-.8a1.2 1.2 0 0 1-1.2-1.2V6.2z"
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinejoin="round"
-        fill="var(--surface)"
+        fill="var(--chat-icon-fill, var(--surface))"
       />
       {/* 앞 말풍선 (보내는 쪽) — 겹쳐서 대화 느낌 */}
       <path
@@ -47,7 +47,7 @@ export function ChatIcon({ size }: IconProps) {
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinejoin="round"
-        fill="var(--surface)"
+        fill="var(--chat-icon-fill, var(--surface))"
       />
     </Svg>
   );
