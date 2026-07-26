@@ -129,9 +129,9 @@ interface MeetingRef {
   org_id: number | null;
 }
 
-/** 파일 관리 권한 — 만든 사람, 호스트, 소속 조직 관리자(owner/admin) */
+/** 파일 관리 권한 — 만든 사람, 호스트, 조직 관리자, group:files 중간관리자 */
 function canManageFile(f: { created_by: number }, meeting: MeetingRef, userId: number): boolean {
-  return f.created_by === userId || canManageMeeting(meeting, userId);
+  return f.created_by === userId || canManageMeeting(meeting, userId, 'group:files');
 }
 
 /** 참가자 검증 (meetings.ts와 동일 패턴 — 순환 import 방지 위해 자체 보유) */

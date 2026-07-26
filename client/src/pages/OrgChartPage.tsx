@@ -53,14 +53,45 @@ interface AuditRow {
 
 const ROLE_LABEL: Record<string, string> = { owner: '소유자', admin: '관리자', member: '멤버' };
 
-/* IAM식 액션 — 커스텀 역할(중간관리자)에 조합해 부여. 스코프는 항상 "자기 부서" */
-const ORG_ACTIONS = ['member:approve', 'member:edit', 'member:remove', 'group:manage'] as const;
+/* IAM식 세분 액션 — 커스텀 역할(중간관리자)에 조합해 부여 */
 const ACTION_LABEL: Record<string, string> = {
   'member:approve': '가입 승인',
-  'member:edit': '직급·부서 수정',
-  'member:remove': '멤버 내보내기',
-  'group:manage': '부서 그룹 관리',
+  'member:reject': '가입 거절',
+  'member:edit-position': '직급 수정',
+  'member:edit-department': '부서 수정',
+  'member:remove': '내보내기',
+  'group:settings': '설정(잠금 등)',
+  'group:edit': '정보 수정(제목·기간)',
+  'group:schedule': '일정 관리',
+  'group:kick': '통화 강퇴',
+  'group:transfer': '호스트 위임',
+  'group:delete': '그룹 삭제',
+  'group:channels': '채널 관리',
+  'group:files': '파일 관리',
+  'group:recap': '회의 정리 실행',
 };
+const ACTION_GROUPS: { title: string; hint: string; actions: string[] }[] = [
+  {
+    title: '멤버',
+    hint: '자기 부서의 일반 멤버에게만',
+    actions: ['member:approve', 'member:reject', 'member:edit-position', 'member:edit-department', 'member:remove'],
+  },
+  {
+    title: '그룹',
+    hint: '자기 부서원이 호스트인 그룹에만',
+    actions: [
+      'group:settings',
+      'group:edit',
+      'group:schedule',
+      'group:kick',
+      'group:transfer',
+      'group:delete',
+      'group:channels',
+      'group:files',
+      'group:recap',
+    ],
+  },
+];
 
 /** 부서별 그룹 — 부서 있는 그룹 먼저(가나다), 미지정 마지막. 그룹 내 직급 높은 순 */
 function groupByDept(members: Member[]): { dept: string | null; people: Member[] }[] {
@@ -238,11 +269,15 @@ export default function OrgChartPage() {
   const owner = detail?.myRole === 'owner';
   const perms = detail?.myPerms ?? [];
   const canApprove = manager || perms.includes('member:approve');
-  /** 대상 멤버를 편집(직급·부서)할 수 있나 — 중간관리자는 자기 부서의 일반 멤버만 */
+  const canReject = manager || perms.includes('member:reject');
+  /** 대상 멤버를 편집할 수 있나 — 중간관리자는 자기 부서의 일반 멤버만, 액션별로 따로 */
   const inMyScope = (m: Member) =>
     m.role === 'member' && !m.roleId && !!detail?.myDept && m.department === detail.myDept;
-  const canEditTarget = (m: Member) =>
-    manager ? m.role !== 'owner' || owner : perms.includes('member:edit') && inMyScope(m);
+  const canEditPos = (m: Member) =>
+    manager ? m.role !== 'owner' || owner : perms.includes('member:edit-position') && inMyScope(m);
+  const canEditDept = (m: Member) =>
+    manager ? m.role !== 'owner' || owner : perms.includes('member:edit-department') && inMyScope(m);
+  const canEditTarget = (m: Member) => canEditPos(m) || canEditDept(m);
   const canRemoveTarget = (m: Member) =>
     m.role !== 'owner' && (manager || (perms.includes('member:remove') && inMyScope(m)));
 
@@ -317,8 +352,8 @@ export default function OrgChartPage() {
           {/* 팀 인사이트는 운영자용 — 멤버에겐 관전 정보라 숨긴다 (홈에선 '내 포커스'를 봄) */}
           {manager && <InsightsPanel orgId={orgId} />}
 
-          {/* 가입 대기 — 관리자 + 승인 권한 중간관리자. 중간관리자는 자기 부서로만 받음 */}
-          {canApprove && detail.pending.length > 0 && (
+          {/* 가입 대기 — 관리자 + 승인/거절 권한 중간관리자. 승인은 자기 부서로만 */}
+          {(canApprove || canReject) && detail.pending.length > 0 && (
             <section className="orgchart-pending">
               <div className="orgchart-pending-head">
                 ✉️ 가입 대기 <b>{detail.pending.length}</b>
@@ -356,10 +391,12 @@ export default function OrgChartPage() {
                     </span>
                   )}
                   <span className="orgchart-pending-actions">
-                    <button className="org-btn approve" onClick={() => approve(p.userId)}>
-                      승인
-                    </button>
-                    {manager && (
+                    {canApprove && (
+                      <button className="org-btn approve" onClick={() => approve(p.userId)}>
+                        승인
+                      </button>
+                    )}
+                    {canReject && (
                       <button className="org-btn reject" onClick={() => remove(p.userId)}>
                         거절
                       </button>
@@ -383,52 +420,74 @@ export default function OrgChartPage() {
                   <div className="org-roles-empty">아직 만든 역할이 없어요 — 아래에서 시작해보세요</div>
                 )}
                 {detail.roles.map((r) => (
-                  <div key={r.id} className="org-roles-row">
-                    <b className="org-roles-name">{r.name}</b>
-                    {ORG_ACTIONS.map((a) => (
-                      <label key={a} className="org-roles-perm">
-                        <input
-                          type="checkbox"
-                          checked={r.perms.includes(a)}
-                          onChange={() => void toggleRolePerm(r, a)}
-                        />
-                        {ACTION_LABEL[a]}
-                      </label>
+                  <div key={r.id} className="org-roles-block">
+                    <div className="org-roles-block-head">
+                      <b className="org-roles-name">{r.name}</b>
+                      <button className="org-btn reject" onClick={() => void deleteRole(r.id)}>
+                        삭제
+                      </button>
+                    </div>
+                    {ACTION_GROUPS.map((g) => (
+                      <div key={g.title} className="org-roles-cat">
+                        <span className="org-roles-cat-name" title={g.hint}>
+                          {g.title}
+                        </span>
+                        <span className="org-roles-cat-perms">
+                          {g.actions.map((a) => (
+                            <label key={a} className="org-roles-perm">
+                              <input
+                                type="checkbox"
+                                checked={r.perms.includes(a)}
+                                onChange={() => void toggleRolePerm(r, a)}
+                              />
+                              {ACTION_LABEL[a]}
+                            </label>
+                          ))}
+                        </span>
+                      </div>
                     ))}
-                    <button className="org-btn reject" onClick={() => void deleteRole(r.id)}>
-                      삭제
-                    </button>
                   </div>
                 ))}
-                <form className="org-roles-row new" onSubmit={createRole}>
-                  <input
-                    className="org-field-input"
-                    value={newRoleName}
-                    onChange={(e) => setNewRoleName(e.target.value)}
-                    placeholder="새 역할 이름 (예: 팀장)"
-                    maxLength={20}
-                  />
-                  {ORG_ACTIONS.map((a) => (
-                    <label key={a} className="org-roles-perm">
-                      <input
-                        type="checkbox"
-                        checked={newRolePerms.includes(a)}
-                        onChange={() =>
-                          setNewRolePerms((prev) =>
-                            prev.includes(a) ? prev.filter((p) => p !== a) : [...prev, a],
-                          )
-                        }
-                      />
-                      {ACTION_LABEL[a]}
-                    </label>
+                <form className="org-roles-block new" onSubmit={createRole}>
+                  <div className="org-roles-block-head">
+                    <input
+                      className="org-field-input"
+                      value={newRoleName}
+                      onChange={(e) => setNewRoleName(e.target.value)}
+                      placeholder="새 역할 이름 (예: 팀장)"
+                      maxLength={20}
+                    />
+                    <button
+                      type="submit"
+                      className="org-btn approve"
+                      disabled={!newRoleName.trim() || newRolePerms.length === 0}
+                    >
+                      만들기
+                    </button>
+                  </div>
+                  {ACTION_GROUPS.map((g) => (
+                    <div key={g.title} className="org-roles-cat">
+                      <span className="org-roles-cat-name" title={g.hint}>
+                        {g.title}
+                      </span>
+                      <span className="org-roles-cat-perms">
+                        {g.actions.map((a) => (
+                          <label key={a} className="org-roles-perm">
+                            <input
+                              type="checkbox"
+                              checked={newRolePerms.includes(a)}
+                              onChange={() =>
+                                setNewRolePerms((prev) =>
+                                  prev.includes(a) ? prev.filter((p) => p !== a) : [...prev, a],
+                                )
+                              }
+                            />
+                            {ACTION_LABEL[a]}
+                          </label>
+                        ))}
+                      </span>
+                    </div>
                   ))}
-                  <button
-                    type="submit"
-                    className="org-btn approve"
-                    disabled={!newRoleName.trim() || newRolePerms.length === 0}
-                  >
-                    만들기
-                  </button>
                 </form>
                 <div className="modal-actions">
                   <button type="button" className="modal-cancel" onClick={() => setRolesOpen(false)}>
@@ -469,39 +528,39 @@ export default function OrgChartPage() {
                       {/* 인라인 편집 — 소유자 카드는 본인만, 중간관리자는 자기 부서 일반 멤버만 */}
                       {(canEditTarget(m) || canRemoveTarget(m)) && (
                         <div className="orgchart-card-edit">
-                          {canEditTarget(m) && (
-                            <>
-                              <select
-                                className="org-field-select"
-                                value={m.position ?? ''}
-                                onChange={(e) => setPosition(m.userId, e.target.value)}
-                                title="직급"
-                              >
-                                <option value="">직급 미지정</option>
-                                {POSITIONS.map((pos) => (
-                                  <option key={pos} value={pos}>
-                                    {pos}
-                                  </option>
-                                ))}
-                                {m.position &&
-                                  !POSITIONS.includes(m.position as (typeof POSITIONS)[number]) && (
-                                    <option value={m.position}>{m.position}</option>
-                                  )}
-                              </select>
-                              <input
-                                key={`dep-${m.userId}-${m.department ?? ''}`}
-                                className="org-field-input"
-                                defaultValue={m.department ?? ''}
-                                placeholder="부서"
-                                maxLength={30}
-                                title="부서"
-                                onBlur={(e) => {
-                                  if ((e.target.value || '') !== (m.department ?? '')) {
-                                    void setDepartment(m.userId, e.target.value);
-                                  }
-                                }}
-                              />
-                            </>
+                          {canEditPos(m) && (
+                            <select
+                              className="org-field-select"
+                              value={m.position ?? ''}
+                              onChange={(e) => setPosition(m.userId, e.target.value)}
+                              title="직급"
+                            >
+                              <option value="">직급 미지정</option>
+                              {POSITIONS.map((pos) => (
+                                <option key={pos} value={pos}>
+                                  {pos}
+                                </option>
+                              ))}
+                              {m.position &&
+                                !POSITIONS.includes(m.position as (typeof POSITIONS)[number]) && (
+                                  <option value={m.position}>{m.position}</option>
+                                )}
+                            </select>
+                          )}
+                          {canEditDept(m) && (
+                            <input
+                              key={`dep-${m.userId}-${m.department ?? ''}`}
+                              className="org-field-input"
+                              defaultValue={m.department ?? ''}
+                              placeholder="부서"
+                              maxLength={30}
+                              title="부서"
+                              onBlur={(e) => {
+                                if ((e.target.value || '') !== (m.department ?? '')) {
+                                  void setDepartment(m.userId, e.target.value);
+                                }
+                              }}
+                            />
                           )}
                           {/* 역할 지정 — 소유자 전용: 멤버/관리자/커스텀 역할(중간관리자) */}
                           {owner && m.role !== 'owner' && (

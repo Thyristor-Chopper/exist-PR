@@ -11941,18 +11941,43 @@ input:focus {
   color: var(--text-sub);
 }
 
-.org-roles-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 9px 0;
+.org-roles-block {
+  padding: 12px 0;
   border-top: 1px solid var(--border);
 }
 
+.org-roles-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
 .org-roles-name {
-  min-width: 90px;
-  font-size: 13.5px;
+  font-size: 14px;
+}
+
+.org-roles-cat {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.org-roles-cat-name {
+  min-width: 44px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-sub);
+  cursor: help;
+}
+
+.org-roles-cat-perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
 }
 
 .org-roles-perm {
@@ -11962,13 +11987,14 @@ input:focus {
   font-size: 12.5px;
   color: var(--text-sub);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .org-roles-perm input {
   accent-color: var(--green);
 }
 
-.org-roles-row.new .org-field-input {
+.org-roles-block.new .org-field-input {
   flex: 1 1 160px;
   min-width: 140px;
 }

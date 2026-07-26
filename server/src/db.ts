@@ -204,6 +204,45 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: 구 액션 키를 세분화된 키로 확장 (1회성 변환 — 새 키는 재확장되지 않음)
+// member:edit → edit-position + edit-department, group:manage → group:* 전체
+{
+  const GROUP_ALL = [
+    'group:settings',
+    'group:edit',
+    'group:schedule',
+    'group:kick',
+    'group:transfer',
+    'group:delete',
+    'group:channels',
+    'group:files',
+    'group:recap',
+  ];
+  const legacyRoles = db.prepare('SELECT id, perms FROM org_roles').all() as {
+    id: number;
+    perms: string;
+  }[];
+  for (const r of legacyRoles) {
+    try {
+      const perms = JSON.parse(r.perms) as string[];
+      if (!perms.some((p) => p === 'member:edit' || p === 'group:manage')) continue;
+      const next = new Set<string>();
+      for (const p of perms) {
+        if (p === 'member:edit') {
+          next.add('member:edit-position');
+          next.add('member:edit-department');
+        } else if (p === 'group:manage') {
+          for (const g of GROUP_ALL) next.add(g);
+        } else next.add(p);
+      }
+      const encoded = JSON.stringify([...next]);
+      if (encoded !== r.perms) db.prepare('UPDATE org_roles SET perms = ? WHERE id = ?').run(encoded, r.id);
+    } catch {
+      /* 손상된 perms는 그대로 둠 */
+    }
+  }
+}
+
 // 감사 로그(CloudTrail식) — 조직 인사·권한 변경의 책임 추적. text는 한국어 스냅샷
 db.exec(`
   CREATE TABLE IF NOT EXISTS org_audit (

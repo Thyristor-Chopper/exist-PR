@@ -64,10 +64,22 @@ function isManager(orgId: number, userId: number): boolean {
  * "자기 부서" 리소스 안의 일반 멤버에게만 액션을 행사할 수 있다.
  */
 export const ORG_ACTIONS = [
+  // 멤버(인사) — 스코프: 자기 부서 일반 멤버 (승인·거절은 대기자 대상, 승인 시 자기 부서로 배정)
   'member:approve',
-  'member:edit',
+  'member:reject',
+  'member:edit-position',
+  'member:edit-department',
   'member:remove',
-  'group:manage',
+  // 그룹 — 스코프: 자기 부서원이 호스트인 조직 그룹
+  'group:settings',
+  'group:edit',
+  'group:schedule',
+  'group:kick',
+  'group:transfer',
+  'group:delete',
+  'group:channels',
+  'group:files',
+  'group:recap',
 ] as const;
 export type OrgAction = (typeof ORG_ACTIONS)[number];
 
@@ -374,8 +386,9 @@ router.get('/:id', (req: AuthedRequest, res) => {
     return a.created_at.localeCompare(b.created_at);
   });
 
-  // 대기 신청은 관리자 + 승인 권한(member:approve)을 가진 중간관리자에게
-  const canApprove = manager || mine.perms.includes('member:approve');
+  // 대기 신청은 관리자 + 승인/거절 권한을 가진 중간관리자에게
+  const canApprove =
+    manager || mine.perms.includes('member:approve') || mine.perms.includes('member:reject');
   const pending = canApprove
     ? (db
         .prepare(
@@ -599,7 +612,12 @@ router.delete('/:id/members/:userId', (req: AuthedRequest, res) => {
   const m = getFullMembership(orgId, targetId);
   if (!m) return res.status(404).json({ error: '대상을 찾을 수 없어요' });
   if (m.role === 'owner') return res.status(400).json({ error: '소유자는 제거할 수 없어요' });
-  if (!canActOnMember(orgId, req.userId!, m, 'member:remove')) {
+  if (m.status === 'pending') {
+    // 가입 거절 — 대기자는 부서가 없어 스코프 대신 member:reject 보유 여부로
+    if (!isManager(orgId, req.userId!) && !myPerms(orgId, req.userId!).perms.includes('member:reject')) {
+      return res.status(403).json({ error: '가입 거절 권한이 없어요' });
+    }
+  } else if (!canActOnMember(orgId, req.userId!, m, 'member:remove')) {
     return res.status(403).json({ error: '권한이 없어요' });
   }
   db.prepare('DELETE FROM organization_members WHERE org_id = ? AND user_id = ?').run(
@@ -689,17 +707,16 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
     );
   }
 
-  // 직급·부서 변경 — 관리자(owner/admin) 또는 member:edit 권한의 중간관리자(자기 부서 멤버만).
+  // 직급·부서 변경 — 관리자(owner/admin) 또는 해당 액션 권한의 중간관리자(자기 부서 멤버만).
   // 소유자의 정보는 소유자 본인만
   if (body.position !== undefined || body.department !== undefined) {
-    if (m.role === 'owner') {
-      if (req.userId !== targetId) {
-        return res.status(403).json({ error: '소유자 정보는 본인만 수정할 수 있어요' });
-      }
-    } else if (!canActOnMember(orgId, req.userId!, m, 'member:edit')) {
-      return res.status(403).json({ error: '직급·부서를 수정할 권한이 없어요' });
+    if (m.role === 'owner' && req.userId !== targetId) {
+      return res.status(403).json({ error: '소유자 정보는 본인만 수정할 수 있어요' });
     }
     if (body.position !== undefined) {
+      if (m.role !== 'owner' && !canActOnMember(orgId, req.userId!, m, 'member:edit-position')) {
+        return res.status(403).json({ error: '직급을 수정할 권한이 없어요' });
+      }
       const position = body.position === null ? null : String(body.position).trim().slice(0, 20) || null;
       db.prepare(
         'UPDATE organization_members SET position = ? WHERE org_id = ? AND user_id = ?',
@@ -713,6 +730,9 @@ router.patch('/:id/members/:userId', (req: AuthedRequest, res) => {
       );
     }
     if (body.department !== undefined) {
+      if (m.role !== 'owner' && !canActOnMember(orgId, req.userId!, m, 'member:edit-department')) {
+        return res.status(403).json({ error: '부서를 수정할 권한이 없어요' });
+      }
       const department =
         body.department === null ? null : String(body.department).trim().slice(0, 30) || null;
       db.prepare(
