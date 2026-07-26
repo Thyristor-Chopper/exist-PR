@@ -3,6 +3,7 @@ import db from './db.js';
 import { requireAuth, type AuthedRequest } from './auth.js';
 import { isMember } from './orgs.js';
 import { emitToUser } from './notify.js';
+import { invalidateBrief } from './agent.js';
 
 /*
  * 1:1 다이렉트 메시지(DM).
@@ -245,6 +246,7 @@ router.post('/:scope/with/:userId/read', (req: AuthedRequest, res) => {
   db.prepare(
     `UPDATE dm_messages SET read = 1 WHERE ${sc.sql} AND from_id = ? AND to_id = ? AND read = 0`,
   ).run(...sc.args, peer, req.userId!);
+  invalidateBrief(req.userId!); // 안읽음 수가 바뀜 — 브리핑 갱신
   res.json({ ok: true });
 });
 
@@ -285,6 +287,7 @@ router.post('/:scope/with/:userId', (req: AuthedRequest, res) => {
   // 받는 사람 + 보낸 사람의 다른 탭 모두 동기화
   emitToUser(peer, 'dm:message', payload);
   emitToUser(me, 'dm:message', payload);
+  invalidateBrief(peer); // 받는 쪽 안읽음이 늘었다 — 브리핑 갱신
 
   res.json(payload);
 });

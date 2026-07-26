@@ -299,9 +299,18 @@ export async function generateBrief(userId: number): Promise<BriefResult> {
   return result;
 }
 
-/** 투두/회의 변경 시 캐시 무효화용 */
+/** 투두/회의/메시지 변경 시 캐시 무효화용 — nowbar 브리핑 + 오늘 브리핑(전 스코프) */
 export function invalidateBrief(userId: number) {
   briefCache.delete(userId);
+  for (const k of dailyCache.keys()) if (k.startsWith(`${userId}:`)) dailyCache.delete(k);
+}
+
+/** 그룹 단위 변화(새 메시지 등) — 참가자 전원의 브리핑 무효화 */
+export function invalidateBriefForMeeting(meetingId: number) {
+  const rows = db
+    .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+    .all(meetingId) as { user_id: number }[];
+  for (const r of rows) invalidateBrief(r.user_id);
 }
 
 /*
@@ -322,13 +331,15 @@ export interface Catchup {
   headline: string;
   source: 'ai' | 'rule';
   items: CatchupItem[];
+  /** 안 읽은 메시지 총계(그룹 채팅 + DM) — 통합 메시지함과 같은 기준 */
+  unreadTotal: number;
 }
 
 export async function getCatchup(userId: number, scope?: AgentScope): Promise<Catchup> {
   const me = db.prepare('SELECT username, last_seen_at FROM users WHERE id = ?').get(userId) as
     | { username: string; last_seen_at: string | null }
     | undefined;
-  if (!me) return { since: null, headline: '', source: 'rule', items: [] };
+  if (!me) return { since: null, headline: '', source: 'rule', items: [], unreadTotal: 0 };
   const sc = scopeSql(scope);
 
   // 창: 마지막 접속 종료 이후, 최대 7일 (첫 접속이면 24시간)
@@ -414,18 +425,18 @@ export async function getCatchup(userId: number, scope?: AgentScope): Promise<Ca
       meeting: { code: c.code, title: c.title },
     });
   }
-  // 항목은 상위 3곳만 싣지만 헤드라인 숫자는 전체 기준으로 (통합 메시지함과 일치)
-  const chatTotal = (
-    db
-      .prepare(
-        `SELECT COUNT(DISTINCT msg.meeting_id) AS n FROM messages msg
-         JOIN meetings m ON m.id = msg.meeting_id
-         JOIN meeting_participants mp ON mp.meeting_id = msg.meeting_id AND mp.user_id = ?
-         LEFT JOIN chat_reads cr ON cr.meeting_id = msg.meeting_id AND cr.user_id = ?
-         WHERE msg.user_id != ? AND msg.id > COALESCE(cr.last_read, 0)${sc.sql}`,
-      )
-      .get(userId, userId, userId, ...sc.args) as { n: number }
-  ).n;
+  // 항목은 상위 3곳만 싣지만 총계는 전체 기준으로 (통합 메시지함과 일치)
+  const chatAgg = db
+    .prepare(
+      `SELECT COUNT(DISTINCT msg.meeting_id) AS n, COUNT(*) AS msgs FROM messages msg
+       JOIN meetings m ON m.id = msg.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = msg.meeting_id AND mp.user_id = ?
+       LEFT JOIN chat_reads cr ON cr.meeting_id = msg.meeting_id AND cr.user_id = ?
+       WHERE msg.user_id != ? AND msg.id > COALESCE(cr.last_read, 0)${sc.sql}`,
+    )
+    .get(userId, userId, userId, ...sc.args) as { n: number; msgs: number };
+  const chatTotal = chatAgg.n;
+  const unreadTotal = chatAgg.msgs + dm.n;
 
   // 헤드라인 — 규칙 요약이 기본, AI가 있으면 자연스러운 한 줄로
   const missedRecaps = items.filter((i) => i.type === 'recap' && i.text.startsWith('놓친')).length;
@@ -471,7 +482,7 @@ export async function getCatchup(userId: number, scope?: AgentScope): Promise<Ca
     }
   }
 
-  return { since, headline, source, items };
+  return { since, headline, source, items, unreadTotal };
 }
 
 /* ── 오늘 브리핑 — 홈 대시보드용. nowbar 한 줄(brief)보다 긴 2~3문장으로
@@ -507,7 +518,10 @@ function buildDailyFacts(ctx: UserContext, catchup: Catchup): string[] {
   }
   const live = ctx.meetings.filter((m) => m.in_call > 0)[0];
   if (live) facts.push(`지금 "${live.title}"에서 ${live.in_call}명이 통화 중이다`);
-  for (const i of catchup.items.slice(0, 4)) facts.push(`자리 비운 사이: ${i.text}`);
+  // 안 읽은 메시지는 AI가 항목들을 합산하다 틀리지 않게 서버가 계산한 총계 한 문장으로
+  for (const i of catchup.items.filter((x) => x.type === 'recap' || x.type === 'todo').slice(0, 3))
+    facts.push(`자리 비운 사이: ${i.text}`);
+  if (catchup.unreadTotal > 0) facts.push(`안 읽은 메시지가 총 ${catchup.unreadTotal}개 있다`);
   const urgent = ctx.todos
     .filter((t) => !t.done && t.due_at)
     .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())[0];

@@ -15,6 +15,7 @@ import type {
 } from 'mediasoup/types';
 import db from './db.js';
 import { scheduleRecap, cancelScheduledRecap } from './recap.js';
+import { invalidateBriefForMeeting } from './agent.js';
 import { resolveChannel } from './channels.js';
 import { AGENT_MENTION, handleAgentQuery, maybeSuggestDecision } from './steward.js';
 
@@ -432,6 +433,7 @@ export function attachSfu(io: Server) {
         db.prepare(
           'INSERT INTO messages (meeting_id, user_id, text, file, channel_id) VALUES (?, ?, ?, ?, ?)',
         ).run(meeting.id, socket.data.userId, trimmed, fileJson, channel);
+        invalidateBriefForMeeting(meeting.id); // 안읽음 수가 바뀜 — 참가자 브리핑 갱신
         const u = db.prepare('SELECT avatar FROM users WHERE id = ?').get(socket.data.userId) as
           | { avatar: string | null }
           | undefined;
