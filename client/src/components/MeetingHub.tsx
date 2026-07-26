@@ -1195,13 +1195,35 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                               </label>
                               <button
                                 type="button"
-                                className={`hub-todo-assign${(t.assignees ?? []).length ? ' has' : ''}`}
+                                className={`hub-todo-assign${(t.assignees ?? []).length ? ' has faces' : ''}`}
                                 onClick={() => setAssignPick(assignPick === t.id ? null : t.id)}
-                                title="담당자 지정"
+                                title={
+                                  (t.assignees ?? []).length
+                                    ? `담당: ${t.assignees!.join(', ')}`
+                                    : '담당자 지정'
+                                }
                               >
-                                {(t.assignees ?? []).length
-                                  ? `${t.assignees!.slice(0, 2).join(', ')}${t.assignees!.length > 2 ? ` +${t.assignees!.length - 2}` : ''}`
-                                  : '담당'}
+                                {(t.assignees ?? []).length ? (
+                                  <span className="hub-assign-faces">
+                                    {t.assignees!.slice(0, 3).map((u) => (
+                                      <Avatar
+                                        key={u}
+                                        value={
+                                          detail.participants.find((p) => p.username === u)
+                                            ?.avatar ?? null
+                                        }
+                                        className="hub-assign-face"
+                                      />
+                                    ))}
+                                    {t.assignees!.length > 3 && (
+                                      <span className="hub-assign-more">
+                                        +{t.assignees!.length - 3}
+                                      </span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  '담당'
+                                )}
                               </button>
                               {assignPick === t.id && (
                                 <div className="hub-assign-pop">
