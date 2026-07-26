@@ -6,12 +6,32 @@ import db from './db.js';
  * - 안읽음은 그룹 단위 유지(chat_reads) — 채널별 뱃지는 클라 세션 내에서만 표시.
  */
 
+export type ChannelNotifyMode = 'all' | 'mention' | 'off';
+
 export interface Channel {
   id: number;
   name: string;
   isDefault: boolean;
   /** 만든 사람 — 클라가 이름 수정 버튼 노출 판단용 (수정 권한: 만든 사람·호스트·조직 관리자) */
   createdBy: number;
+  /** 조회자의 이 채널 알림 설정 (기본 mention) */
+  notifyMode: ChannelNotifyMode;
+}
+
+/** 사용자의 채널 알림 모드 — 설정 없으면 'mention' */
+export function notifyModeOf(userId: number, channelId: number): ChannelNotifyMode {
+  const r = db
+    .prepare('SELECT mode FROM channel_notify_prefs WHERE user_id = ? AND channel_id = ?')
+    .get(userId, channelId) as { mode: string } | undefined;
+  return r?.mode === 'all' || r?.mode === 'off' ? r.mode : 'mention';
+}
+
+/** 채널 알림 모드 저장 (upsert) */
+export function setNotifyMode(userId: number, channelId: number, mode: ChannelNotifyMode) {
+  db.prepare(
+    `INSERT INTO channel_notify_prefs (user_id, channel_id, mode) VALUES (?, ?, ?)
+     ON CONFLICT(user_id, channel_id) DO UPDATE SET mode = excluded.mode`,
+  ).run(userId, channelId, mode);
 }
 
 /** 기본 채널 확보 — 없으면 "일반" 생성 + 레거시 메시지(channel_id NULL) 백필 */
@@ -37,7 +57,13 @@ export function listChannels(meetingId: number, callerId: number): Channel[] {
   const rows = db
     .prepare('SELECT id, name, created_by FROM chat_channels WHERE meeting_id = ? ORDER BY id')
     .all(meetingId) as { id: number; name: string; created_by: number }[];
-  return rows.map((r, i) => ({ id: r.id, name: r.name, isDefault: i === 0, createdBy: r.created_by }));
+  return rows.map((r, i) => ({
+    id: r.id,
+    name: r.name,
+    isDefault: i === 0,
+    createdBy: r.created_by,
+    notifyMode: notifyModeOf(callerId, r.id),
+  }));
 }
 
 /** 채널이 이 회의 소속인지 검증 — 맞으면 id, 아니면 null */

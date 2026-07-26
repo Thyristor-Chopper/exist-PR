@@ -47,13 +47,29 @@ interface MeetingSettings {
   muteOnJoin: boolean;
 }
 
+type ChannelNotifyMode = 'all' | 'mention' | 'off';
+
 interface ChatChannel {
   id: number;
   name: string;
   isDefault: boolean;
   /** 만든 사람 — 이름 수정 버튼 노출 판단 (수정 권한: 만든 사람·호스트·조직 관리자) */
   createdBy?: number;
+  /** 내 알림 설정 (all=다 받기 / mention=@멘션만, 기본 / off=끄기) */
+  notifyMode?: ChannelNotifyMode;
 }
+
+const NOTIFY_CYCLE: Record<ChannelNotifyMode, ChannelNotifyMode> = {
+  all: 'mention',
+  mention: 'off',
+  off: 'all',
+};
+const NOTIFY_ICON: Record<ChannelNotifyMode, string> = { all: '🔔', mention: '@', off: '🔕' };
+const NOTIFY_LABEL: Record<ChannelNotifyMode, string> = {
+  all: '알림 다 받기',
+  mention: '@멘션만 알림',
+  off: '알림 끔',
+};
 
 interface MeetingDetail {
   id: number;
@@ -731,6 +747,19 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
       );
       setChannels((prev) => prev.map((c) => (c.id === r.id ? { ...c, name: r.name } : c)));
       setEditChannelId(null);
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
+  async function cycleNotify(ch: ChatChannel) {
+    const next = NOTIFY_CYCLE[ch.notifyMode ?? 'mention'];
+    try {
+      await api(`/api/meetings/${code}/channels/${ch.id}/notify`, {
+        method: 'PUT',
+        body: { mode: next },
+      });
+      setChannels((prev) => prev.map((c) => (c.id === ch.id ? { ...c, notifyMode: next } : c)));
     } catch {
       /* 전역 토스트 */
     }
@@ -1771,6 +1800,16 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           ×
                         </span>
                       )}
+                      <span
+                        className={`hub-channel-notify mode-${ch.notifyMode ?? 'mention'}`}
+                        title={`${NOTIFY_LABEL[ch.notifyMode ?? 'mention']} — 클릭해서 변경`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void cycleNotify(ch);
+                        }}
+                      >
+                        {NOTIFY_ICON[ch.notifyMode ?? 'mention']}
+                      </span>
                     </button>
                   ),
                 )}
@@ -1795,6 +1834,21 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
             <div className="hub-chat-chhead">
               <span className="hub-channel-hash">#</span>
               {channels.find((c) => c.id === activeChannel)?.name ?? '일반'}
+              {(() => {
+                const ch = channels.find((c) => c.id === activeChannel);
+                if (!ch) return null;
+                const mode = ch.notifyMode ?? 'mention';
+                return (
+                  <button
+                    type="button"
+                    className={`hub-chhead-notify mode-${mode}`}
+                    title={`${NOTIFY_LABEL[mode]} — 클릭해서 변경`}
+                    onClick={() => void cycleNotify(ch)}
+                  >
+                    {NOTIFY_ICON[mode]} {NOTIFY_LABEL[mode]}
+                  </button>
+                );
+              })()}
             </div>
             <div className="hub-chat-messages">
               {messages.length === 0 && (

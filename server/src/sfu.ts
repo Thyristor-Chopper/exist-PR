@@ -18,8 +18,13 @@ import { scheduleRecap, cancelScheduledRecap } from './recap.js';
 import { invalidateBriefForMeeting } from './agent.js';
 import { canManageMeeting } from './perm.js';
 import { audit as orgAudit } from './orgs.js';
-import { resolveChannel } from './channels.js';
+import { resolveChannel, notifyModeOf } from './channels.js';
+import { notifyUser } from './notify.js';
 import { AGENT_MENTION, handleAgentQuery, maybeSuggestDecision } from './steward.js';
+
+/* 채팅 알림 버스트 억제 — 'all' 모드는 같은 채널에서 2분에 1건만 (멘션은 항상). 키 = `${userId}:${channelId}` */
+const chatNotifyLast = new Map<string, number>();
+const CHAT_NOTIFY_COOLDOWN_MS = 2 * 60 * 1000;
 
 /*
  * exist SFU — mediasoup 기반 직접 구현.
@@ -462,6 +467,58 @@ export function attachSfu(io: Server) {
           channelId: channel,
           ts: Date.now(),
         });
+
+        // ── 채팅 알림 — 채널별 설정(all/mention/off, 기본 mention) 존중 ──
+        try {
+          // 채팅 룸에 접속해 있으면(그룹 화면을 보고 있으면) 생략 — DM의 viewing 생략과 같은 취지
+          const viewingUserIds = new Set<number>();
+          for (const sid of io.sockets.adapter.rooms.get(`chat:${upper}`) ?? []) {
+            const s = io.sockets.sockets.get(sid);
+            if (s?.data.userId) viewingUserIds.add(s.data.userId as number);
+          }
+          const parts = db
+            .prepare(
+              `SELECT u.id, u.username FROM meeting_participants mp
+               JOIN users u ON u.id = mp.user_id WHERE mp.meeting_id = ?`,
+            )
+            .all(meeting.id) as { id: number; username: string }[];
+          const sender = db
+            .prepare('SELECT username, name FROM users WHERE id = ?')
+            .get(socket.data.userId) as { username: string; name: string | null } | undefined;
+          const chName = (
+            db.prepare('SELECT name FROM chat_channels WHERE id = ?').get(channel) as
+              | { name: string }
+              | undefined
+          )?.name;
+          const mTitle = (
+            db.prepare('SELECT title FROM meetings WHERE id = ?').get(meeting.id) as
+              | { title: string }
+              | undefined
+          )?.title;
+          const preview = trimmed ? trimmed.slice(0, 80) : '파일을 보냈어요';
+          const now = Date.now();
+          for (const p of parts) {
+            if (p.id === socket.data.userId || viewingUserIds.has(p.id)) continue;
+            const mode = notifyModeOf(p.id, channel);
+            if (mode === 'off') continue;
+            const mentioned = trimmed.includes('@' + p.username);
+            if (mode === 'mention' && !mentioned) continue;
+            if (!mentioned) {
+              const key = `${p.id}:${channel}`;
+              const last = chatNotifyLast.get(key) ?? 0;
+              if (now - last < CHAT_NOTIFY_COOLDOWN_MS) continue;
+              chatNotifyLast.set(key, now);
+            }
+            notifyUser(p.id, {
+              from: sender?.name || sender?.username || '누군가',
+              text: `${mTitle ? `'${mTitle}' ` : ''}#${chName ?? '일반'}${mentioned ? '에서 나를 멘션했어요' : ''}: ${preview}`,
+              kind: 'chat',
+              meetingCode: upper,
+            });
+          }
+        } catch (err) {
+          console.error('[chat] 알림 발송 실패:', err);
+        }
 
         // @AI/@총무 멘션 — AI 총무가 그룹 기록을 근거로 답변 (비동기, 실패해도 채팅엔 영향 없음)
         if (AGENT_MENTION.test(trimmed)) {
