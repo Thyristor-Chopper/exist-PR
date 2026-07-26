@@ -13091,6 +13091,25 @@ input:focus {
   background: #15171c;
 }
 
+/* 모바일 PiP — 터치 드래그(스크롤로 안 새게) + 한 명만 표시(상대 우선, 혼자면 나) */
+@media (max-width: 1023px) {
+  .hub-call.mini {
+    touch-action: none;
+  }
+
+  .hub-call.mini .video-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hub-call.mini .video-grid:has(.peer-cell) > .video-tile {
+    display: none;
+  }
+
+  .hub-call.mini .peer-cell:not(:first-of-type) {
+    display: none;
+  }
+}
+
 /* PiP 크기 조절 핸들 — 좌상단 모서리 (우하단 고정, 16:9 유지) */
 .hub-pip-resize {
   position: absolute;

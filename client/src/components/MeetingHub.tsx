@@ -510,7 +510,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
 
   // 무빙 통화창 드래그·리사이즈 — 리렌더 없이 DOM 직접 조작(+rAF), 상태는 놓을 때 1회만 커밋
   useEffect(() => {
-    function onMove(e: MouseEvent) {
+    function onMove(e: PointerEvent) {
       const el = pipElRef.current;
       if (!el) return;
 
@@ -586,11 +586,13 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
         setPipPos({ ...pipLatest.current }); // 최종 위치만 상태로 커밋
       }
     }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       if (pipRafRef.current != null) cancelAnimationFrame(pipRafRef.current);
     };
   }, []);
@@ -600,7 +602,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     onlineRef.current = Math.max(1, detail?.online ?? 1);
   }, [detail?.online]);
 
-  function startPipDrag(e: React.MouseEvent) {
+  function startPipDrag(e: React.PointerEvent) {
     const t = e.target as HTMLElement;
     // 컨트롤·버튼·리사이즈 핸들 위에선 이동 드래그 시작 안 함
     if (t.closest('button') || t.closest('.meeting-controls') || t.closest('.hub-pip-resize')) return;
@@ -619,7 +621,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     e.preventDefault();
   }
 
-  function startPipResize(e: React.MouseEvent) {
+  function startPipResize(e: React.PointerEvent) {
     e.preventDefault();
     e.stopPropagation();
     const el = (e.currentTarget as HTMLElement).closest('.hub-call') as HTMLElement | null;
@@ -1687,12 +1689,12 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   } as React.CSSProperties)
                 : undefined
             }
-            onMouseDown={subtab !== 'call' ? startPipDrag : undefined}
+            onPointerDown={subtab !== 'call' ? startPipDrag : undefined}
           >
             {subtab !== 'call' && (
               <div
                 className="hub-pip-resize"
-                onMouseDown={startPipResize}
+                onPointerDown={startPipResize}
                 title="모서리를 끌어 크기 조절"
               />
             )}
