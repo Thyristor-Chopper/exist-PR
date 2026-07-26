@@ -407,8 +407,13 @@ export default function OrgChartPage() {
             </section>
           )}
 
-          {/* 팀 인사이트는 운영자용 — 멤버에겐 관전 정보라 숨긴다 (홈에선 '내 포커스'를 봄) */}
-          {manager && <InsightsPanel orgId={orgId} />}
+          {/* 팀 인사이트는 운영자용 — 멤버에겐 관전 정보라 숨긴다 (홈에선 '내 포커스'를 봄).
+              카드 자체는 마진 0 (홈 컬럼 gap과 이중 간격 방지) — 여긴 gap 없는 컨테이너라 래퍼로 20px */}
+          {manager && (
+            <div style={{ marginBottom: 20 }}>
+              <InsightsPanel orgId={orgId} />
+            </div>
+          )}
 
           {/* 가입 대기 — 관리자 + 승인/거절 권한 중간관리자. 승인은 자기 부서로만 */}
           {(canApprove || canReject) && detail.pending.length > 0 && (
