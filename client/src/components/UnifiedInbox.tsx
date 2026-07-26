@@ -41,6 +41,11 @@ interface UItem {
   peer?: Thread;
 }
 
+/** SQLite datetime('now')은 UTC인데 타임존 표기가 없어 Date.parse가 로컬로 오해함 — UTC로 보정 */
+function parseUtc(s: string): number {
+  return /Z|[+-]\d{2}:\d{2}$/.test(s) ? Date.parse(s) : Date.parse(s.replace(' ', 'T') + 'Z');
+}
+
 export default function UnifiedInbox({ scope }: { scope: DmScope }) {
   const dn = useDisplayName();
   const [groups, setGroups] = useState<InboxItem[]>([]);
@@ -92,9 +97,12 @@ export default function UnifiedInbox({ scope }: { scope: DmScope }) {
       }, 300);
     };
     socket.on('chat:message', onChat);
+    // 새 그룹 생성·참여·초대(inbox:changed) — 목록 재조회 후 위의 구독 이펙트가 새 룸도 join
+    socket.on('inbox:changed', onChat);
     socket.on('dm:message', onDm);
     return () => {
       socket.off('chat:message', onChat);
+      socket.off('inbox:changed', onChat);
       socket.off('dm:message', onDm);
       if (gt) clearTimeout(gt);
       if (dt) clearTimeout(dt);
@@ -128,7 +136,7 @@ export default function UnifiedInbox({ scope }: { scope: DmScope }) {
         gid: g.id,
         code: g.code,
         lastText: g.lastText,
-        lastTs: g.lastTs ? Date.parse(g.lastTs) : 0,
+        lastTs: g.lastTs ? parseUtc(g.lastTs) : 0,
         unread: g.unread,
       }),
     ),
