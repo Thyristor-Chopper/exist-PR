@@ -526,6 +526,9 @@ export default function OrgChartPage() {
                                 checked={r.perms.includes(a)}
                                 onChange={() => void toggleRolePerm(r, a)}
                               />
+                              <span className="hub-todo-check" aria-hidden>
+                                <CheckMarkIcon size={12} />
+                              </span>
                               {ACTION_LABEL[a]}
                             </label>
                           ))}
@@ -568,6 +571,9 @@ export default function OrgChartPage() {
                                 )
                               }
                             />
+                            <span className="hub-todo-check" aria-hidden>
+                              <CheckMarkIcon size={12} />
+                            </span>
                             {ACTION_LABEL[a]}
                           </label>
                         ))}
