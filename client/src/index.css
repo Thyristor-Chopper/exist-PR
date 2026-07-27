@@ -3907,14 +3907,14 @@ input:focus {
   border-color: var(--green) !important;
 }
 
-/* 헤더 + 버튼 — 빠른 일정 추가 (모바일에선 유일한 생성 진입점) */
+/* 헤더 + 버튼 — 모바일 전용 일정 생성 진입점 (데스크톱은 드래그 생성이 있어 숨김) */
 .msched-plus {
+  display: none;
   font-size: 18px !important;
   font-weight: 700;
   width: 26px;
   height: 26px;
   line-height: 1;
-  display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border) !important;
@@ -3928,6 +3928,12 @@ input:focus {
 .msched-plus:hover {
   border-color: var(--green) !important;
   color: var(--green) !important;
+}
+
+@media (max-width: 767px) {
+  .msched-plus {
+    display: inline-flex;
+  }
 }
 
 /* 일/주/월 세그먼트 (애플 캘린더식) */
