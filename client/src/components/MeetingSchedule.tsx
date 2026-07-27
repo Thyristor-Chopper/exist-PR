@@ -363,6 +363,16 @@ export default function MeetingSchedule({
     setPop({ mode: 'create', evId: null, x, y });
   }
 
+  /** 헤더 + 버튼 → 생성 폼 (선택 날짜 + 다음 정시 프리필). 모바일에서 유일한 생성 진입점 */
+  function openCreatePlus(e: React.MouseEvent) {
+    resetForm();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const h = selected === todayKey ? Math.min(new Date().getHours() + 1, 22) : 9;
+    setTime(minToHHMM(h * 60));
+    setEndTime(minToHHMM((h + 1) * 60));
+    setPop({ mode: 'create', evId: null, x: r.left + r.width / 2, y: r.bottom });
+  }
+
   // ── 빈 그리드 드래그로 생성 (마우스 전용 — 터치는 스크롤과 충돌) ──
   function gridPointerDown(e: React.PointerEvent, day: string, rectTop: number) {
     if (e.pointerType !== 'mouse' || e.button !== 0 || pop) return;
@@ -1236,6 +1246,15 @@ export default function MeetingSchedule({
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            className="msched-plus"
+            onClick={openCreatePlus}
+            aria-label="일정 추가"
+            title="일정 추가"
+          >
+            +
+          </button>
         </div>
 
         {view === 'week' && (
@@ -1734,7 +1753,7 @@ export default function MeetingSchedule({
       {pop &&
         createPortal(
           <div
-            className="msched-pop"
+            className={`msched-pop ${pop.mode}`}
             ref={popRef}
             style={{
               left: Math.max(8, Math.min(pop.x - 160, window.innerWidth - 328)),

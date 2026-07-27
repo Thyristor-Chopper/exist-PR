@@ -3907,6 +3907,29 @@ input:focus {
   border-color: var(--green) !important;
 }
 
+/* 헤더 + 버튼 — 빠른 일정 추가 (모바일에선 유일한 생성 진입점) */
+.msched-plus {
+  font-size: 18px !important;
+  font-weight: 700;
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px;
+  color: var(--text) !important;
+  padding: 0 !important;
+  margin-left: 6px;
+  flex: none;
+}
+
+.msched-plus:hover {
+  border-color: var(--green) !important;
+  color: var(--green) !important;
+}
+
 /* 일/주/월 세그먼트 (애플 캘린더식) */
 .msched-seg {
   display: flex;
@@ -4413,6 +4436,19 @@ input:focus {
   padding: 14px;
   z-index: 700;
   box-sizing: border-box;
+}
+
+/* 모바일: 생성·수정 폼 팝오버는 클릭 좌표 무시하고 중앙 시트로 (좁은 화면 잘림 방지) */
+@media (max-width: 767px) {
+  .msched-pop.create,
+  .msched-pop.edit {
+    left: 12px !important;
+    right: 12px;
+    width: auto;
+    top: 50% !important;
+    transform: translateY(-50%);
+    max-height: min(84dvh, 560px);
+  }
 }
 
 .msched-pop-title {
