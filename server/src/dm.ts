@@ -207,7 +207,10 @@ router.get('/:scope/with/:userId', (req: AuthedRequest, res) => {
   const me = req.userId!;
   const peer = Number(req.params.userId);
   if (!Number.isInteger(peer)) return res.status(400).json({ error: '잘못된 상대입니다' });
-  if (!peerOk(orgId, peer)) return res.status(404).json({ error: '상대를 찾을 수 없어요' });
+  // exist AI는 조직 멤버가 아니어도 어느 스코프에서나 대화 가능 — POST와 같은 예외 (없으면 조직 스코프 히스토리가 404)
+  if (peer !== ensureAgentUser() && !peerOk(orgId, peer)) {
+    return res.status(404).json({ error: '상대를 찾을 수 없어요' });
+  }
   const sc = scopeClause(orgId);
 
   const rows = db

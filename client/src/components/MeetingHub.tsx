@@ -530,16 +530,18 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     d.setDate(d.getDate() + days);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
-  async function renameTodo(e: React.FormEvent) {
-    e.preventDefault();
+  /** 제목 저장 — Enter(submit)와 blur 공통. blur가 조용히 버리면 "수정이 안 먹는" 걸로 체감 (7/29 주호 리포트) */
+  async function commitRename() {
     const title = editTodoTitle.trim();
-    if (!title || editTodoId == null) {
-      setEditTodoId(null);
-      return;
-    }
-    await api(`/api/todos/${editTodoId}`, { method: 'PATCH', body: { title } });
+    const id = editTodoId;
     setEditTodoId(null);
+    if (!title || id == null) return;
+    await api(`/api/todos/${id}`, { method: 'PATCH', body: { title } });
     void reloadTodos();
+  }
+  function renameTodo(e: React.FormEvent) {
+    e.preventDefault();
+    void commitRename();
   }
   async function toggleAssignee(t: MeetingTodo, username: string) {
     const cur = t.assignees ?? [];
@@ -1439,9 +1441,9 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                       value={editTodoTitle}
                                       onChange={(e) => setEditTodoTitle(e.target.value)}
                                       onClick={(e) => e.preventDefault()}
-                                      onBlur={() => setEditTodoId(null)}
+                                      onBlur={() => void commitRename()}
                                       onKeyDown={(e) => {
-                                        if (e.key === 'Escape') setEditTodoId(null);
+                                        if (e.key === 'Escape') setEditTodoId(null); // Esc만 버리기 — blur는 저장
                                       }}
                                       maxLength={200}
                                     />
