@@ -10921,9 +10921,13 @@ input:focus {
 .ledger-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+/* 토글은 제목 옆 고정 — 검색창(목록 모드에만 있음)이 사라져도 토글이 안 밀린다 */
+.ledger-head .ledger-search {
+  margin-left: auto;
 }
 
 .ledger-title {
