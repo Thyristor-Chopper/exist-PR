@@ -14879,8 +14879,10 @@ html:not(.dark) .meeting-controls .leave:hover {
     pointer-events: auto;
   }
 
-  /* 툴바가 숨어도 하단에 살짝 여백 — 타일이 화면 끝에 붙지 않게 */
-  .meeting-room.ctl-hidden .meeting-body {
+  /* 하단 여백 상시 14px — 툴바 표시/숨김과 무관하게 동일 (전환 시 콘텐츠 점프 없음).
+     .meeting-room.embedded .meeting-body(특이도 3클래스)를 이기려면 같은 급이 필요 */
+  .meeting-room.embedded .meeting-body,
+  .meeting-room:not(.embedded) .meeting-body {
     padding-bottom: 14px;
   }
 

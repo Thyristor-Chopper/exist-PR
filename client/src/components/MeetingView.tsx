@@ -1039,6 +1039,10 @@ export default function MeetingView({
   }, [hasScreen]);
   useEffect(() => {
     if (!pinned) return;
+    if (peers.length === 0) {
+      setPinned(null); // 혼자 남으면 무대 해제 (자기 핀만 남는 상태 방지)
+      return;
+    }
     if (pinned !== (user?.username ?? '') && !peers.some((p) => p.username === pinned))
       setPinned(null);
   }, [peers, pinned, user]);
@@ -1337,22 +1341,28 @@ export default function MeetingView({
               }, 500);
             }
           }}
-          onTouchEnd={(e) => {
+          onTouchMove={(e) => {
+            // 스와이프가 스크롤로 전환되면 touchend가 안 오는 기기(iOS)가 있어 move에서 즉시 판정
             const y0 = areaTouchY.current;
-            areaTouchY.current = null;
-            if (y0 == null || ctlJustShown.current) return; // 표시 제스처엔 숨김 판정 안 함
-            const dy = e.changedTouches[0].clientY - y0;
-            // 아래로 60px+ 스와이프 = 툴바 숨김
-            if (dy > 60 && !ctlHidden && isMobileView()) {
+            if (y0 == null || ctlJustShown.current || ctlHidden || !isMobileView()) return;
+            const dy = e.touches[0].clientY - y0;
+            if (dy > 60) {
+              areaTouchY.current = null; // 제스처당 1회
               if (ctlTimer.current) clearTimeout(ctlTimer.current);
               setCtlHidden(true);
             }
           }}
+          onTouchEnd={() => {
+            areaTouchY.current = null;
+          }}
+          onTouchCancel={() => {
+            areaTouchY.current = null;
+          }}
           onClick={(e) => {
             const justShown = ctlJustShown.current;
             ctlJustShown.current = false;
-            // 타일 탭은 핀이 처리 — 컨트롤은 표시 유지만
-            if ((e.target as HTMLElement).closest('.video-tile')) {
+            // 타일 탭은 핀이 처리 — 컨트롤은 표시 유지만. 혼자일 땐 핀이 없으니 빈 영역 탭과 동일 취급
+            if (peers.length > 0 && (e.target as HTMLElement).closest('.video-tile')) {
               bumpControls();
               return;
             }
@@ -1431,7 +1441,7 @@ export default function MeetingView({
               micMuted={!micOn}
               speaking={!!speaking[user?.username ?? '']}
               onPress={
-                hasScreen
+                hasScreen || peers.length === 0 // 혼자일 땐 핀 무의미 — 전체 화면 탭이 자기 핀으로 새는 것 방지
                   ? undefined
                   : () => {
                       setAutoStage(false); // 수동 핀 = 자동 무대 해제 (줌과 동일)
