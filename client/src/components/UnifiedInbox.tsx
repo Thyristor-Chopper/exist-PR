@@ -73,7 +73,22 @@ export default function UnifiedInbox({ scope }: { scope: DmScope }) {
   // 그룹 채팅 룸 구독 — 목록에 있는 그룹의 새 메시지를 소켓으로 받기 위해 (join은 멱등)
   useEffect(() => {
     const socket = getSocket();
-    for (const g of groups) void request(socket, 'chat:join', { code: g.code }).catch(() => {});
+    const join = () => {
+      for (const g of groups) void request(socket, 'chat:join', { code: g.code }).catch(() => {});
+    };
+    join();
+    // 서버 재시작(배포)·네트워크 끊김 후 재연결되면 서버 쪽 룸이 초기화됨 —
+    // 다시 구독하고, 끊긴 동안 놓친 메시지를 재조회로 따라잡는다
+    const onReconnect = () => {
+      join();
+      loadGroups();
+      loadThreads();
+    };
+    socket.io.on('reconnect', onReconnect);
+    return () => {
+      socket.io.off('reconnect', onReconnect);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups]);
 
   // 실시간 갱신 — 새 그룹 채팅/DM이 오면 새로고침 없이 목록·안읽음·미리보기 반영.
