@@ -340,6 +340,61 @@ export function ChevronRightIcon({ size }: IconProps) {
   );
 }
 
+/** 새로고침 원형 화살표 */
+export function RefreshIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M19.8 3.8v3.4h-3.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/** 가위 — 잘라내기 */
+export function ScissorsIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="6" cy="6.5" r="2.6" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="6" cy="17.5" r="2.6" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M8.3 8.2 20 19M8.3 15.8 20 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** 위아래 화살표 — 정렬 */
+export function SortIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M8 4.5v15M8 4.5 4.5 8M8 4.5 11.5 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 19.5v-15M16 19.5 12.5 16M16 19.5 19.5 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/** 되돌리기 화살표 — 실행 취소 */
+export function UndoIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M7.5 5 4 8.5 7.5 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 8.5h10a6 6 0 0 1 0 12H9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** 별 — 즐겨찾기 */
+export function StarIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path
+        d="m12 3.6 2.5 5.2 5.7.7-4.2 3.9 1.1 5.6L12 16.2 6.9 19l1.1-5.6L3.8 9.5l5.7-.7L12 3.6z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 /** 편지봉투 — 가입 대기·신청 */
 export function MailIcon({ size }: IconProps) {
   return (

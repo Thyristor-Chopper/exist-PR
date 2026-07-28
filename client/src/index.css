@@ -45,6 +45,8 @@
   --radius: 14px;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.1);
+  --red: #e5484d;
+  --red-soft: #fdecec;
 
   /* 라틴(로고·숫자)은 Inter, 한글은 NanumSquareNeo로 폴백 */
   font-family: 'Inter', 'NanumSquareNeo', -apple-system, 'Malgun Gothic', sans-serif;
@@ -95,6 +97,8 @@
   --surface-3: #2a2e36;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --red: #ff7b81;
+  --red-soft: #3a2225;
 }
 
 /* 로고 다크/라이트 자동 전환 */
@@ -3588,8 +3592,8 @@ input:focus {
 }
 
 .hub-todo-due.over {
-  background: #fdecec;
-  color: #e5484d;
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .hub-todo-due.today {
@@ -3648,8 +3652,8 @@ input:focus {
 }
 
 .nb-todo-due.over {
-  background: #fdecec;
-  color: #e5484d;
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .nb-todo-due.today {
@@ -6943,8 +6947,8 @@ input:focus {
 }
 
 .hub-dday.over {
-  background: #fdecec;
-  color: #c92a2a;
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .dark .hub-dday.over {
@@ -13972,7 +13976,7 @@ html:not(.dark) .meeting-controls .leave:hover {
 }
 
 .ws-tab .tab-close:hover {
-  background: #fdecec;
+  background: var(--red-soft);
   color: #d33;
 }
 
@@ -14991,8 +14995,8 @@ html:not(.dark) .meeting-controls .leave:hover {
   height: 24px;
   flex: none;
   border-radius: 7px;
-  background: #fdecec;
-  color: #e5484d;
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .dark .error-toast-ic {
@@ -17553,4 +17557,41 @@ html:not(.dark) .meeting-controls .leave:hover {
 .hub-channel-item,
 .notif-time {
   font-variant-numeric: tabular-nums;
+}
+
+/* 조용한 시작 카드 — 새 그룹의 빈 카드 3연속(결정·아젠다·일정)을 안내 한 장으로 */
+.hub-quiet-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 26px 18px;
+}
+
+.hub-quiet-icons {
+  display: flex;
+  gap: 8px;
+}
+
+.hub-quiet-icons span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.hub-quiet-start b {
+  font-size: 14.5px;
+}
+
+.hub-quiet-sub {
+  font-size: 12.5px;
+  color: var(--text-sub);
+  max-width: 420px;
+  line-height: 1.55;
 }

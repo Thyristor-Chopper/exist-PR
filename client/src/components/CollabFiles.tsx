@@ -25,6 +25,14 @@ import {
   ClipboardIcon,
   CheckMarkIcon,
   CloseIcon,
+  ScissorsIcon,
+  RefreshIcon,
+  SortIcon,
+  UndoIcon,
+  StarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
 } from './Icons';
 
 /*
@@ -962,16 +970,16 @@ export default function CollabFiles({
         {/* 1줄 — 내비게이션 바 */}
         <div className="cf-nav">
           <button title="뒤로" disabled={backStack.current.length === 0} onClick={goBack}>
-            ←
+            <ChevronLeftIcon size={14} />
           </button>
           <button title="앞으로" disabled={fwdStack.current.length === 0} onClick={goForward}>
-            →
+            <ChevronRightIcon size={14} />
           </button>
           <button title="상위 폴더" disabled={cwd === null} onClick={goUp}>
-            ↑
+            <ChevronUpIcon size={14} />
           </button>
           <button title="새로고침" onClick={load}>
-            ⟳
+            <RefreshIcon size={13} />
           </button>
           <div className="cf-path">
             <button
@@ -1040,7 +1048,7 @@ export default function CollabFiles({
             disabled={cantTouch}
             onClick={() => setClipboard({ op: 'cut', ids: editables.map((f) => f.id) })}
           >
-            ✂ 잘라내기
+            <ScissorsIcon size={13} /> 잘라내기
           </button>
           <button
             className="cf-tool"
@@ -1072,12 +1080,12 @@ export default function CollabFiles({
               if (!trashOpen) void loadTrash();
             }}
           >
-            ♻ 휴지통
+            <TrashIcon size={13} /> 휴지통
           </button>
           <span className="cf-tool-sep" />
           <div className="cf-tool-wrap">
             <button className="cf-tool" onClick={() => setSortMenu((v) => !v)}>
-              ⇅ 정렬
+              <SortIcon size={13} /> 정렬
             </button>
             {sortMenu && (
               <div className="cf-type-menu">
@@ -1135,14 +1143,14 @@ export default function CollabFiles({
             onClick={() => void undo()}
             title={undoStack.current.at(-1)?.label ?? ''}
           >
-            ↩ 실행 취소
+            <UndoIcon size={13} /> 실행 취소
           </button>
         </div>
 
         {/* 즐겨찾기 바 — 우클릭으로 추가한 항목 바로가기 */}
         {favFiles.length > 0 && (
           <div className="cf-favbar">
-            <span className="cf-favbar-label">★</span>
+            <span className="cf-favbar-label"><StarIcon size={12} /></span>
             {favFiles.map((f) => (
               <button
                 key={f.id}
@@ -1414,7 +1422,7 @@ export default function CollabFiles({
                 title={favs.includes(selected.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'}
                 onClick={() => toggleFav(selected.id)}
               >
-                ★
+                <StarIcon size={14} />
               </button>
             </div>
             <div className="cf-details-sub">
@@ -1723,7 +1731,7 @@ export default function CollabFiles({
                 setEditorFull(false);
               }}
             >
-              ←
+              <ChevronLeftIcon size={15} />
             </button>
             {/* 경로 › [타입 아이콘] 파일명 — 아이콘은 파일명 바로 옆에 */}
             <span className="cf-editor-path">
