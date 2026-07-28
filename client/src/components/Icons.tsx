@@ -308,6 +308,15 @@ export function UsersIcon({ size }: IconProps) {
   );
 }
 
+export function MailIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M3 7l9 6 9-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 export function ChevronIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

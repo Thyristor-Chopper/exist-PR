@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useOrgStore } from '../orgStore';
+import { MailIcon } from './Icons';
 
 interface Props {
   open: boolean;
@@ -50,7 +51,9 @@ export default function JoinOrgModal({ open, onClose }: Props) {
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         {done ? (
           <>
-            <div className="modal-head">✉️ 가입 신청을 보냈어요</div>
+            <div className="modal-head">
+              <MailIcon size={16} /> 가입 신청을 보냈어요
+            </div>
             <div className="modal-sub">
               <b>{done}</b> 관리자가 승인하면 조직 그룹에 참여할 수 있어요.
             </div>

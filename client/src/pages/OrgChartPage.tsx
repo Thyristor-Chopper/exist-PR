@@ -5,7 +5,7 @@ import { useOrgStore } from '../orgStore';
 import { useDisplayName } from '../names';
 import Logo from '../components/Logo';
 import Avatar from '../components/Avatar';
-import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon, PenIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon } from '../components/Icons';
+import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon, PenIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon, SparklesIcon, MailIcon } from '../components/Icons';
 import { POSITIONS } from '../lib/positions';
 import InsightsPanel from '../components/InsightsPanel';
 
@@ -390,7 +390,7 @@ export default function OrgChartPage() {
               {manager && detail.joinCode && (
                 <>
                 <button className="orgchart-code" onClick={copyCode} title="가입코드 복사">
-                  가입코드 <b>{detail.joinCode}</b> {copied ? '✓' : ''}
+                  가입코드 <b>{detail.joinCode}</b> {copied && <CheckMarkIcon size={13} />}
                 </button>
                 <button
                   className="orgchart-code"
@@ -429,7 +429,9 @@ export default function OrgChartPage() {
             <section className="org-suggest">
               {detail.suggestions.map((s) => (
                 <div key={s.id} className="org-suggest-row">
-                  <span className="org-suggest-badge">✨ AI 제안</span>
+                  <span className="org-suggest-badge">
+                    <SparklesIcon size={12} /> AI 제안
+                  </span>
                   <span className="org-suggest-text">{s.text}</span>
                   <button className="org-btn approve" onClick={() => setRolesOpen(true)}>
                     역할 관리 열기
@@ -451,7 +453,7 @@ export default function OrgChartPage() {
           {(canApprove || canReject) && detail.pending.length > 0 && (
             <section className="orgchart-pending">
               <div className="orgchart-pending-head">
-                ✉️ 가입 대기 <b>{detail.pending.length}</b>
+                <MailIcon size={14} /> 가입 대기 <b>{detail.pending.length}</b>
               </div>
               {detail.pending.map((p) => (
                 <div key={p.userId} className="orgchart-pending-row">
@@ -738,7 +740,9 @@ export default function OrgChartPage() {
                   <rect x="13.5" y="14.5" width="7" height="7" rx="1.5" />
                 </svg>
                 전체 그룹{orgGroups ? ` ${orgGroups.length}` : ''}
-                <span className="org-perm-caret">{groupsOpen ? '▴' : '▾'}</span>
+                <span className="org-perm-caret">
+                  {groupsOpen ? <ChevronUpIcon size={14} /> : <ChevronIcon size={14} />}
+                </span>
               </button>
               {groupsOpen && (
                 <div className="org-perm-body">
