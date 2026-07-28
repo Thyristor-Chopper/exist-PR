@@ -66,6 +66,8 @@ describe('결정 원장', () => {
 describe('AI 총무 @AI 질의응답', () => {
   it('멘션 패턴 — @AI/@ai/@총무 감지, 일반 텍스트는 무시', () => {
     expect(AGENT_MENTION.test('@AI 지난 결정 알려줘')).toBe(true);
+    expect(AGENT_MENTION.test('@AI, 다음 일정 알려줘')).toBe(true); // 문장부호가 바로 붙어도
+    expect(AGENT_MENTION.test('@ai?')).toBe(true);
     expect(AGENT_MENTION.test('@총무 요약해줘')).toBe(true);
     expect(AGENT_MENTION.test('ai 관련 얘기인데요')).toBe(false);
     expect(AGENT_MENTION.test('email@ai.com 으로 보내')).toBe(false);
@@ -75,11 +77,11 @@ describe('AI 총무 @AI 질의응답', () => {
     const { code, meetingId, uid } = await setupWithRecap('sw1');
     const channelId = ensureDefaultChannel(meetingId, uid);
 
-    const emitted: { room: string; payload: { from: string; text: string; channelId: number } }[] = [];
+    const emitted: { room: string; ev: string; payload: { from: string; text: string; channelId: number } }[] = [];
     const io = {
       to: (room: string) => ({
-        emit: (_ev: string, payload: unknown) =>
-          emitted.push({ room, payload: payload as (typeof emitted)[0]['payload'] }),
+        emit: (ev: string, payload: unknown) =>
+          emitted.push({ room, ev, payload: payload as (typeof emitted)[0]['payload'] }),
       }),
     };
 
@@ -91,12 +93,14 @@ describe('AI 총무 @AI 질의응답', () => {
       text: '@AI 우리 뭐 결정했었지?',
     });
 
-    // 브로드캐스트
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0].room).toBe(`chat:${code}`);
-    expect(emitted[0].payload.from).toBe(AGENT_NAME);
-    expect(emitted[0].payload.text).toContain('확정');
-    expect(emitted[0].payload.channelId).toBe(channelId);
+    // 브로드캐스트 — 준비 중 신호(chat:ai-thinking) 먼저, 답변(chat:message) 다음
+    expect(emitted).toHaveLength(2);
+    expect(emitted[0].ev).toBe('chat:ai-thinking');
+    expect(emitted[1].ev).toBe('chat:message');
+    expect(emitted[1].room).toBe(`chat:${code}`);
+    expect(emitted[1].payload.from).toBe(AGENT_NAME);
+    expect(emitted[1].payload.text).toContain('확정');
+    expect(emitted[1].payload.channelId).toBe(channelId);
 
     // DB 영속 (exist AI 명의)
     const agentId = ensureAgentUser();
@@ -118,8 +122,12 @@ describe('AI 총무 @AI 질의응답', () => {
     ).id;
     const channelId = ensureDefaultChannel(meetingId, userId('sw2_host'));
 
-    const emitted: { text: string }[] = [];
-    const io = { to: () => ({ emit: (_e: string, p: unknown) => emitted.push(p as { text: string }) }) };
+    const emitted: { ev: string; text: string }[] = [];
+    const io = {
+      to: () => ({
+        emit: (ev: string, p: unknown) => emitted.push({ ev, ...(p as { text: string }) }),
+      }),
+    };
     await handleAgentQuery(io, {
       meetingId,
       code: m.body.code,
@@ -127,7 +135,8 @@ describe('AI 총무 @AI 질의응답', () => {
       asker: 'sw2_host',
       text: '@AI 매출 얼마였지?',
     });
-    expect(emitted[0].text).toContain('근거가 없어요');
+    const answer = emitted.find((e) => e.ev === 'chat:message');
+    expect(answer?.text).toContain('근거가 없어요');
   });
 
   it('시스템 유저는 한 번만 생성된다', () => {

@@ -413,6 +413,9 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   const [unreadMarkId, setUnreadMarkId] = useState<number | null>(null);
   const unreadMarkRef = useRef<HTMLDivElement>(null);
   const chatScrolledRef = useRef(false); // 채널 첫 로드 시 구분선으로 스크롤했는지
+  // @AI 답변 준비 중 표시 — 질문 직후 침묵 방지 (AI 메시지 도착·타임아웃 시 해제)
+  const [aiThinking, setAiThinking] = useState(false);
+  const aiThinkingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [filesMounted, setFilesMounted] = useState(false); // 공동편집(파일시스템)은 한 번 열면 마운트 유지
   const [pipPos, setPipPos] = useState<{ x: number; y: number } | null>(null); // 무빙 통화창 위치
   const [pipW, setPipW] = useState<number>(() => {
@@ -668,7 +671,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }
     chatScrolledRef.current = true;
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, subtab]);
+  }, [messages, subtab, aiThinking]);
 
   // 상세 + 현재 통화 인원 (10초 폴링)
   useEffect(() => {
@@ -737,6 +740,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
       void request(socket, 'chat:join', { code }).catch(() => {});
     }
     chatScrolledRef.current = false; // 채널 전환 — 구분선 첫 스크롤 다시 허용
+    setAiThinking(false); // 채널 전환 시 이전 채널의 준비 중 표시 제거
     join();
     // 채널로 들어왔으니 이 채널의 세션 안읽음 점은 해제
     setChannelUnread((prev) => ({ ...prev, [activeChannel]: 0 }));
@@ -744,8 +748,21 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     // 사라지므로 다시 join해야 메시지를 계속 받는다
     socket.on('connect', join);
 
+    function onAiThinking(p: { code?: string; channelId?: number | null } | undefined) {
+      if (p?.code && p.code !== code.toUpperCase()) return;
+      if (p?.channelId != null && p.channelId !== activeChannelRef.current) return;
+      setAiThinking(true);
+      if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
+      aiThinkingTimer.current = setTimeout(() => setAiThinking(false), 45_000);
+    }
+    socket.on('chat:ai-thinking', onAiThinking);
+
     function onMessage(msg: ChatMessage) {
       if (msg.code && msg.code !== code.toUpperCase()) return;
+      if (msg.from === 'exist AI') {
+        setAiThinking(false);
+        if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
+      }
       if (msg.channelId == null || msg.channelId === activeChannelRef.current) {
         setMessages((prev) => [...prev, msg]);
       } else {
@@ -760,6 +777,8 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
       alive = false;
       socket.off('connect', join);
       socket.off('chat:message', onMessage);
+      socket.off('chat:ai-thinking', onAiThinking);
+      if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
     };
   }, [code, inCall, activeChannel]);
 
@@ -1999,6 +2018,21 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   </Fragment>
                 );
               })}
+              {aiThinking && (
+                <div className="chat-row ai-thinking">
+                  <Avatar value="✦" className="chat-avatar" />
+                  <div className="chat-content">
+                    <span className="chat-name">exist AI</span>
+                    <div className="chat-line">
+                      <div className="chat-bubble chat-typing">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={chatEndRef} />
             </div>
             <form className="hub-chat-input" onSubmit={sendChat}>

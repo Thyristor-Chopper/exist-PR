@@ -13,8 +13,9 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 export const AGENT_NAME = 'exist AI';
-/** @AI, @ai, @총무 멘션 감지 — 문장 처음이나 공백 뒤의 독립 토큰만 (이메일 주소 오탐 방지) */
-export const AGENT_MENTION = /(^|\s)@(ai|총무)(?=\s|$)/i;
+/** @AI, @ai, @총무 멘션 감지 — 문장 처음이나 공백 뒤의 독립 토큰만 (이메일 주소 오탐 방지).
+ *  "@AI, 알려줘"처럼 바로 문장부호가 붙는 경우도 허용 */
+export const AGENT_MENTION = /(^|\s)@(ai|총무)(?=[\s,.!?~:;]|$)/i;
 
 /** AI 아바타 — 클라이언트 Avatar가 이 값을 별(SparklesIcon)로 렌더 */
 export const AGENT_AVATAR = '✦';
@@ -40,6 +41,7 @@ interface AgentContext {
   decisions: { decision: string; ts: number }[];
   recaps: { summary: string; ts: number }[];
   todos: { title: string; done: number; author: string }[];
+  events: { title: string; date: string; time: string | null }[];
   chat: { from: string; text: string }[];
 }
 
@@ -78,10 +80,19 @@ function gatherContext(meetingId: number, channelId: number): AgentContext {
     )
     .all(meetingId)
     .reverse() as { from: string; text: string }[];
-  return { meetingTitle: meeting.title, decisions, recaps, todos, chat: [...voice, ...chat] };
+  // 다가오는 일정 — "다음 회의 언제야?" 류 질문의 근거 (반복 일정 전개는 생략, 기준일 이후만)
+  const events = db
+    .prepare(
+      `SELECT title, date, time FROM meeting_events
+       WHERE meeting_id = ? AND date >= date('now', 'localtime')
+       ORDER BY date, COALESCE(time, '99') LIMIT 5`,
+    )
+    .all(meetingId) as { title: string; date: string; time: string | null }[];
+  return { meetingTitle: meeting.title, decisions, recaps, todos, events, chat: [...voice, ...chat] };
 }
 
-/** 규칙 폴백 — 질문 키워드에 따라 기록을 그대로 보여준다 */
+/** 규칙 폴백 — 질문 키워드에 따라 기록을 그대로 보여준다.
+ *  못 알아들은 질문도 무시하지 않고 "그 질문엔 기록이 없다"고 밝힌 뒤 아는 걸 보여준다 */
 export function ruleBasedAnswer(question: string, ctx: AgentContext): string {
   const q = question.toLowerCase();
   if (/(결정|정했|확정|왜)/.test(q) && ctx.decisions.length > 0) {
@@ -94,10 +105,27 @@ export function ruleBasedAnswer(question: string, ctx: AgentContext): string {
       return `미완료 할 일 ${undone.length}개예요:\n${undone.map((t) => `· ${t.title} (${t.author})`).join('\n')}`;
     }
   }
-  if (ctx.recaps.length > 0) {
+  if (/(일정|스케줄|언제|약속|회의 ?시간)/.test(q) && ctx.events.length > 0) {
+    const lines = ctx.events.slice(0, 3).map((e) => `· ${e.date}${e.time ? ` ${e.time}` : ''} ${e.title}`);
+    return `다가오는 일정이에요:\n${lines.join('\n')}`;
+  }
+  if (/(정리|요약|무슨 ?일|상황)/.test(q) && ctx.recaps.length > 0) {
     return `가장 최근 통화 정리예요: ${ctx.recaps[0].summary}`;
   }
-  return '아직 이 그룹에 쌓인 결정·통화 기록이 없어서 답할 근거가 없어요.';
+  // 어느 키워드에도 안 걸림 — 질문을 무시한 것처럼 보이지 않게 한계를 밝힌다
+  const known: string[] = [];
+  if (ctx.decisions.length > 0) known.push(`결정 ${ctx.decisions.length}건`);
+  if (ctx.todos.filter((t) => !t.done).length > 0)
+    known.push(`미완료 할 일 ${ctx.todos.filter((t) => !t.done).length}개`);
+  if (ctx.events.length > 0) known.push(`다가오는 일정 ${ctx.events.length}건`);
+  if (known.length === 0 && ctx.recaps.length === 0) {
+    return '아직 이 그룹에 쌓인 결정·통화 기록이 없어서 답할 근거가 없어요.';
+  }
+  const cut = question.length > 40 ? `${question.slice(0, 40)}…` : question;
+  return (
+    `"${cut}"에 딱 맞는 기록은 못 찾았어요. 지금 쌓인 기록: ${known.join(' · ') || '통화 정리'} — ` +
+    '"결정", "할 일", "일정", "요약"처럼 물어보면 바로 보여드려요.'
+  );
 }
 
 async function aiAnswer(question: string, asker: string, ctx: AgentContext): Promise<string> {
@@ -124,6 +152,7 @@ async function aiAnswer(question: string, asker: string, ctx: AgentContext): Pro
             decisions: ctx.decisions.map((d) => d.decision),
             call_summaries: ctx.recaps.map((r) => r.summary),
             todos: ctx.todos.map((t) => `${t.title} (${t.author}${t.done ? ', 완료' : ''})`),
+            upcoming_events: ctx.events.map((e) => `${e.date}${e.time ? ` ${e.time}` : ''} ${e.title}`),
             recent_chat: ctx.chat.map((c) => `${c.from}: ${c.text}`),
           },
         }),
@@ -181,11 +210,24 @@ export async function answerDmQuery(
     )
     .all(userId, ...scopeArgs) as { title: string; done: number; author: string }[];
 
+  // 스코프 내 그룹들의 다가오는 일정 — "다음 회의 언제야?" 근거
+  const events = meetings.length
+    ? (db
+        .prepare(
+          `SELECT e.title, e.date, e.time FROM meeting_events e
+           WHERE e.meeting_id IN (${meetings.map(() => '?').join(',')})
+             AND e.date >= date('now', 'localtime')
+           ORDER BY e.date, COALESCE(e.time, '99') LIMIT 5`,
+        )
+        .all(...meetings.map((m) => m.id)) as { title: string; date: string; time: string | null }[])
+    : [];
+
   const ctx: AgentContext = {
     meetingTitle: orgId == null ? '개인 워크스페이스' : '조직 워크스페이스',
     decisions: decisions.slice(0, 30),
     recaps: recaps.slice(0, 8),
     todos,
+    events,
     chat: [], // 1:1 질의는 그룹 대화를 근거로 안 씀 — 스코프 전체 기록만
   };
 
@@ -454,8 +496,15 @@ export async function handleAgentQuery(
   io: Broadcaster,
   args: { meetingId: number; code: string; channelId: number; asker: string; text: string },
 ): Promise<void> {
+  // 답 준비 중 표시 — 질문 직후의 침묵 방지 (답이 오면 chat:message가 표시를 대체)
+  io.to(`chat:${args.code.toUpperCase()}`).emit('chat:ai-thinking', {
+    code: args.code.toUpperCase(),
+    channelId: args.channelId,
+  });
   const ctx = gatherContext(args.meetingId, args.channelId);
-  const question = args.text.replace(AGENT_MENTION, '').trim() || '지금 상황 요약해줘';
+  // 멘션 제거 후 앞에 남는 문장부호 정리 ("@AI, 알려줘" → "알려줘")
+  const question =
+    args.text.replace(AGENT_MENTION, '').replace(/^[\s,.!?~:;]+/, '').trim() || '지금 상황 요약해줘';
 
   let answer: string;
   if (openai) {
