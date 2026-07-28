@@ -17472,12 +17472,13 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   display: flex;
   flex-wrap: wrap;
   align-content: stretch;
+  justify-content: center; /* 마지막 행 = 동일 크기 + 가운데 (늘리면 비율이 괴상해짐 — 주호 확인) */
   gap: 8px;
   overflow: hidden;
 }
 
 .video-grid.computed.computed.computed .video-tile {
-  flex: 1 1 calc((100% - (var(--cols, 3) - 1) * 8px) / var(--cols, 3));
+  flex: 0 0 calc((100% - (var(--cols, 3) - 1) * 8px) / var(--cols, 3));
   height: calc((100% - (var(--rows, 3) - 1) * 8px) / var(--rows, 3));
   min-width: 0;
   min-height: 0;
