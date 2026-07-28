@@ -3922,12 +3922,18 @@ input:focus {
   background: var(--surface-2);
 }
 
+/* 이름은 내용 폭만 — 상태 아이콘(마이크·캠)이 이름 바로 옆에 붙는다 (주호 지시).
+   액션 알약이 margin-left:auto로 오른쪽 끝 정렬 */
 .ppl-name {
-  flex: 1;
   min-width: 0;
+  max-width: 55%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ppl-pill {
+  margin-left: auto;
 }
 
 /* 마이크·카메라 상태 — 꺼짐이면 붉게 + 슬래시 겹침 (타일 이름표와 같은 문법) */
@@ -11532,9 +11538,11 @@ input:focus {
   }
 }
 
-/* 터치 기기 — hover가 없으므로 이름변경/삭제 버튼 항상 노출 */
+/* 터치 기기 — hover가 없으므로 이름변경/삭제 버튼 항상 노출.
+   ⚠️ 베이스 .cf-actions{display:none}이 이 블록보다 뒤에 있어 소스 순서로 이김 —
+   .cf-item 스코프로 특이도를 올려야 실제로 노출됨 (7/29 모바일 QA에서 실측) */
 @media (hover: none) {
-  .cf-actions {
+  .cf-item .cf-actions {
     display: inline-flex;
   }
 
@@ -18300,4 +18308,18 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   border-radius: 5px;
   background: var(--surface-2);
   font-weight: 700;
+}
+
+/* 터치 기기 — hover가 없어 숨은 컨트롤 접근 불가 방지 (cf-actions의 기존 패턴 확장, 7/29 모바일 담당) */
+@media (hover: none) {
+  .hub-todo-editbtn,
+  .hub-todo-due.ghost,
+  .hub-channel-edit,
+  .hub-channel-del {
+    opacity: 0.55;
+  }
+
+  .kick-btn {
+    opacity: 0.9;
+  }
 }
