@@ -14013,7 +14013,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
-  padding: 2px;
+  padding: 3px;
   flex: none;
 }
 
@@ -14022,8 +14022,8 @@ html:not(.dark) .meeting-controls .leave:hover {
   border: none;
   background: none;
   border-radius: 999px;
-  width: 36px;
-  height: 30px;
+  width: 42px;
+  height: 34px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -14037,7 +14037,7 @@ html:not(.dark) .meeting-controls .leave:hover {
 
 .hdr-pill-sep {
   width: 1px;
-  height: 16px;
+  height: 18px;
   background: var(--border);
   flex: none;
 }

@@ -321,6 +321,7 @@ export default function MeetingView({
   const ctlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMobileView = () => window.matchMedia('(max-width: 767px)').matches;
   const devMenuOpenRef = useRef(false); // 메뉴 열림 중엔 자동 숨김 보류
+  const ctlJustShown = useRef(false); // 터치로 방금 표시됨 — 이어지는 click이 도로 숨기지 않게
   const bumpControls = () => {
     setCtlHidden(false);
     if (ctlTimer.current) clearTimeout(ctlTimer.current);
@@ -1250,7 +1251,7 @@ export default function MeetingView({
             onClick={() => setDevMenu((v) => (v === 'opts' ? null : 'opts'))}
             title="통화 설정"
           >
-            <GearIcon size={16} />
+            <GearIcon size={18} />
           </button>
           {devMenu === 'opts' && (
             <>
@@ -1323,12 +1324,22 @@ export default function MeetingView({
       <div className="meeting-body">
         <div
           className={`video-area${hasScreen || pinned ? ' with-screen' : ''}`}
+          onTouchStart={() => {
+            // 숨김 상태에선 어떤 터치(탭·스와이프·스크롤)든 일단 컨트롤 표시
+            if (ctlHidden) {
+              bumpControls();
+              ctlJustShown.current = true;
+            }
+          }}
           onClick={(e) => {
+            const justShown = ctlJustShown.current;
+            ctlJustShown.current = false;
             // 타일 탭은 핀이 처리 — 컨트롤은 표시 유지만
             if ((e.target as HTMLElement).closest('.video-tile')) {
               bumpControls();
               return;
             }
+            if (justShown) return; // 방금 터치로 표시됨 — 같은 탭이 도로 숨기지 않게
             // 빈 영역 탭 = 컨트롤 토글 (모바일)
             if (ctlHidden) bumpControls();
             else if (isMobileView()) {
