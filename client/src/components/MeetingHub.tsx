@@ -15,6 +15,7 @@ import RecapPanel from './RecapPanel';
 import { DmWindow, type DmScope, type Thread } from './DirectMessages';
 import MentionInput, { type MentionCandidate } from './MentionInput';
 import { togglePin, isPinned, PINS_EVENT } from '../lib/pins';
+import { dueBadge } from '../lib/due';
 import { useDisplayName } from '../names';
 import {
   PhoneIcon,
@@ -163,6 +164,8 @@ interface MeetingTodo {
   author?: string;
   /** 담당자 username 목록 (회의 할 일 — 여러 명 가능) */
   assignees?: string[];
+  /** 마감일 YYYY-MM-DD — AI 총무가 임박·지남을 리마인드 */
+  due_at?: string | null;
 }
 
 function dday(endDate: string): number | null {
@@ -426,6 +429,12 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   const onlineRef = useRef<number>(1); // 통화 인원 — 리사이즈 캡(다 들어가면 그만)용
   const [todos, setTodos] = useState<MeetingTodo[]>([]);
   const [todoInput, setTodoInput] = useState('');
+  // 할 일 마감·제목 인라인 편집
+  const [newDue, setNewDue] = useState('');
+  const [newDueOpen, setNewDueOpen] = useState(false);
+  const [dueEditId, setDueEditId] = useState<number | null>(null);
+  const [editTodoId, setEditTodoId] = useState<number | null>(null);
+  const [editTodoTitle, setEditTodoTitle] = useState('');
   // 담당자 피커 — 열려있는 대상(할 일 id 또는 추가 폼 'new')과 추가 폼의 선택 상태
   const [assignPick, setAssignPick] = useState<number | 'new' | null>(null);
   const [newAssign, setNewAssign] = useState<string[]>([]);
@@ -460,11 +469,29 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     if (!todoInput.trim()) return;
     await api('/api/todos', {
       method: 'POST',
-      body: { title: todoInput, meeting: code, assignees: newAssign },
+      body: { title: todoInput, meeting: code, assignees: newAssign, due_at: newDue || null },
     });
     setTodoInput('');
     setNewAssign([]);
     setAssignPick(null);
+    setNewDue('');
+    setNewDueOpen(false);
+    void reloadTodos();
+  }
+  async function saveDue(t: MeetingTodo, value: string) {
+    await api(`/api/todos/${t.id}`, { method: 'PATCH', body: { due_at: value || null } });
+    setDueEditId(null);
+    void reloadTodos();
+  }
+  async function renameTodo(e: React.FormEvent) {
+    e.preventDefault();
+    const title = editTodoTitle.trim();
+    if (!title || editTodoId == null) {
+      setEditTodoId(null);
+      return;
+    }
+    await api(`/api/todos/${editTodoId}`, { method: 'PATCH', body: { title } });
+    setEditTodoId(null);
     void reloadTodos();
   }
   async function toggleAssignee(t: MeetingTodo, username: string) {
@@ -1271,8 +1298,67 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 <span className="hub-todo-check" aria-hidden>
                                   <CheckMarkIcon size={16} />
                                 </span>
-                                <Marquee className="hub-todo-text">{t.title}</Marquee>
+                                {editTodoId === t.id ? (
+                                  <form className="hub-todo-rename" onSubmit={renameTodo}>
+                                    <input
+                                      autoFocus
+                                      value={editTodoTitle}
+                                      onChange={(e) => setEditTodoTitle(e.target.value)}
+                                      onClick={(e) => e.preventDefault()}
+                                      onBlur={() => setEditTodoId(null)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Escape') setEditTodoId(null);
+                                      }}
+                                      maxLength={200}
+                                    />
+                                  </form>
+                                ) : (
+                                  <Marquee className="hub-todo-text">{t.title}</Marquee>
+                                )}
                               </label>
+                              {editTodoId !== t.id && (
+                                <span
+                                  className="hub-todo-editbtn"
+                                  title="내용 수정"
+                                  onClick={() => {
+                                    setEditTodoId(t.id);
+                                    setEditTodoTitle(t.title);
+                                  }}
+                                >
+                                  ✎
+                                </span>
+                              )}
+                              {dueEditId === t.id ? (
+                                <input
+                                  type="date"
+                                  className="hub-todo-due-input"
+                                  autoFocus
+                                  defaultValue={t.due_at?.slice(0, 10) ?? ''}
+                                  onChange={(e) => void saveDue(t, e.target.value)}
+                                  onBlur={() => setDueEditId(null)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') setDueEditId(null);
+                                  }}
+                                />
+                              ) : t.due_at && dueBadge(t.due_at) ? (
+                                <button
+                                  type="button"
+                                  className={`hub-todo-due ${dueBadge(t.due_at)!.cls}`}
+                                  title="마감일 변경 (지우려면 선택 후 비우기)"
+                                  onClick={() => setDueEditId(t.id)}
+                                >
+                                  {dueBadge(t.due_at)!.label}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="hub-todo-due ghost"
+                                  title="마감일 지정"
+                                  onClick={() => setDueEditId(t.id)}
+                                >
+                                  기한
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className={`hub-todo-assign${(t.assignees ?? []).length ? ' has faces' : ''}`}
@@ -1356,6 +1442,24 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           onChange={(e) => setTodoInput(e.target.value)}
                           placeholder="할 일 추가"
                         />
+                        {newDueOpen ? (
+                          <input
+                            type="date"
+                            className="hub-todo-due-input"
+                            autoFocus
+                            value={newDue}
+                            onChange={(e) => setNewDue(e.target.value)}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className={`hub-todo-due ghost${newDue ? ' set' : ''}`}
+                            title="마감일 지정"
+                            onClick={() => setNewDueOpen(true)}
+                          >
+                            {newDue ? (dueBadge(newDue)?.label ?? '기한') : '기한'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={`hub-todo-assign${newAssign.length ? ' has' : ''}`}

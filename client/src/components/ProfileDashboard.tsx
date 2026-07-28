@@ -7,6 +7,7 @@ import InsightsPanel from './InsightsPanel';
 import MyOrgFocus from './MyOrgFocus';
 import { type Todo, type Meeting } from './NowBar';
 import UnifiedInbox from './UnifiedInbox';
+import { dueBadge } from '../lib/due';
 import ScheduleWidget from './ScheduleWidget';
 import Marquee from './Marquee';
 import { ListIcon, SparklesIcon, CalendarIcon, ChatIcon, UsersIcon, CheckMarkIcon, ChartIcon } from './Icons';
@@ -76,6 +77,16 @@ export default function ProfileDashboard() {
       await api(`/api/todos/${t.id}`, { method: 'PATCH', body: { done: !!next } });
     } catch {
       setTodos((prev) => prev.map((x) => (x.id === t.id ? { ...x, done: t.done } : x)));
+    }
+  }
+
+  /** 홈에서 삭제 — 개인 할 일 정리 동선 (서버가 관련자 게이트) */
+  async function removeTodo(t: Todo) {
+    try {
+      await api(`/api/todos/${t.id}`, { method: 'DELETE' });
+      setTodos((prev) => prev.filter((x) => x.id !== t.id));
+    } catch {
+      /* 전역 토스트 */
     }
   }
 
@@ -156,11 +167,19 @@ export default function ProfileDashboard() {
                   </span>
                   <Marquee className="hub-todo-text">{t.title}</Marquee>
                 </label>
+                {t.due_at && dueBadge(t.due_at) && (
+                  <span className={`nb-todo-due ${dueBadge(t.due_at)!.cls}`}>
+                    {dueBadge(t.due_at)!.label}
+                  </span>
+                )}
                 {t.meeting_title && (
                   <span className="hub-todo-meet" title={`"${t.meeting_title}" 회의에서 배정됨`}>
                     {t.meeting_title}
                   </span>
                 )}
+                <button className="hub-todo-del" title="삭제" onClick={() => void removeTodo(t)}>
+                  ×
+                </button>
               </div>
             ))}
         </div>
