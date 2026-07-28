@@ -8,7 +8,7 @@ import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon, SparklesIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -310,6 +310,18 @@ export default function MeetingView({
   };
   // 탭 핀 — 타일을 누르면 그 사람을 무대에 크게 (화면공유 중엔 비활성)
   const [pinned, setPinned] = useState<string | null>(null);
+  // 발화자 자동 무대 — 최근 원격 발화자를 자동 핀 (수동 핀하면 꺼짐, 줌 스피커 뷰)
+  const [autoStage, setAutoStage] = useState(false);
+  const [lastRemoteSpeaker, setLastRemoteSpeaker] = useState<string | null>(null);
+  // 모바일 컨트롤 자동 숨김 — 탭으로 표시/숨김, 표시 후 4초 뒤 자동 숨김 (3사 공통 문법)
+  const [ctlHidden, setCtlHidden] = useState(false);
+  const ctlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMobileView = () => window.matchMedia('(max-width: 767px)').matches;
+  const bumpControls = () => {
+    setCtlHidden(false);
+    if (ctlTimer.current) clearTimeout(ctlTimer.current);
+    if (isMobileView()) ctlTimer.current = setTimeout(() => setCtlHidden(true), 4000);
+  };
 
   const producersRef = useRef<{
     audio?: Producer;
@@ -671,6 +683,8 @@ export default function MeetingView({
         'voice:caption',
         ({ username, text, interim }: { username: string; text: string; interim?: boolean }) => {
           markSpeaking(username);
+          if (username && username !== useAuthStore.getState().user?.username)
+            setLastRemoteSpeaker(username);
           setCaptions((prev) => ({ ...prev, [username]: { text, interim, ts: Date.now() } }));
           const old = captionTimers.current.get(username);
           if (old) clearTimeout(old);
@@ -1016,6 +1030,21 @@ export default function MeetingView({
       setPinned(null);
   }, [peers, pinned, user]);
 
+  // 발화자 자동 무대 — 켜져 있으면 최근 원격 발화자를 따라 핀 이동
+  useEffect(() => {
+    if (!autoStage || hasScreen || !lastRemoteSpeaker) return;
+    if (peers.some((p) => p.username === lastRemoteSpeaker)) setPinned(lastRemoteSpeaker);
+  }, [autoStage, lastRemoteSpeaker, hasScreen, peers]);
+
+  // 입장하면 컨트롤 자동 숨김 타이머 시작
+  useEffect(() => {
+    if (phase !== 'preview') bumpControls();
+    return () => {
+      if (ctlTimer.current) clearTimeout(ctlTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   // 입장 전 디바이스 프리뷰 게이트 (카메라/마이크 미리 확인 후 입장)
   if (phase === 'preview') {
     return (
@@ -1168,7 +1197,7 @@ export default function MeetingView({
   }
 
   return (
-    <div className={`meeting-room${embedded ? ' embedded' : ''}`}>
+    <div className={`meeting-room${embedded ? ' embedded' : ''}${ctlHidden ? ' ctl-hidden' : ''}`}>
       <header className="meeting-header">
         {!embedded && <Logo />}
         <div className="meeting-info">
@@ -1225,7 +1254,22 @@ export default function MeetingView({
       </header>
 
       <div className="meeting-body">
-        <div className={`video-area${hasScreen || pinned ? ' with-screen' : ''}`}>
+        <div
+          className={`video-area${hasScreen || pinned ? ' with-screen' : ''}`}
+          onClick={(e) => {
+            // 타일 탭은 핀이 처리 — 컨트롤은 표시 유지만
+            if ((e.target as HTMLElement).closest('.video-tile')) {
+              bumpControls();
+              return;
+            }
+            // 빈 영역 탭 = 컨트롤 토글 (모바일)
+            if (ctlHidden) bumpControls();
+            else if (isMobileView()) {
+              if (ctlTimer.current) clearTimeout(ctlTimer.current);
+              setCtlHidden(true);
+            }
+          }}
+        >
           {hasScreen && (
             <div className={`screen-stage screens-${screens.length}`}>
               {screens.map((s) => (
@@ -1258,7 +1302,10 @@ export default function MeetingView({
                       paused={!camOn}
                       micMuted={!micOn}
                       speaking={!!speaking[me]}
-                      onPress={() => setPinned(null)}
+                      onPress={() => {
+                        setAutoStage(false);
+                        setPinned(null);
+                      }}
                     />
                   ) : (
                     <VideoTile
@@ -1268,7 +1315,10 @@ export default function MeetingView({
                       paused={pp!.videoPaused}
                       micMuted={pp!.audioMuted}
                       speaking={!!speaking[pp!.username]}
-                      onPress={() => setPinned(null)}
+                      onPress={() => {
+                        setAutoStage(false);
+                        setPinned(null);
+                      }}
                     />
                   )}
                 </div>
@@ -1288,7 +1338,12 @@ export default function MeetingView({
               onPress={
                 hasScreen
                   ? undefined
-                  : () => setPinned((v) => (v === (user?.username ?? '') ? null : (user?.username ?? '')))
+                  : () => {
+                      setAutoStage(false); // 수동 핀 = 자동 무대 해제 (줌과 동일)
+                      setPinned((v) =>
+                        v === (user?.username ?? '') ? null : (user?.username ?? ''),
+                      );
+                    }
               }
             />
             {peers.map((p) => (
@@ -1303,7 +1358,10 @@ export default function MeetingView({
                   onPress={
                     hasScreen
                       ? undefined
-                      : () => setPinned((v) => (v === p.username ? null : p.username))
+                      : () => {
+                          setAutoStage(false);
+                          setPinned((v) => (v === p.username ? null : p.username));
+                        }
                   }
                   onKick={
                     isHost
@@ -1368,7 +1426,7 @@ export default function MeetingView({
         )}
       </div>
 
-      <footer className="meeting-controls">
+      <footer className="meeting-controls" onClick={bumpControls}>
         <div className="ctl-split">
           <button className={`main${micOn ? '' : ' off'}`} onClick={toggleMic} title="마이크">
             <MicIcon size={21} />
@@ -1415,6 +1473,19 @@ export default function MeetingView({
           title="화면 공유"
         >
           <ScreenIcon size={21} />
+        </button>
+        <button
+          className={autoStage ? 'active' : ''}
+          onClick={() => {
+            setAutoStage((v) => {
+              const next = !v;
+              if (!next) setPinned(null); // 끄면 그리드로 복귀
+              return next;
+            });
+          }}
+          title={autoStage ? '발화자 자동 확대 끄기' : '발화자 자동 확대 — 말하는 사람을 자동으로 크게'}
+        >
+          <SparklesIcon size={20} />
         </button>
         {sttSupported && (
           <button

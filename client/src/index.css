@@ -14783,6 +14783,42 @@ html:not(.dark) .meeting-controls .leave:hover {
   .meeting-controls {
     gap: 10px;
     padding: 12px;
+    /* 3사식 오버레이 — 영상이 전체 화면을 쓰고 컨트롤이 그 위에 뜸 */
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 8;
+    transition:
+      transform 0.25s ease,
+      opacity 0.25s ease;
+  }
+
+  .meeting-room {
+    position: relative;
+  }
+
+  /* 탭으로 숨김 — 표시 후 4초 지나도 자동 숨김 */
+  .meeting-room.ctl-hidden .meeting-controls {
+    transform: translateY(130%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* 미니 PiP는 자체 hover 표시 로직 사용 — 자동 숨김 무시 */
+  .hub-call.mini .meeting-room.ctl-hidden .meeting-controls {
+    transform: none;
+    pointer-events: auto;
+  }
+
+  /* 자막은 컨트롤 위 전용 밴드 — 컨트롤이 숨으면 아래로 따라 내려옴 */
+  .call-captions {
+    bottom: 88px;
+    transition: bottom 0.25s ease;
+  }
+
+  .meeting-room.ctl-hidden .call-captions {
+    bottom: 16px;
   }
 
   .meeting-controls button {
