@@ -330,10 +330,12 @@ export default function MeetingView({
   const pageCap = vw < 768 ? 8 : vw < 1024 ? 12 : vw < 1536 ? 16 : 25;
 
   // ── 계산 배치(768px+) — 3사 방식: 인원·컨테이너 크기로 타일 폭을 계산해 잘림 없이 배치 ──
-  const gridRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState({ w: 0, h: 0 });
-  useEffect(() => {
-    const el = gridRef.current;
+  const gridRoRef = useRef<ResizeObserver | null>(null);
+  // 콜백 ref — 페이지 전환 애니메이션이 key 리마운트를 쓰므로 새 노드마다 observer 재부착
+  const gridRefCb = useCallback((el: HTMLDivElement | null) => {
+    gridRoRef.current?.disconnect();
+    gridRoRef.current = null;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
       const r = entries[0].contentRect;
@@ -344,8 +346,10 @@ export default function MeetingView({
       );
     });
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [phase]);
+    gridRoRef.current = ro;
+  }, []);
+  // 페이지 전환 방향 — 리마운트 시 이 방향으로 슬라이드 인
+  const [slideDir, setSlideDir] = useState<'next' | 'prev'>('next');
   // 발화자 자동 무대 — 최근 원격 발화자를 자동 핀 (수동 핀하면 꺼짐, 줌 스피커 뷰)
   const [autoStage, setAutoStage] = useState(false);
   const [lastRemoteSpeaker, setLastRemoteSpeaker] = useState<string | null>(null);
@@ -1533,6 +1537,7 @@ export default function MeetingView({
             ) {
               areaTouchX.current = null; // 제스처당 1회
               areaTouchY.current = null;
+              setSlideDir(dx < 0 ? 'next' : 'prev');
               setPage((v) =>
                 dx < 0 ? Math.min(totalPages - 1, v + 1) : Math.max(0, v - 1),
               );
@@ -1628,8 +1633,9 @@ export default function MeetingView({
           {/* 오디오는 페이지·필름스트립과 무관하게 전원 유지 — 안 보여도 들려야 함 */}
           {peers.map((p) => (p.audioTrack ? <AudioSink key={p.peerId} track={p.audioTrack} /> : null))}
           <div
-            ref={gridRef}
-            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ' computed'} count-${visibleCount}`}
+            ref={gridRefCb}
+            key={`pg-${pageNow}-${stripNow}`}
+            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ' computed'} count-${visibleCount} slide-${slideDir}`}
             style={
               hasScreen || pinned
                 ? undefined
@@ -1692,6 +1698,7 @@ export default function MeetingView({
                   disabled={stripNow === 0}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setSlideDir('prev');
                     setStripPage((v) => Math.max(0, v - 1));
                   }}
                   title="이전"
@@ -1703,6 +1710,7 @@ export default function MeetingView({
                   disabled={stripNow >= stripTotal - 1}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setSlideDir('next');
                     setStripPage((v) => Math.min(stripTotal - 1, v + 1));
                   }}
                   title="다음"
@@ -1720,6 +1728,7 @@ export default function MeetingView({
                 disabled={pageNow === 0}
                 onClick={(e) => {
                   e.stopPropagation();
+                  setSlideDir('prev');
                   setPage((v) => Math.max(0, v - 1));
                 }}
                 title="이전 페이지"
@@ -1731,6 +1740,7 @@ export default function MeetingView({
                 disabled={pageNow >= totalPages - 1}
                 onClick={(e) => {
                   e.stopPropagation();
+                  setSlideDir('next');
                   setPage((v) => Math.min(totalPages - 1, v + 1));
                 }}
                 title="다음 페이지"

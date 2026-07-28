@@ -14121,6 +14121,29 @@ html:not(.dark) .meeting-controls .leave:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* 페이지 전환 슬라이드 — 다음 = 오른쪽에서, 이전 = 왼쪽에서 (key 리마운트로 재생) */
+@keyframes grid-page-next {
+  from {
+    opacity: 0.3;
+    transform: translateX(26px);
+  }
+}
+
+@keyframes grid-page-prev {
+  from {
+    opacity: 0.3;
+    transform: translateX(-26px);
+  }
+}
+
+.video-grid.slide-next {
+  animation: grid-page-next 0.22s ease;
+}
+
+.video-grid.slide-prev {
+  animation: grid-page-prev 0.22s ease;
+}
+
 /* 헤더 인라인 페이지 표시 — 모바일 전용 (오버레이 배지가 타일과 겹쳐서) */
 .page-ind-inline {
   display: none;
