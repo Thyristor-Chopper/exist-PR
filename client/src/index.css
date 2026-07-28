@@ -15130,27 +15130,31 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 }
 
 /* ── 변경 이력 뷰 — 같은 주제 결정의 변천 타임라인 ── */
+/* 목록|변경 이력 토글 — 일정 뷰 스위처와 같은 알약 세그 언어 */
 .ledger-view-seg {
   display: inline-flex;
+  background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  border-radius: 999px;
+  padding: 3px;
   flex-shrink: 0;
 }
 
 .ledger-view-seg button {
   border: none;
-  background: var(--surface);
+  background: none;
   color: var(--text-sub);
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 999px;
   cursor: pointer;
 }
 
 .ledger-view-seg button.on {
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .ledger-hist {
