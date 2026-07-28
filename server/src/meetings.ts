@@ -778,11 +778,7 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   db.prepare('DELETE FROM messages WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM meeting_participants WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM meeting_events WHERE meeting_id = ?').run(meeting.id);
-  db.prepare('DELETE FROM meeting_recaps WHERE meeting_id = ?').run(meeting.id);
-  db.prepare('DELETE FROM chat_reads WHERE meeting_id = ?').run(meeting.id);
-  db.prepare('DELETE FROM chat_channels WHERE meeting_id = ?').run(meeting.id);
-  db.prepare('DELETE FROM call_transcripts WHERE meeting_id = ?').run(meeting.id);
-  deleteMeetingFiles(meeting.id, String(req.params.code).toUpperCase());
+  // todos.recap_id(SET NULL)보다 먼저 지워도 되지만, 순서를 todos 뒤로 두면 FK 정책과 무관하게 안전
   try {
     db.prepare(
       'DELETE FROM todo_assignees WHERE todo_id IN (SELECT id FROM todos WHERE meeting_id = ?)',
@@ -791,6 +787,15 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   } catch {
     /* todos에 meeting_id 컬럼이 없으면 무시 */
   }
+  // 수신확인은 recap을 FK로 물고 있음 — 먼저 안 지우면 recap 삭제가 FK로 막힘 (기존 잠복 버그)
+  db.prepare(
+    'DELETE FROM decision_acks WHERE recap_id IN (SELECT id FROM meeting_recaps WHERE meeting_id = ?)',
+  ).run(meeting.id);
+  db.prepare('DELETE FROM meeting_recaps WHERE meeting_id = ?').run(meeting.id);
+  db.prepare('DELETE FROM chat_reads WHERE meeting_id = ?').run(meeting.id);
+  db.prepare('DELETE FROM chat_channels WHERE meeting_id = ?').run(meeting.id);
+  db.prepare('DELETE FROM call_transcripts WHERE meeting_id = ?').run(meeting.id);
+  deleteMeetingFiles(meeting.id, String(req.params.code).toUpperCase());
   db.prepare('DELETE FROM meetings WHERE id = ?').run(meeting.id);
   res.json({ ok: true });
 });
@@ -1354,6 +1359,62 @@ router.post('/:code/decisions/ack', (req: AuthedRequest, res) => {
     return res.status(404).json({ error: '존재하지 않는 결정입니다' });
   }
   res.json({ ok: true });
+});
+
+/** 미확인자 리마인드 쿨다운 — 같은 결정에 1시간 1회 (조르기 스팸 방지). 키 = recapId:idx */
+const decisionRemindLast = new Map<string, number>();
+
+/** 결정 미확인자 리마인드 — 호스트·관리자가 버튼으로 조름. AI 총무 명의로 미확인 참가자에게만 */
+router.post('/:code/decisions/remind', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  if (!canManageMeeting(r.meeting, req.userId!)) {
+    return res.status(403).json({ error: '호스트나 관리자만 리마인드할 수 있어요' });
+  }
+  const recapId = Number(req.body?.recapId);
+  const idx = Number(req.body?.idx);
+  if (!Number.isInteger(recapId) || !Number.isInteger(idx)) {
+    return res.status(400).json({ error: '잘못된 요청입니다' });
+  }
+  const recap = db
+    .prepare('SELECT decisions FROM meeting_recaps WHERE id = ? AND meeting_id = ?')
+    .get(recapId, r.meeting.id) as { decisions: string } | undefined;
+  if (!recap) return res.status(404).json({ error: '존재하지 않는 결정입니다' });
+  const decision = (JSON.parse(recap.decisions) as string[])[idx];
+  if (!decision) return res.status(404).json({ error: '존재하지 않는 결정입니다' });
+
+  const key = `${recapId}:${idx}`;
+  const last = decisionRemindLast.get(key) ?? 0;
+  if (Date.now() - last < 60 * 60_000) {
+    return res.status(429).json({ error: '이미 최근에 리마인드했어요 — 1시간 뒤에 다시' });
+  }
+
+  const acked = new Set(
+    (
+      db
+        .prepare('SELECT user_id FROM decision_acks WHERE recap_id = ? AND decision_idx = ?')
+        .all(recapId, idx) as { user_id: number }[]
+    ).map((a) => a.user_id),
+  );
+  const parts = db
+    .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+    .all(r.meeting.id) as { user_id: number }[];
+  const title = (
+    db.prepare('SELECT title FROM meetings WHERE id = ?').get(r.meeting.id) as { title: string }
+  ).title;
+  let reminded = 0;
+  for (const p of parts) {
+    if (acked.has(p.user_id) || p.user_id === req.userId) continue;
+    notifyUser(p.user_id, {
+      from: 'exist AI',
+      text: `'${decision.slice(0, 60)}' 결정을 아직 확인 안 하셨어요 — 확인 부탁해요 ('${title}')`,
+      kind: 'recap',
+      meetingCode: String(req.params.code).toUpperCase(),
+    });
+    reminded++;
+  }
+  if (reminded > 0) decisionRemindLast.set(key, Date.now());
+  res.json({ reminded });
 });
 
 /** 다음 회의 아젠다 제안 — AI 총무가 미결 기록에서 안건 초안 (참가자만, 10분 캐시) */

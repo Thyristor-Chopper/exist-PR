@@ -8,6 +8,7 @@ import { getUserContext } from './agent.js';
 import { attachYjs } from './ydoc.js';
 import { initNotifier, notifyUser } from './notify.js';
 import { ensureAgentUser } from './steward.js';
+import { runTodoReminders } from './todos.js';
 import { createApp } from './app.js';
 
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
@@ -216,6 +217,22 @@ setInterval(() => {
     }
   }
 }, 60_000);
+
+// 할 일 마감 리마인드 — AI 총무가 임박(내일·오늘)·지남을 알아서 조름. 부팅 직후 1회 + 10분 간격
+setTimeout(() => {
+  try {
+    runTodoReminders();
+  } catch (err) {
+    console.error('[todos] 마감 리마인드 실패:', err);
+  }
+}, 20_000);
+setInterval(() => {
+  try {
+    runTodoReminders();
+  } catch (err) {
+    console.error('[todos] 마감 리마인드 실패:', err);
+  }
+}, 10 * 60_000);
 
 const PORT = Number(process.env.PORT ?? 4000);
 startMediasoup().then(() => {

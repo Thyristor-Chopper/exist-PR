@@ -18,6 +18,8 @@ interface LedgerEntry {
   attendees: string[];
   ts: number;
   acks: { username: string; ts: number }[];
+  /** 이 recap에서 파생된 할 일 — 결정이 실행됐는지 추적 */
+  todos?: { title: string; done: number }[];
 }
 
 function dateLabel(ts: number): string {
@@ -129,6 +131,15 @@ export default function DecisionLedger({ code }: { code: string }) {
                           >
                             {' '}
                             · 확인 {e.acks.length}명 ({e.acks.map((a) => dn(a.username)).join(', ')})
+                          </span>
+                        )}
+                        {(e.todos ?? []).length > 0 && (
+                          <span
+                            className={`ledger-exec${e.todos!.every((t) => t.done) ? ' all-done' : ''}`}
+                            title={e.todos!.map((t) => `${t.done ? '✓' : '·'} ${t.title}`).join('\n')}
+                          >
+                            {' '}
+                            · 실행 {e.todos!.filter((t) => t.done).length}/{e.todos!.length}
                           </span>
                         )}
                       </div>

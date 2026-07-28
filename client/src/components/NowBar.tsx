@@ -21,6 +21,7 @@ import {
 } from './Icons';
 import { getSocket } from '../lib/socket';
 import { useOrgStore } from '../orgStore';
+import { dueBadge } from '../lib/due';
 import { useDisplayName } from '../names';
 
 function ThemeToggle() {
@@ -816,6 +817,11 @@ function NowBar({
                   <CheckMarkIcon size={14} />
                 </span>
                 <Marquee className="nowbar-todo-text">{todo.title}</Marquee>
+                {todo.due_at && dueBadge(todo.due_at) && (
+                  <span className={`nb-todo-due ${dueBadge(todo.due_at)!.cls}`}>
+                    {dueBadge(todo.due_at)!.label}
+                  </span>
+                )}
                 <TodoAssignees profiles={todo.assigneeProfiles} />
               </div>
             ))}
@@ -995,6 +1001,11 @@ function NowBar({
                       <CheckMarkIcon size={14} />
                     </span>
                     <Marquee className="nowbar-todo-text">{todo.title}</Marquee>
+                    {todo.due_at && dueBadge(todo.due_at) && (
+                      <span className={`nb-todo-due ${dueBadge(todo.due_at)!.cls}`}>
+                        {dueBadge(todo.due_at)!.label}
+                      </span>
+                    )}
                     <TodoAssignees profiles={todo.assigneeProfiles} />
                   </label>
                 ))}
