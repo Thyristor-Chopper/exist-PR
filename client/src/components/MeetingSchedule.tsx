@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
-import { PhoneIcon, BellIcon, ListIcon, PlusIcon, CheckIcon } from './Icons';
+import { PhoneIcon, BellIcon, ListIcon, PlusIcon, CheckMarkIcon } from './Icons';
 import Marquee from './Marquee';
 
 interface MEvent {
@@ -1319,7 +1319,7 @@ export default function MeetingSchedule({
                     }}
                   >
                     {label}
-                    {view === v && <CheckIcon size={14} />}
+                    {view === v && <CheckMarkIcon size={13} />}
                   </button>
                 ))}
               </div>
