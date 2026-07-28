@@ -1039,6 +1039,10 @@ input:focus {
   flex-direction: column;
   gap: 4px;
   font-size: 14px;
+  /* nb-next-list와 동일 처방 — 없으면 min-width:auto가 내용 폭 밑 수축을 거부해
+   * 카드(overflow hidden) 밖으로 삐져나가 잘리고, 마퀴는 넘침을 못 봐 슬라이딩이 안 됨 */
+  min-width: 0;
+  flex: 1;
 }
 
 .nowbar-todo {
@@ -1076,6 +1080,9 @@ input:focus {
 .nowbar-todo-text {
   overflow: hidden;
   text-overflow: ellipsis;
+  /* 행의 남는 폭을 정확히 차지해야 마퀴가 넘침을 감지 */
+  flex: 1;
+  min-width: 0;
 }
 
 .nowbar-todo.done .nowbar-todo-text {
