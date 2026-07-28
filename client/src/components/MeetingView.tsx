@@ -1241,17 +1241,6 @@ export default function MeetingView({
             )}
           </span>
         </div>
-        {isHost && (
-          <button
-            className="lock-btn"
-            title={locked ? '회의 잠금 해제' : '회의 잠금 (새 참가자 차단)'}
-            onClick={() => {
-              void request(getSocket(), 'room:lock', { locked: !locked });
-            }}
-          >
-            {locked ? <LockIcon size={13} /> : <UnlockIcon size={13} />} {locked ? '잠김' : '열림'}
-          </button>
-        )}
         {status && <span className="meeting-status">{status}</span>}
         {/* 통화 설정(⚙) — 자막(CC)·발화자 자동 확대. 전체화면 토글 왼쪽 */}
         <div className="ctl-gear">
@@ -1295,6 +1284,22 @@ export default function MeetingView({
                     <i />
                   </span>
                 </button>
+                {isHost && (
+                  <button
+                    className="dev-menu-item"
+                    onClick={() => {
+                      void request(getSocket(), 'room:lock', { locked: !locked });
+                    }}
+                    title="새 참가자 입장 차단"
+                  >
+                    <span className="dev-menu-label">
+                      {locked ? <LockIcon size={12} /> : <UnlockIcon size={12} />} 회의 잠금
+                    </span>
+                    <span className={`msched-sw${locked ? ' on' : ''}`}>
+                      <i />
+                    </span>
+                  </button>
+                )}
               </div>
             </>
           )}
