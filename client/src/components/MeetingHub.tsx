@@ -571,6 +571,16 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     };
   }, [visible, subtab, code]);
 
+  // 채팅 탭을 떠나면 구분선 세션 종료 — 카카오처럼 "보는 동안 유지, 다시 들어오면 사라짐".
+  // 앵커를 남겨두면 탭을 나갔다 와도 구분선이 계속 떠서 안 사라지는 것처럼 보인다
+  useEffect(() => {
+    if (subtab !== 'chat') return;
+    return () => {
+      unreadAnchorRef.current = {};
+      setUnreadMarkId(null);
+    };
+  }, [subtab, code]);
+
   // 채팅을 실제로 보고 있으면 읽음 처리 — 히스토리가 로드된 "뒤"에만 돌아서
   // 구분선 앵커(히스토리의 unread 플래그)와 경쟁하지 않는다. 새 메시지 수신 시에도 갱신.
   useEffect(() => {

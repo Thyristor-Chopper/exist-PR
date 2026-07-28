@@ -103,6 +103,7 @@ export function DmWindow({
   // 두 번째 응답(플래그 없음)이 앵커를 덮어쓰지 않게 한다
   const [unreadMarkId, setUnreadMarkId] = useState<number | null>(null);
   const unreadAnchorRef = useRef<Record<number, number | null>>({});
+  const prevPeerRef = useRef<number | null>(null); // 상대 전환 시 이전 상대 앵커 정리용
   const endRef = useRef<HTMLDivElement>(null);
   const markRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
@@ -124,6 +125,12 @@ export function DmWindow({
   useEffect(() => {
     let alive = true;
     initialScrollDone.current = false;
+    // 다른 상대로 전환 — 이전 상대의 구분선 앵커는 그 열람 세션에서 소비된 것, 지운다
+    // (같은 상대 재실행(StrictMode)은 안 지움 — 첫 응답의 플래그를 지키기 위한 조건)
+    if (prevPeerRef.current !== null && prevPeerRef.current !== peer.userId) {
+      delete unreadAnchorRef.current[prevPeerRef.current];
+    }
+    prevPeerRef.current = peer.userId;
     void api<DmMessage[]>(`/api/dm/${scope}/with/${peer.userId}`)
       .then((h) => {
         // 앵커 기록은 stale 응답이라도 수행 — 첫 조회가 읽음 처리를 겸하므로 플래그는
