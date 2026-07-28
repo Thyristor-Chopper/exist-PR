@@ -17110,8 +17110,8 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
     font-size: 28px;
   }
 
-  /* 텍스트 래퍼만 그리드에 풀어놓음 — 조직 히어로 아바타(div)는 제외해야 박스가 유지됨 */
-  .pd-hero > div:not(.pd-hero-avatar) {
+  /* 텍스트 래퍼만 그리드에 풀어놓음 — 아바타·히어로2 본문(7/29 개편, 세로 스택 유지)은 제외 */
+  .pd-hero > div:not(.pd-hero-avatar):not(.pd-hero2-body) {
     display: contents;
   }
 
@@ -18309,6 +18309,240 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   border-radius: 5px;
   background: var(--surface-2);
   font-weight: 700;
+}
+
+/* ── 7/29 홈 개편: 히어로2(카운트 한 줄) + 지금 처리할 것 인박스 + 오늘 일정 + 지표 접힘 ── */
+.pd-hero2 {
+  display: flex;
+  align-items: center;
+}
+
+/* 기존 모바일 히어로 규칙(.pd-hero > div { display:contents })을 특이도로 제압 — 세로 스택 유지 */
+.pd-hero2 .pd-hero2-body {
+  display: block;
+  min-width: 0;
+  flex: 1;
+}
+
+.pd-hero2-meta {
+  font-size: 13px;
+  opacity: 0.85;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.pd-hero2-line {
+  margin-top: 8px;
+  font-size: clamp(19px, 2.4vw, 26px);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.pd-hero2-line b {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 9px;
+  padding: 1px 10px;
+}
+
+.pd-hero2-line i {
+  font-style: normal;
+  opacity: 0.6;
+}
+
+.pd-hero2-daily {
+  margin-top: 10px;
+  font-size: 13.5px;
+  opacity: 0.92;
+  max-width: 900px;
+}
+
+.pd-hero2-next {
+  opacity: 0.9;
+}
+
+/* 인박스 행 — [배지][내용][액션 버튼] */
+.pd-inbox {
+  margin-bottom: 14px;
+}
+
+.pd-inbox-hint {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sub);
+}
+
+.pd-act-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--border);
+}
+
+.pd-act-row:first-of-type {
+  border-top: none;
+}
+
+.pd-act-badge {
+  flex-shrink: 0;
+  width: 44px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  background: var(--surface);
+}
+
+.pd-act-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.pd-act-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pd-act-sub {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.pd-ack-btn.solid {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
+
+.pd-inbox-empty {
+  padding: 18px 4px;
+  color: var(--text-sub);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pd-inbox-empty-ic {
+  display: inline-flex;
+  color: var(--green);
+}
+
+.pd-onboard {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--green-soft);
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* 오늘 일정 행 */
+.pd-today-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 2px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.pd-today-row:first-of-type {
+  border-top: none;
+}
+
+.pd-today-row:hover .pd-today-title {
+  color: var(--green);
+}
+
+.pd-today-time {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+}
+
+.pd-today-title {
+  font-size: 14px;
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 지표·인사이트 한 줄 접힘 */
+.pd-insight-line-card {
+  margin-top: 14px;
+}
+
+.pd-insight-line {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 13.5px;
+  color: var(--text-sub);
+  cursor: pointer;
+  text-align: left;
+}
+
+.pd-insight-line b {
+  color: var(--text);
+}
+
+.pd-insight-line-more {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.pd-insight-body {
+  margin-top: 14px;
+}
+
+@media (max-width: 767px) {
+  .pd-act-row {
+    flex-wrap: wrap;
+  }
+
+  .pd-act-badge {
+    width: 40px;
+  }
+
+  .pd-hero2-line {
+    font-size: 17px;
+  }
+
+  .pd-hero2-line b {
+    padding: 1px 7px;
+  }
 }
 
 /* 터치 기기 — hover가 없어 숨은 컨트롤 접근 불가 방지 (cf-actions의 기존 패턴 확장, 7/29 모바일 담당) */

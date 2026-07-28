@@ -696,6 +696,108 @@ router.get('/pending-decisions', (req: AuthedRequest, res) => {
   res.json({ items });
 });
 
+/** 홈 "지금 처리할 것" 인박스 — 미확인 결정 + 기한 임박·지남 할 일 + 안읽은 DM을 한 번에.
+ *  "전달보다 확인" 방향의 홈 구현: 비우면 오늘 준비 끝. (7/29 대시보드 개편) */
+router.get('/actions', (req: AuthedRequest, res) => {
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  const sc = scopeSql(scope);
+  const uid = req.userId!;
+
+  // ① 미확인 결정 — pending-decisions와 같은 로직 (최신 10)
+  const recapRows = db
+    .prepare(
+      `SELECT r.id AS recapId, r.decisions, r.created_at, m.code, m.title FROM meeting_recaps r
+       JOIN meetings m ON m.id = r.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = ?${sc.sql}
+       ORDER BY r.id DESC LIMIT 100`,
+    )
+    .all(uid, ...sc.args) as {
+    recapId: number;
+    decisions: string;
+    created_at: string;
+    code: string;
+    title: string;
+  }[];
+  const ackStmt = db.prepare(
+    'SELECT decision_idx FROM decision_acks WHERE recap_id = ? AND user_id = ?',
+  );
+  const decisions: {
+    recapId: number;
+    idx: number;
+    decision: string;
+    code: string;
+    title: string;
+    ts: number;
+  }[] = [];
+  for (const r of recapRows) {
+    const acked = new Set(
+      (ackStmt.all(r.recapId, uid) as { decision_idx: number }[]).map((a) => a.decision_idx),
+    );
+    const ds = JSON.parse(r.decisions) as string[];
+    for (let i = 0; i < ds.length; i++) {
+      if (acked.has(i)) continue;
+      decisions.push({
+        recapId: r.recapId,
+        idx: i,
+        decision: ds[i],
+        code: r.code,
+        title: r.title,
+        ts: new Date(r.created_at + 'Z').getTime(),
+      });
+      if (decisions.length >= 10) break;
+    }
+    if (decisions.length >= 10) break;
+  }
+
+  // ② 기한 지남·오늘 마감 할 일 (내 담당·내 개인) — 지남 먼저, 이어서 오늘
+  const todos = db
+    .prepare(
+      `SELECT t.id, t.title, t.due_at, m.code, m.title AS mtitle FROM todos t
+       LEFT JOIN meetings m ON m.id = t.meeting_id
+       WHERE t.done = 0 AND t.due_at IS NOT NULL AND date(t.due_at) <= date('now', 'localtime')
+         AND ((t.meeting_id IS NULL AND t.user_id = ?)
+           OR EXISTS (SELECT 1 FROM todo_assignees ta WHERE ta.todo_id = t.id AND ta.user_id = ?))${sc.sql}
+       ORDER BY t.due_at LIMIT 10`,
+    )
+    .all(uid, uid, ...sc.args) as {
+    id: number;
+    title: string;
+    due_at: string;
+    code: string | null;
+    mtitle: string | null;
+  }[];
+
+  // ③ 안읽은 DM — 상대별 묶음 (마지막 메시지 미리보기 포함)
+  const dsc = dmScopeSql(scope);
+  const dmGroups = db
+    .prepare(
+      `SELECT dm.from_id AS fromId, COUNT(*) AS unread, MAX(dm.id) AS lastId
+       FROM dm_messages dm WHERE dm.to_id = ? AND dm.read = 0${dsc.sql}
+       GROUP BY dm.from_id ORDER BY lastId DESC LIMIT 10`,
+    )
+    .all(uid, ...dsc.args) as { fromId: number; unread: number; lastId: number }[];
+  const dms = dmGroups.map((g) => {
+    const u = db.prepare('SELECT username, name, avatar FROM users WHERE id = ?').get(g.fromId) as
+      | { username: string; name: string | null; avatar: string | null }
+      | undefined;
+    const last = db.prepare('SELECT text, created_at FROM dm_messages WHERE id = ?').get(g.lastId) as
+      | { text: string; created_at: string }
+      | undefined;
+    return {
+      userId: g.fromId,
+      username: u?.username ?? '',
+      name: u?.name ?? null,
+      avatar: u?.avatar ?? null,
+      unread: g.unread,
+      lastText: last?.text ?? '',
+      ts: last ? new Date(last.created_at + 'Z').getTime() : 0,
+    };
+  });
+
+  res.json({ decisions, todos, dms });
+});
+
 /** 개인 대시보드 요약 — 참여 회의·미완료 할 일·다음 일정·라이브 통화 (?org= 스코프) */
 /** 전역 검색(Ctrl+K) — 내가 참가한 그룹 범위에서 채팅·결정·할 일·파일·일정·그룹명을 한 번에.
  *  "기록이 조직에 남는다"의 회수 경로. LIKE 기반(소규모 팀 충분), 카테고리당 최대 5건 */
