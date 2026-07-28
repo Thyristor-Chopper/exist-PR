@@ -13517,7 +13517,8 @@ html:not(.dark) .meeting-controls .leave:hover {
 
 /* 통화 전체화면 — 모바일은 스와이프 레이어 transform이 fixed 오버레이를 가둬 상단바가 남음 → 상단바 숨김 */
 @media (max-width: 1023px) {
-  body.call-fullscreen .nowbar {
+  body.call-fullscreen .nowbar,
+  body.call-fullscreen .hub-m-back {
     display: none;
   }
 }

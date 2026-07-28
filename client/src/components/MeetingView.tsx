@@ -1531,7 +1531,28 @@ export default function MeetingView({
         )}
       </div>
 
-      <footer className="meeting-controls" onClick={bumpControls}>
+      <footer
+        className="meeting-controls"
+        onClick={bumpControls}
+        onTouchStart={(e) => {
+          areaTouchY.current = e.touches[0].clientY;
+        }}
+        onTouchMove={(e) => {
+          // 툴바 자체를 쓸어내려도 숨김 (버튼 탭은 60px 임계에 안 걸림)
+          const y0 = areaTouchY.current;
+          if (y0 == null || ctlHidden || !isMobileView()) return;
+          const dy = e.touches[0].clientY - y0;
+          if (dy > 60) {
+            areaTouchY.current = null;
+            if (ctlTimer.current) clearTimeout(ctlTimer.current);
+            setDevMenu(null); // 메뉴 열려 있으면 같이 정리
+            setCtlHidden(true);
+          }
+        }}
+        onTouchEnd={() => {
+          areaTouchY.current = null;
+        }}
+      >
         <div className="ctl-split">
           <button className={`main${micOn ? '' : ' off'}`} onClick={toggleMic} title="마이크">
             <MicIcon size={21} />
