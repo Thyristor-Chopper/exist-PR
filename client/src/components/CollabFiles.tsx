@@ -23,6 +23,7 @@ import {
   TrashIcon,
   ShareIcon,
   ClipboardIcon,
+  CheckMarkIcon,
 } from './Icons';
 
 /*
@@ -1093,7 +1094,7 @@ export default function CollabFiles({
                       setSortMenu(false);
                     }}
                   >
-                    {sortKey === k ? '✓ ' : ''}
+                    {sortKey === k && <CheckMarkIcon size={12} />} 
                     {label}
                   </button>
                 ))}
@@ -1104,7 +1105,7 @@ export default function CollabFiles({
                     setSortMenu(false);
                   }}
                 >
-                  {sortDir === 'asc' ? '✓ ' : ''}오름차순
+                  {sortDir === 'asc' && <CheckMarkIcon size={12} />} 오름차순
                 </button>
                 <button
                   onClick={() => {
@@ -1112,7 +1113,7 @@ export default function CollabFiles({
                     setSortMenu(false);
                   }}
                 >
-                  {sortDir === 'desc' ? '✓ ' : ''}내림차순
+                  {sortDir === 'desc' && <CheckMarkIcon size={12} />} 내림차순
                 </button>
               </div>
             )}

@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { api } from '../api';
+import { SparklesIcon } from './Icons';
 
 /*
  * AI 팀 인사이트 패널 — 조직의 협업 데이터(회의·할 일·통화·채팅)를
@@ -52,7 +53,14 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
   }, [orgId]);
 
   if (err) return null;
-  if (!data) return <section style={box}>🧠 AI 팀 인사이트 분석 중…</section>;
+  if (!data)
+    return (
+      <section style={box}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <SparklesIcon size={15} /> AI 팀 인사이트 분석 중…
+        </span>
+      </section>
+    );
 
   const { metrics: m, insights: ins, source } = data;
   const activeMembers = m.memberCount - m.quietMembers.length;
@@ -63,7 +71,7 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
   return (
     <section style={box}>
       <div style={head}>
-        <span style={{ fontWeight: 700, fontSize: 15 }}>🧠 AI 팀 인사이트</span>
+        <span style={{ fontWeight: 700, fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}><SparklesIcon size={15} /> AI 팀 인사이트</span>
         <span style={badge}>
           {source === 'ai' ? 'AI 분석' : '규칙 기반'} · 최근 {m.periodDays}일
         </span>

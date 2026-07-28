@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CheckMarkIcon } from './Icons';
 
 /** 1회용 복구 코드 표시 — 가입/재설정 직후 단 한 번만 보여줌 */
 export default function RecoveryCode({ code }: { code: string }) {
@@ -24,7 +25,7 @@ export default function RecoveryCode({ code }: { code: string }) {
       </div>
       <div className="recovery-box">{code}</div>
       <button type="button" className="recovery-copy" onClick={copy}>
-        {copied ? '✓ 복사됨' : '복사하기'}
+        {copied ? <><CheckMarkIcon size={12} /> 복사됨</> : '복사하기'}
       </button>
     </div>
   );

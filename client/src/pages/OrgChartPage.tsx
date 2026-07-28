@@ -768,14 +768,14 @@ export default function OrgChartPage() {
                             <td>{row.label}</td>
                             {row.allow.map((v, i) => (
                               <td key={i} className={v ? 'yes' : 'no'}>
-                                {v ? '✓' : '—'}
+                                {v ? <CheckMarkIcon size={13} /> : '—'}
                               </td>
                             ))}
                             {detail.roles.map((r) => {
                               const c = roleCell(row, r);
                               return (
                                 <td key={r.id} className={c === '—' ? 'no' : 'yes'}>
-                                  {c}
+                                  {c === '✓' ? <CheckMarkIcon size={13} /> : c}
                                 </td>
                               );
                             })}

@@ -19,7 +19,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import { exportDocx } from '../lib/docx';
 import Marquee from './Marquee';
-import { PlusIcon, CloseIcon, DownloadIcon } from './Icons';
+import { PlusIcon, CloseIcon, DownloadIcon, CheckMarkIcon } from './Icons';
 import ColorGrid from './ColorGrid';
 import OverflowToolbar from './OverflowToolbar';
 
@@ -1453,7 +1453,7 @@ export default function DocEditor({
                       <button onClick={() => addReply(id)}>등록</button>
                     </div>
                     <div className="doc-cthread-btns" onClick={(e) => e.stopPropagation()}>
-                      <button className="primary" onClick={() => resolveComment(id)}>✓ 해결</button>
+                      <button className="primary" onClick={() => resolveComment(id)}><CheckMarkIcon size={12} /> 해결</button>
                       <button className="danger" onClick={() => deleteComment(id)}>삭제</button>
                     </div>
                   </div>

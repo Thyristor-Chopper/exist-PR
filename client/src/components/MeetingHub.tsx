@@ -1184,7 +1184,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             return (
                               <div key={`${d.recapId}-${i}`} className="hub-decision-row">
                                 <span className="hub-decision-dot" aria-hidden>
-                                  ✓
+                                  <CheckMarkIcon size={12} />
                                 </span>
                                 <Marquee className="hub-decision-text">{d.decision}</Marquee>
                                 {/* 도달·실행 상태 — "도착했음을 증명한다"를 첫 화면 숫자로 */}
@@ -1210,7 +1210,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 </span>
                                 {/* 수신 확인 (회람 사인) */}
                                 {acked ? (
-                                  <span className="hub-decision-ack done">확인함 ✓</span>
+                                  <span className="hub-decision-ack done">확인함 <CheckMarkIcon size={11} /></span>
                                 ) : (
                                   <button
                                     className="hub-decision-ack"
@@ -1234,7 +1234,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             <b>{unackedFollowup.missing}명 미확인</b>
                           </span>
                           {remindSent ? (
-                            <span className="hub-followup-done">리마인드 보냄 ✓</span>
+                            <span className="hub-followup-done">리마인드 보냄 <CheckMarkIcon size={12} /></span>
                           ) : (
                             <button
                               className="hub-followup-btn"
@@ -2131,7 +2131,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 className="chat-decision-btn"
                                 onClick={() => void recordSuggestedDecision(m.text)}
                               >
-                                ✓ 원장에 기록
+                                <CheckMarkIcon size={12} /> 원장에 기록
                               </button>
                             )}
                           </div>

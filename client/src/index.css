@@ -17479,3 +17479,23 @@ html:not(.dark) .meeting-controls .leave:hover {
     grid-column: span 2;
   }
 }
+
+/* 텍스트 ✓ → CheckMarkIcon 교체(7/29)에 따른 정렬 보강 — 아이콘이 글자 옆에 붙는 칩들 */
+.hub-decision-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hub-decision-ack.done,
+.hub-followup-done,
+.ledger-ack.done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.org-perm-table td .icon,
+.org-perm-table td svg {
+  vertical-align: -2px;
+}

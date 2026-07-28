@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useOrgStore, type Org } from '../orgStore';
+import { CheckMarkIcon } from './Icons';
 
 interface Props {
   open: boolean;
@@ -70,7 +71,7 @@ export default function CreateOrgModal({ open, onClose }: Props) {
               {created.joinCode}
             </div>
             <button className="modal-ghost" onClick={copyCode}>
-              {copied ? '✓ 복사됨' : '가입코드 복사하기'}
+              {copied ? <><CheckMarkIcon size={12} /> 복사됨</> : '가입코드 복사하기'}
             </button>
             <div className="modal-actions">
               <button className="modal-primary" onClick={onClose}>
