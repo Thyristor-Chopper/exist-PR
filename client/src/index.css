@@ -14005,6 +14005,21 @@ html:not(.dark) .meeting-controls .leave:hover {
   flex-shrink: 0;
 }
 
+/* 통화 설정(⚙) — 자막·발화자 자동 확대 토글 메뉴 */
+.ctl-gear {
+  position: relative;
+  display: flex;
+}
+
+.ctl-opts .dev-menu-item {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.ctl-opts .dev-menu-label {
+  flex: none;
+}
+
 /* 발화자 하이라이트 — 자막(voice:caption) 신호 기반 초록 링 */
 .video-tile.speaking::after {
   content: '';

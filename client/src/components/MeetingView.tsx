@@ -8,7 +8,7 @@ import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon, SparklesIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon, GearIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -268,7 +268,10 @@ export default function MeetingView({
   const [cams, setCams] = useState<MediaDeviceInfo[]>([]);
   const [micId, setMicId] = useState(() => localStorage.getItem('exist:mic-device') ?? '');
   const [camId, setCamId] = useState(() => localStorage.getItem('exist:cam-device') ?? '');
-  const [devMenu, setDevMenu] = useState<'mic' | 'cam' | null>(null); // 통화 중 장치 선택 메뉴 (스플릿 버튼 ˄)
+  const [devMenu, setDevMenu] = useState<'mic' | 'cam' | 'opts' | null>(null); // 장치 선택 메뉴 + 통화 설정(opts)
+  useEffect(() => {
+    devMenuOpenRef.current = devMenu != null;
+  }, [devMenu]);
   const micIdRef = useRef(micId);
   micIdRef.current = micId;
   const camIdRef = useRef(camId);
@@ -317,10 +320,18 @@ export default function MeetingView({
   const [ctlHidden, setCtlHidden] = useState(false);
   const ctlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMobileView = () => window.matchMedia('(max-width: 767px)').matches;
+  const devMenuOpenRef = useRef(false); // 메뉴 열림 중엔 자동 숨김 보류
   const bumpControls = () => {
     setCtlHidden(false);
     if (ctlTimer.current) clearTimeout(ctlTimer.current);
-    if (isMobileView()) ctlTimer.current = setTimeout(() => setCtlHidden(true), 4000);
+    if (isMobileView())
+      ctlTimer.current = setTimeout(function hide() {
+        if (devMenuOpenRef.current) {
+          ctlTimer.current = setTimeout(hide, 2000);
+          return;
+        }
+        setCtlHidden(true);
+      }, 4000);
   };
 
   const producersRef = useRef<{
@@ -1474,28 +1485,52 @@ export default function MeetingView({
         >
           <ScreenIcon size={21} />
         </button>
-        <button
-          className={autoStage ? 'active' : ''}
-          onClick={() => {
-            setAutoStage((v) => {
-              const next = !v;
-              if (!next) setPinned(null); // 끄면 그리드로 복귀
-              return next;
-            });
-          }}
-          title={autoStage ? '발화자 자동 확대 끄기' : '발화자 자동 확대 — 말하는 사람을 자동으로 크게'}
-        >
-          <SparklesIcon size={20} />
-        </button>
-        {sttSupported && (
+        {/* 통화 설정 — 자막(CC)·발화자 자동 확대를 한 메뉴로 */}
+        <div className="ctl-gear">
           <button
-            className={`stt-toggle${sttOn ? ' active' : ''}`}
-            onClick={() => setSttOn((v) => !v)}
-            title={sttOn ? '음성 기록 끄기' : '음성 기록 켜기 — 발화를 AI 총무가 기록·정리해요'}
+            className={devMenu === 'opts' ? 'active' : ''}
+            onClick={() => setDevMenu((v) => (v === 'opts' ? null : 'opts'))}
+            title="통화 설정"
           >
-            CC
+            <GearIcon size={20} />
           </button>
-        )}
+          {devMenu === 'opts' && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 39 }} onClick={() => setDevMenu(null)} />
+              <div className="dev-menu align-right ctl-opts">
+                <div className="dev-menu-title">통화 설정</div>
+                {sttSupported && (
+                  <button
+                    className="dev-menu-item"
+                    onClick={() => setSttOn((v) => !v)}
+                    title="발화를 자막으로 띄우고 AI 총무가 기록·정리해요"
+                  >
+                    <span className="dev-menu-label">음성 기록·자막 (CC)</span>
+                    <span className={`msched-sw${sttOn ? ' on' : ''}`}>
+                      <i />
+                    </span>
+                  </button>
+                )}
+                <button
+                  className="dev-menu-item"
+                  onClick={() => {
+                    setAutoStage((v) => {
+                      const next = !v;
+                      if (!next) setPinned(null); // 끄면 그리드로 복귀
+                      return next;
+                    });
+                  }}
+                  title="말하는 사람을 자동으로 크게 보여줘요"
+                >
+                  <span className="dev-menu-label">발화자 자동 확대</span>
+                  <span className={`msched-sw${autoStage ? ' on' : ''}`}>
+                    <i />
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <button
           className={`chat-toggle${chatOpen ? ' active' : ''}`}
           onClick={() => {
