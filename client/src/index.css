@@ -1413,6 +1413,27 @@ input:focus {
   line-height: 1.1;
 }
 
+/* 스탯 안 보조 표기 — "12/20 · 60%"의 퍼센트 부분 */
+.pd-stat-sub {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+/* 라이브 배너 = 버튼 — 누르면 바로 그 그룹 통화로 */
+.pd-live-banner {
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.pd-live-banner:hover {
+  filter: brightness(0.96);
+}
+
+.pd-live-banner:active {
+  transform: scale(0.995);
+}
+
 .pd-stat-label {
   font-size: 12.5px;
   color: var(--text-sub);
@@ -1428,7 +1449,8 @@ input:focus {
 
 .pd-quad {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  /* 좌(AI 큐레이션 2장) : 우(할 일·일정·메시지 3장) — 우측에 원본 데이터가 몰려 50:50 */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: start; /* 컬럼 높이 서로 독립 */
 }
@@ -1444,7 +1466,8 @@ input:focus {
 /* 전체 일정 위젯 — 미니 달력 + 하루 타임라인 */
 .schedw {
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(0, 1fr);
+  /* 카드 폭에 따라 자동 1~2단 — 좁은 컬럼(태블릿 우측 등)에선 달력 아래로 타임라인 (2단 강제 시 타임라인이 세로로 찌부러짐) */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
 }
 

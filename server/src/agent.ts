@@ -734,13 +734,22 @@ router.get('/overview', (req: AuthedRequest, res) => {
   // 히어로 뱃지 — 수신확인 대기 결정 (내 그룹의 결정 중 내가 ack 안 한 것)
   const recapRows = db
     .prepare(
-      `SELECT r.decisions FROM meeting_recaps r
+      `SELECT r.decisions, r.created_at FROM meeting_recaps r
        JOIN meetings m ON m.id = r.meeting_id
        JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = ?${sc.sql}`,
     )
-    .all(req.userId, ...sc.args) as { decisions: string }[];
+    .all(req.userId, ...sc.args) as { decisions: string; created_at: string }[];
   const totalDecisions = recapRows.reduce(
     (s, r) => s + (JSON.parse(r.decisions) as string[]).length,
+    0,
+  );
+  // 스탯 카드 — 이번 주(최근 7일) 내 그룹에서 나온 결정 수. "결정을 세는 조직"의 홈 지표
+  const weekAgo = now - 7 * 864e5;
+  const weekDecisions = recapRows.reduce(
+    (s, r) =>
+      new Date(r.created_at + 'Z').getTime() >= weekAgo
+        ? s + (JSON.parse(r.decisions) as string[]).length
+        : s,
     0,
   );
   const myAcks = (
@@ -762,6 +771,7 @@ router.get('/overview', (req: AuthedRequest, res) => {
     todoOverdue: overdue.length,
     unreadTotal: dmUnread + chatUnread,
     pendingAcks: Math.max(0, totalDecisions - myAcks),
+    weekDecisions,
     liveCalls: ctx.meetings
       .filter((m) => m.in_call > 0)
       .map((m) => ({ title: m.title, code: m.code, inCall: m.in_call })),

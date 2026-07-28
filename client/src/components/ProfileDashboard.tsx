@@ -36,6 +36,8 @@ interface Overview {
   unreadTotal: number;
   /** 수신확인 대기 결정 수 — 히어로 뱃지 */
   pendingAcks: number;
+  /** 이번 주(최근 7일) 내 그룹에서 나온 결정 수 — 스탯 카드 */
+  weekDecisions: number;
   liveCalls: { title: string; code: string; inCall: number }[];
   recentMeetings: { title: string; code: string; inCall: number }[];
   nextMeeting: { title: string; code: string; startsAt: string | null } | null;
@@ -298,7 +300,7 @@ export default function ProfileDashboard() {
           </div>
         </div>
 
-        {/* 2컬럼: 왼쪽 = (관리자: 인사이트 / 멤버: 내 포커스) + 오늘 브리핑 + 전체 일정, 오른쪽 = 통합 메시지 */}
+        {/* 좌 = AI 큐레이션 존(확인할 결정·인사이트/포커스·브리핑), 우 = 원본 데이터 존(할 일·일정·메시지) */}
         <div className="pd-quad">
           <div className="pd-quad-col">
             {ackCard}
@@ -314,16 +316,15 @@ export default function ProfileDashboard() {
                 </div>
               )}
             </div>
-
-            <div style={cellCard}>
-              <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
-              <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
-            </div>
           </div>
 
           <div className="pd-quad-col">
             {/* 개인 홈과 동일한 전체 할 일 — 이 조직 스코프의 할 일만 */}
             {todoCard}
+            <div style={cellCard}>
+              <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
+              <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
+            </div>
             <div className="pd-org-inbox" style={{ ...cellCard, minHeight: 420 }}>
               <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>
               <UnifiedInbox scope={org} />
@@ -393,8 +394,15 @@ export default function ProfileDashboard() {
       </div>
 
       {live && (
-        <div style={liveBox}>
-          <span className="pd-live-dot" aria-hidden /> 지금 <b>{live.title}</b>에서 {live.inCall}명 통화 중 — 아래 최근 그룹에서 참여하세요
+        <div
+          style={liveBox}
+          className="pd-live-banner"
+          role="button"
+          tabIndex={0}
+          onClick={() => openMeeting(live.code, live.title)}
+          onKeyDown={(e) => e.key === 'Enter' && openMeeting(live.code, live.title)}
+        >
+          <span className="pd-live-dot" aria-hidden /> 지금 <b>{live.title}</b>에서 {live.inCall}명 통화 중 — 눌러서 바로 참여
         </div>
       )}
 
@@ -411,15 +419,19 @@ export default function ProfileDashboard() {
           <div className="pd-stat">
             <div className="pd-stat-icon"><CheckMarkIcon size={19} /></div>
             <div>
-              <div className="pd-stat-num">{donePct}%</div>
-              <div className="pd-stat-label">할 일 완료율</div>
+              <div className="pd-stat-num">
+                {doneCount}/{todos.length}
+                {todos.length > 0 && <span className="pd-stat-sub"> · {donePct}%</span>}
+              </div>
+              <div className="pd-stat-label">할 일 완료</div>
             </div>
           </div>
+          {/* 이번 주 결정 — "결정이 조직에 남는다"의 홈 지표 (P1) */}
           <div className="pd-stat">
-            <div className="pd-stat-icon"><ListIcon size={19} /></div>
+            <div className="pd-stat-icon"><BoltIcon size={19} /></div>
             <div>
-              <div className="pd-stat-num">{doneCount}/{todos.length}</div>
-              <div className="pd-stat-label">완료한 할 일</div>
+              <div className="pd-stat-num">{ov?.weekDecisions ?? 0}</div>
+              <div className="pd-stat-label">이번 주 결정</div>
             </div>
           </div>
           <div className="pd-stat">
@@ -433,7 +445,8 @@ export default function ProfileDashboard() {
       </div>
 
       <div className="pd-quad">
-        {/* 좌우 컬럼을 분리 — 한쪽 카드가 길어져도 반대쪽 높이에 영향 없음 */}
+        {/* 좌 = AI 큐레이션 존(확인할 결정·브리핑 — 오늘 할 행동), 우 = 원본 데이터 존(할 일·일정·메시지).
+            컬럼 분리로 한쪽 카드가 길어져도 반대쪽 높이에 영향 없음 */}
         <div className="pd-quad-col">
         {ackCard}
         <div style={cellCard}>
@@ -476,14 +489,15 @@ export default function ProfileDashboard() {
           )}
         </div>
 
-        <div style={cellCard}>
-          <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
-          <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
-        </div>
         </div>
 
         <div className="pd-quad-col">
         {todoCard}
+
+        <div style={cellCard}>
+          <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
+          <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
+        </div>
 
         <div style={cellCard}>
           <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>
