@@ -969,7 +969,6 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }).catch(() => {});
   }
   const [agenda, setAgenda] = useState<AgendaItem[] | null>(null); // null = 로딩 중
-  const [agendaOpen, setAgendaOpen] = useState(false); // 회의 직전에만 가치 — 기본 접힘
   const [rosterOpen, setRosterOpen] = useState(false); // 참가자 명함 — 기본 접힘(아바타 스택만)
   const [remindSent, setRemindSent] = useState(false);
   /** 미확인 팔로업 — 최신 결정 중 미확인자가 있는 첫 항목 (관리자에게만 노출) */
@@ -982,6 +981,24 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }
     return null;
   })();
+  // 지연 할일 — 파이프라인 ②지연 강조·③안건 승격 표기의 근거
+  const overdueTodos = todos.filter((t) => !t.done && t.due_at && dueBadge(t.due_at)?.cls === 'over');
+  /** 아젠다 항목이 지연 할일에서 승격된 것인지 — 서버 제안이 할일 제목을 품고 있는지로 판정 */
+  function agendaFromOverdue(title: string): boolean {
+    return overdueTodos.some((t) => title.includes(t.title.slice(0, 12)));
+  }
+  // 지난 회의 요약 줄 — 최신 recap 기준 "AI가 결정 N건·할 일 M건 정리 · 불참 K명에게 전달됨"
+  const lastMeetingSummary = (() => {
+    const latest = recentDecisions[0];
+    if (!latest || !detail) return null;
+    const n = recentDecisions.filter((d) => d.recapId === latest.recapId).length;
+    const m = latest.todos?.length ?? 0;
+    const absent = latest.attendees.length
+      ? detail.participants.filter((p) => !latest.attendees.includes(p.username)).length
+      : 0;
+    return { n, m, absent, date: new Date(latest.ts) };
+  })();
+
   async function remindDecision(d: LedgerEntry) {
     try {
       await api<{ reminded: number }>(`/api/meetings/${code}/decisions/remind`, {
@@ -1252,11 +1269,19 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   </button>
                 </section>
 
-                {/* 본문: 메인 + 사이드 (Teams식 2단) */}
-                <div className="hub-dash-cols">
-                  <div className="hub-dash-main">
-                    {/* P1 — AI 회의 정리 (통화 종료 시 결정·할 일 배달) */}
-                    <RecapPanel code={detail.code} isHost={detail.isHost || !!detail.canManage} />
+                {/* 본문: 3단 파이프라인 — 결정의 생애주기(지난 회의 → 실행 → 다음 회의)를 화면 구조로 */}
+                <div className="hub-pipe-grid">
+                  {/* ① 지난 회의 — 정리·결정·수신확인·리마인드 */}
+                  <section className="hub-section pipe-card pa-p1">
+                    <div className="pipe-step">
+                      지난 회의
+                      {lastMeetingSummary && (
+                        <span className="pipe-step-date">
+                          · {lastMeetingSummary.date.getMonth() + 1}/{lastMeetingSummary.date.getDate()}
+                        </span>
+                      )}
+                    </div>
+                    <RecapPanel code={detail.code} isHost={detail.isHost || !!detail.canManage} part="past" />
 
                     {/* 최근 결정 — 원장 상위 3개를 첫 화면에 (회의→결정→전달 노출) */}
                     <section className="hub-section">
@@ -1288,7 +1313,14 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 {/* 도달·실행 상태 — "도착했음을 증명한다"를 첫 화면 숫자로 */}
                                 <span
                                   className={`hub-decision-stat${d.acks.length >= detail.participants.length ? ' full' : ''}`}
-                                  title={`확인 ${d.acks.length}/${detail.participants.length}명`}
+                                  title={
+                                    d.acks.length
+                                      ? `확인: ${d.acks.map((a) => dn(a.username)).join(', ')}\n미확인: ${detail.participants
+                                          .filter((p) => !d.acks.some((a) => a.username === p.username))
+                                          .map((p) => dn(p.username))
+                                          .join(', ') || '없음'}`
+                                      : `아직 아무도 확인하지 않았어요 (${detail.participants.length}명 대기)`
+                                  }
                                 >
                                   확인 {d.acks.length}/{detail.participants.length}
                                 </span>
@@ -1345,46 +1377,75 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                         </div>
                       )}
                     </section>
-
-                    {/* 다음 회의 아젠다 — 회의 직전에만 가치 있는 정보라 기본 접힘 */}
-                    <section className="hub-section">
-                      <div
-                        className="hub-section-title clickable"
-                        onClick={() => setAgendaOpen((v) => !v)}
-                      >
-                        <ListIcon size={15} /> 다음 회의 아젠다
-                        <span className="hub-agenda-badge">AI 제안</span>
-                        <span className="hub-fold-meta">
-                          {agenda === null ? '정리 중…' : `안건 ${agenda.length}건`}
-                        </span>
-                        <span className={`hub-fold-chev${agendaOpen ? ' open' : ''}`} aria-hidden>
-                          <ChevronIcon size={14} />
-                        </span>
+                    {lastMeetingSummary && (
+                      <div className="pipe-summary">
+                        AI가 결정 {lastMeetingSummary.n}건 · 할 일 {lastMeetingSummary.m}건을
+                        정리했어요
+                        {lastMeetingSummary.absent > 0 && (
+                          <> · 불참 {lastMeetingSummary.absent}명에게 전달됨</>
+                        )}
                       </div>
-                      {agendaOpen &&
-                        (agenda === null ? (
-                          <div className="hub-section-empty">기록을 보고 안건을 정리하는 중…</div>
-                        ) : agenda.length === 0 ? (
-                          <div className="hub-section-empty">
-                            아직 제안할 안건이 없어요 — 통화·할 일이 쌓이면 여기에 초안이 떠요
-                          </div>
-                        ) : (
-                          <div className="hub-agenda-list">
-                            {agenda.map((a, i) => (
-                              <div key={i} className="hub-agenda-row">
-                                <span className="hub-agenda-num">{i + 1}</span>
-                                <div className="hub-agenda-body">
-                                  <Marquee className="hub-agenda-title">{a.title}</Marquee>
-                                  {a.why && <span className="hub-agenda-why">{a.why}</span>}
-                                </div>
-                              </div>
-                            ))}
+                    )}
+                    <button className="pipe-more" onClick={() => setSubtab('decisions')}>
+                      회의 정리 다시 보기
+                    </button>
+                  </section>
+
+                  <div className="pipe-arrow pa-a1" aria-hidden>
+                    <ChevronRightIcon size={17} />
+                  </div>
+
+                  {/* ③ 다음 회의 — AI 안건(지연 할일 승격 표기) + 일정 잡기 */}
+                  <section className="hub-section pipe-card pa-p3">
+                    <div className="pipe-step">다음 회의</div>
+                    <div className="hub-section-title">
+                      <ListIcon size={15} /> 안건
+                      <span className="hub-agenda-badge">AI 제안</span>
+                      <span className="hub-fold-meta">
+                        {agenda === null ? '정리 중…' : `${agenda.length}건`}
+                      </span>
+                    </div>
+                    {agenda === null ? (
+                      <div className="hub-section-empty">기록을 보고 안건을 정리하는 중…</div>
+                    ) : agenda.length === 0 ? (
+                      <div className="hub-section-empty">
+                        아직 제안할 안건이 없어요 — 통화·할 일이 쌓이면 여기에 초안이 떠요
+                      </div>
+                    ) : (
+                      <div className="hub-agenda-list">
+                        {agenda.map((a, i) => (
+                          <div key={i} className="hub-agenda-row">
+                            <span className="hub-agenda-num">{i + 1}</span>
+                            <div className="hub-agenda-body">
+                              <Marquee className="hub-agenda-title">{a.title}</Marquee>
+                              {a.why && <span className="hub-agenda-why">{a.why}</span>}
+                            </div>
+                            {agendaFromOverdue(a.title) && (
+                              <span className="pipe-agenda-late" title="지연된 할 일이 안건 후보로 승격됐어요">
+                                지연 → 안건
+                              </span>
+                            )}
                           </div>
                         ))}
-                    </section>
+                      </div>
+                    )}
+                    {overdueTodos.length > 0 && agenda?.some((a) => agendaFromOverdue(a.title)) && (
+                      <div className="pipe-summary">
+                        지연된 '{overdueTodos[0].title.slice(0, 18)}
+                        {overdueTodos[0].title.length > 18 ? '…' : ''}'
+                        {overdueTodos.length > 1 ? ` 외 ${overdueTodos.length - 1}건` : ''}이 안건
+                        후보로 올라와 있어요
+                      </div>
+                    )}
+                    {/* 다음 회의 제안·겹치는 시간 — recap의 합의/AI 슬롯 (③으로 이동) */}
+                    <RecapPanel code={detail.code} isHost={detail.isHost || !!detail.canManage} part="next" />
+                    <button className="pipe-cta" onClick={() => setSubtab('schedule')}>
+                      <CalendarIcon size={14} /> 일정 잡기
+                    </button>
+                  </section>
 
-                {/* 일정 (메인으로 이동) */}
-                <section className="hub-section">
+                {/* 일정 (하단 보조) */}
+                <section className="hub-section pa-sched">
                   <div className="hub-section-title">
                     <CalendarIcon size={15} /> 일정
                   </div>
@@ -1403,12 +1464,13 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   )}
                 </section>
 
+                  <div className="pipe-arrow pa-a2" aria-hidden>
+                    <ChevronRightIcon size={17} />
                   </div>
 
-                  <aside className="hub-dash-side">
-                    {/* 최근 채팅 카드 제거 — 채팅 탭이 1클릭인데 자리만 먹음 (7/28 주호·효헌 합의) */}
-                    {/* 할 일 (사이드로 이동) */}
-                    <section className="hub-section">
+                  {/* ② 지금·실행 중 — 결정이 할 일로 살아있는 구간 (기존 할일 카드 흡수, 강조 카드) */}
+                  <section className="hub-section pipe-card pipe-now pa-p2">
+                      <div className="pipe-step now">지금 · 실행 중</div>
                       <div className="hub-section-title">
                         <ListIcon size={15} /> 할 일
                         {todos.length > 0 && (
@@ -1422,12 +1484,22 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           const done = todos.filter((t) => t.done).length;
                           const pct = Math.round((done / todos.length) * 100);
                           return (
-                            <div className="hub-todo-progress">
-                              <div className="hub-todo-bar">
-                                <div className="hub-todo-bar-fill" style={{ width: `${pct}%` }} />
+                            <>
+                              <div className="hub-todo-progress">
+                                <div className="hub-todo-bar">
+                                  <div className="hub-todo-bar-fill" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="hub-todo-pct">{pct}%</span>
                               </div>
-                              <span className="hub-todo-pct">{pct}%</span>
-                            </div>
+                              <div className="pipe-now-meta">
+                                <b>
+                                  {done}/{todos.length} 완료
+                                </b>
+                                {overdueTodos.length > 0 && (
+                                  <span className="pipe-now-late">· 지연 {overdueTodos.length}건</span>
+                                )}
+                              </div>
+                            </>
                           );
                         })()}
                       <div className="hub-todos">
@@ -1564,7 +1636,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                     </section>
 
                     {/* 참가자 — 기본은 아바타 스택만(조직 그룹은 조직도와 중복), 펼치면 부서별 명함 */}
-                    <section className="hub-section">
+                    <section className="hub-section pa-ros">
                       <div
                         className="hub-section-title clickable"
                         onClick={() => setRosterOpen((v) => !v)}
@@ -1644,7 +1716,6 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                       </div>
                       )}
                     </section>
-                  </aside>
                 </div>
               </>
             )}
