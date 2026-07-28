@@ -75,7 +75,7 @@
   justify-content: center;
   width: 38px;
   height: 38px;
-  border-radius: 9px;
+  border-radius: 8px;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -442,7 +442,7 @@ input:focus {
 
 .nb-sched-add {
   border: 1px solid var(--green);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 3px 9px;
   font-size: 12px;
   font-weight: 600;
@@ -837,7 +837,7 @@ input:focus {
   align-items: flex-start;
   gap: 10px;
   padding: 8px;
-  border-radius: 9px;
+  border-radius: 8px;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1402,7 +1402,7 @@ input:focus {
 .pd-stat-icon {
   width: 40px;
   height: 40px;
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--surface-2);
   color: var(--green);
   display: grid;
@@ -1500,7 +1500,7 @@ input:focus {
   margin-left: 6px;
   border: none;
   background: none;
-  border-radius: 9px;
+  border-radius: 8px;
   color: var(--text-sub);
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s;
@@ -1875,7 +1875,7 @@ input:focus {
 .avatar-upload-btn {
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 9px 14px;
   font-size: 14px;
   font-weight: 600;
@@ -2148,7 +2148,7 @@ input:focus {
 .mention-avatar {
   width: 26px;
   height: 26px;
-  border-radius: 7px; /* 아바타 규칙 — 정사각 + 살짝 radius */
+  border-radius: 8px; /* 아바타 규칙 — 정사각 + 살짝 radius */
   flex: none;
   font-size: 14px;
 }
@@ -2194,7 +2194,7 @@ input:focus {
 .profile-card-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 11px; /* 아바타 규칙 — 정사각 + 살짝 radius */
+  border-radius: 10px; /* 아바타 규칙 — 정사각 + 살짝 radius */
   font-size: 22px;
   flex: none;
 }
@@ -2258,7 +2258,7 @@ input:focus {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 7px 0;
   font-size: 13px;
   font-weight: 600;
@@ -2280,7 +2280,7 @@ input:focus {
 .dm-search input {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   padding: 9px 13px;
   font-size: 13px;
   background: var(--surface);
@@ -2298,7 +2298,7 @@ input:focus {
   right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   box-shadow: var(--shadow-md);
   overflow: hidden;
   z-index: 20;
@@ -2329,7 +2329,7 @@ input:focus {
   background: none;
   text-align: left;
   padding: 8px 8px;
-  border-radius: 11px;
+  border-radius: 10px;
   cursor: pointer;
   transition: background 0.12s ease;
 }
@@ -2409,7 +2409,7 @@ input:focus {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 9px;
+  border-radius: 8px;
   background: #ff5b5b;
   color: #fff;
   font-size: 11px;
@@ -2448,7 +2448,7 @@ input:focus {
 .dm-head-avatar {
   width: 36px;
   height: 36px;
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 19px;
   background: var(--surface-3);
   flex-shrink: 0;
@@ -3031,7 +3031,7 @@ input:focus {
   background: var(--surface);
   color: #0f8a3c;
   border: none;
-  border-radius: 11px;
+  border-radius: 10px;
   padding: 11px 22px;
   font-size: 15px;
   font-weight: 600;
@@ -3463,7 +3463,7 @@ input:focus {
   align-items: center;
   gap: 8px;
   padding: 6px 4px;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .hub-todo:hover {
@@ -3646,7 +3646,7 @@ input:focus {
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--surface-2);
   color: var(--text-sub);
 }
@@ -3678,7 +3678,7 @@ input:focus {
 .nb-todo-assign .nb-todo-assign-avatar {
   width: 16px;
   height: 16px;
-  border-radius: 5px;
+  border-radius: 6px;
   font-size: 10px;
   border: 1.5px solid var(--surface);
 }
@@ -3883,7 +3883,7 @@ input:focus {
 .hub-assign-opt .hub-todo-check {
   width: 17px;
   height: 17px;
-  border-radius: 5px;
+  border-radius: 6px;
 }
 
 .hub-assign-opt input:checked + .hub-todo-check {
@@ -4094,7 +4094,7 @@ input:focus {
   min-width: 132px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 13px;
+  border-radius: 12px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
   padding: 5px;
   z-index: 60;
@@ -4110,7 +4110,7 @@ input:focus {
   gap: 12px;
   border: none !important;
   background: none;
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 10px 12px !important;
   font-size: 14.5px !important;
   font-weight: 600;
@@ -4158,7 +4158,7 @@ input:focus {
   display: flex;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 2px;
   margin-left: 8px;
 }
@@ -4170,7 +4170,7 @@ input:focus {
   font-weight: 700;
   color: var(--text-sub);
   padding: 3px 12px;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .msched-seg button.on {
@@ -4235,7 +4235,7 @@ input:focus {
 .msched-wallday-chip {
   background: color-mix(in srgb, var(--evc, var(--green)) 16%, var(--surface));
   color: var(--evc, var(--green-dark));
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 2px 7px;
   font-size: 11px;
   font-weight: 600;
@@ -4719,7 +4719,7 @@ input:focus {
   .msched-pop .msched-add-memo {
     font-size: 16px;
     padding: 13px 14px;
-    border-radius: 11px;
+    border-radius: 10px;
     margin-bottom: 12px;
   }
 
@@ -4770,7 +4770,7 @@ input:focus {
     font-size: 15.5px;
     padding: 12px 16px;
     gap: 9px;
-    border-radius: 11px;
+    border-radius: 10px;
   }
 
   /* 토글 스위치 알약도 같이 확대 */
@@ -4811,7 +4811,7 @@ input:focus {
     font-size: 16.5px;
     font-weight: 800;
     padding: 15px;
-    border-radius: 13px;
+    border-radius: 12px;
   }
 
   .msched-pop .msched-add-cancel {
@@ -4922,7 +4922,7 @@ input:focus {
   color: #fff;
   background: #ff453a;
   padding: 1px 6px;
-  border-radius: 9px;
+  border-radius: 8px;
   line-height: 14px;
   white-space: nowrap;
 }
@@ -5276,7 +5276,7 @@ input:focus {
   gap: 8px;
   background: #fff4e5;
   color: #b25e00;
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 9px 12px;
   font-size: 13px;
   font-weight: 600;
@@ -5291,7 +5291,7 @@ input:focus {
   border: 1px solid rgba(178, 94, 0, 0.35);
   background: none;
   color: #b25e00;
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 4px 9px;
   font-size: 12px;
   font-weight: 600;
@@ -5322,7 +5322,7 @@ input:focus {
   flex-wrap: wrap; /* 관련자·메모 줄이 아래로 내려오게 */
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--surface-2);
 }
 
@@ -6022,7 +6022,7 @@ input:focus {
   align-items: center;
   gap: 11px;
   padding: 9px 8px;
-  border-radius: 11px;
+  border-radius: 10px;
 }
 
 .hub-set-person:hover {
@@ -6032,7 +6032,7 @@ input:focus {
 .hub-set-avatar {
   width: 38px;
   height: 38px;
-  border-radius: 9px;
+  border-radius: 8px;
   flex: none;
 }
 
@@ -6056,7 +6056,7 @@ input:focus {
   font-size: 10.5px;
   font-weight: 600;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--surface-3);
   color: var(--text-sub);
 }
@@ -6228,7 +6228,7 @@ input:focus {
 .cm-header-ic {
   width: 46px;
   height: 46px;
-  border-radius: 13px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #14a34a, #21c818);
   color: #fff;
   display: inline-flex;
@@ -6261,7 +6261,7 @@ input:focus {
   border: none;
   background: var(--surface-2);
   color: var(--text-sub);
-  border-radius: 9px;
+  border-radius: 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -6295,7 +6295,7 @@ input:focus {
 
 .cm-input {
   border: 1.5px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   padding: 12px 14px;
   font-size: 15px;
   font-family: inherit;
@@ -6397,7 +6397,7 @@ input:focus {
 .cm-chip-av {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 13px;
 }
 
@@ -6408,7 +6408,7 @@ input:focus {
   width: 16px;
   height: 16px;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   background: transparent;
   color: var(--green-dark);
   cursor: pointer;
@@ -6458,7 +6458,7 @@ input:focus {
   width: 100%;
   padding: 8px 10px;
   border: none;
-  border-radius: 9px;
+  border-radius: 8px;
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -6471,7 +6471,7 @@ input:focus {
 .cm-result-av {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 16px;
   flex-shrink: 0;
 }
@@ -6501,7 +6501,7 @@ input:focus {
   gap: 8px;
   padding: 9px 13px;
   border: 1.5px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--surface-2);
   color: var(--text);
   font-size: 13.5px;
@@ -6532,7 +6532,7 @@ input:focus {
   justify-content: space-between;
   width: 100%;
   border: 1.5px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   padding: 11px 14px;
   background: var(--surface-2);
   cursor: pointer;
@@ -6552,7 +6552,7 @@ input:focus {
   font-weight: 600;
   color: var(--text-sub);
   background: var(--surface-3);
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 1px 6px;
 }
 
@@ -6593,7 +6593,7 @@ input:focus {
   margin-top: 8px;
   padding: 12px;
   background: var(--surface-2);
-  border-radius: 11px;
+  border-radius: 10px;
 }
 
 .cm-sched-row {
@@ -6789,7 +6789,7 @@ input:focus {
   align-items: center;
   gap: 7px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 8px 12px;
   font-size: 13.5px;
   font-weight: 600;
@@ -6847,7 +6847,7 @@ input:focus {
   background: none;
   color: var(--text-sub);
   font-size: 18px;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
@@ -6959,7 +6959,7 @@ input:focus {
 .hub-hero-dday {
   margin-left: 6px;
   background: rgba(255, 255, 255, 0.22);
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 1px 6px;
   font-size: 11.5px;
 }
@@ -6997,7 +6997,7 @@ input:focus {
 .hub-switch {
   width: 44px;
   height: 25px;
-  border-radius: 13px;
+  border-radius: 12px;
   border: none;
   background: var(--surface-3);
   position: relative;
@@ -7068,7 +7068,7 @@ input:focus {
   background: #2c313a;
   color: #d7dae0;
   border: 1px solid #3a3f4b;
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 5px 9px;
   font-size: 13px;
   font-weight: 600;
@@ -7191,7 +7191,7 @@ input:focus {
 
 .doc-tab-input {
   border: 1px solid var(--green);
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 1px 5px;
   font-size: 13px;
   font-family: inherit;
@@ -7246,7 +7246,7 @@ input:focus {
   gap: 5px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 5px 10px;
   font-size: 12.5px;
   font-weight: 600;
@@ -7285,7 +7285,7 @@ input:focus {
   background: none;
   border: none;
   padding: 8px 10px;
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 13px;
   color: var(--text);
   cursor: pointer;
@@ -7318,7 +7318,7 @@ input:focus {
   height: 30px;
   padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
   font-size: 13px;
@@ -7653,7 +7653,7 @@ input:focus {
   text-align: left;
   padding: 7px 11px;
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
   font-size: 13px;
@@ -7712,7 +7712,7 @@ input:focus {
 .doc-sw {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: 8px;
   border: 1px solid rgba(0, 0, 0, 0.14);
   cursor: pointer;
   padding: 0;
@@ -7746,7 +7746,7 @@ input:focus {
 
 .doc-hl-ico {
   background: #fff59d;
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 0 3px;
   line-height: 1.25;
 }
@@ -7770,7 +7770,7 @@ input:focus {
 
 .doc-find input {
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 7px 10px;
   font-size: 13px;
   font-family: inherit;
@@ -7791,7 +7791,7 @@ input:focus {
 .doc-find-btns button {
   flex: 1;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--text);
   font-size: 12.5px;
@@ -7836,7 +7836,7 @@ input:focus {
 }
 
 .doc-prose mark {
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 1px 2px;
   color: #1c2024; /* 형광 배경은 파스텔이라 다크모드에서도 어두운 글자 유지 */
 }
@@ -7961,7 +7961,7 @@ input:focus {
   text-align: left;
   font-size: 13px;
   padding: 5px 8px;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8004,7 +8004,7 @@ input:focus {
   background: rgba(79, 124, 255, 0.14);
   color: #4f7cff;
   font-weight: 700;
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 1px 4px;
 }
 
@@ -8031,7 +8031,7 @@ input:focus {
   color: var(--text);
   font-size: 13px;
   padding: 6px 9px;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
 }
@@ -8246,7 +8246,7 @@ input:focus {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 5px 8px;
   font-size: 12.5px;
   font-family: inherit;
@@ -8262,7 +8262,7 @@ input:focus {
 .doc-creply-row button,
 .doc-cthread-btns button {
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--text);
   font-size: 12px;
@@ -8293,7 +8293,7 @@ input:focus {
   min-height: 56px;
   resize: vertical;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 7px 9px;
   font-size: 13px;
   font-family: inherit;
@@ -8339,7 +8339,7 @@ input:focus {
 .doc-vers-save {
   width: 100%;
   border: 1.5px dashed var(--border);
-  border-radius: 9px;
+  border-radius: 8px;
   background: none;
   color: var(--text-sub);
   font-size: 13px;
@@ -8367,7 +8367,7 @@ input:focus {
   align-items: center;
   gap: 10px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--text);
   font-size: 13px;
@@ -8410,7 +8410,7 @@ input:focus {
 
 .doc-vers-back {
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
@@ -8464,7 +8464,7 @@ input:focus {
 .doc-vers-diff .add {
   background: rgba(48, 164, 108, 0.18);
   color: #1c7c4f;
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 1px 2px;
 }
 
@@ -8472,7 +8472,7 @@ input:focus {
   background: rgba(229, 72, 77, 0.15);
   color: #c62a2f;
   text-decoration: line-through;
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 1px 2px;
 }
 
@@ -8511,14 +8511,14 @@ input:focus {
   color: var(--text);
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 5px 8px;
 }
 
 .sheet-formula {
   flex: 1;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 6px 10px;
   font-size: 13.5px;
   font-family: ui-monospace, Menlo, Consolas, 'NanumSquareNeo', 'Malgun Gothic', monospace;
@@ -8542,7 +8542,7 @@ input:focus {
   gap: 5px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 5px 10px;
   font-size: 12.5px;
   font-weight: 600;
@@ -8681,7 +8681,7 @@ input:focus {
   z-index: 41;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 8px;
   box-shadow: var(--shadow-md);
   padding: 7px;
   display: grid;
@@ -8715,7 +8715,7 @@ input:focus {
   width: 22px;
   height: 22px;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
   color: #888;
@@ -8824,7 +8824,7 @@ input:focus {
 .sheet-chart-types button {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 5px 12px;
   font-size: 13px;
   font-weight: 600;
@@ -8964,7 +8964,7 @@ input:focus {
   line-height: 1.3;
   padding: 0 3px;
   color: #fff;
-  border-radius: 0 0 3px 0;
+  border-radius: 0 0 4px 0;
   pointer-events: none;
   z-index: 2;
 }
@@ -9081,7 +9081,7 @@ input:focus {
   color: var(--text-sub);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -9099,7 +9099,7 @@ input:focus {
 
 .sheet-tab-input {
   border: 1px solid var(--green);
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 1px 5px;
   font-size: 12.5px;
   font-family: inherit;
@@ -9238,7 +9238,7 @@ input:focus {
 .slide-shape-menu button {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 6px 11px;
   font-size: 13px;
   font-weight: 600;
@@ -9264,7 +9264,7 @@ input:focus {
   background: var(--green);
   color: #fff;
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 6px 13px;
   font-size: 13px;
   font-weight: 600;
@@ -9311,7 +9311,7 @@ input:focus {
   aspect-ratio: 16 / 9;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 6px;
   position: relative;
   overflow: hidden;
 }
@@ -9382,7 +9382,7 @@ input:focus {
   gap: 5px;
   background: none;
   border: 1.5px dashed var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 9px;
   font-size: 12.5px;
   font-weight: 600;
@@ -9524,7 +9524,7 @@ input:focus {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 12.5px;
   font-weight: 700;
   padding: 6px 10px;
@@ -9619,7 +9619,7 @@ input:focus {
   line-height: 1.4;
   padding: 0 5px;
   color: #fff;
-  border-radius: 3px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
@@ -9633,7 +9633,7 @@ input:focus {
   line-height: 1.4;
   padding: 0 5px;
   color: #fff;
-  border-radius: 3px 3px 3px 0;
+  border-radius: 4px 4px 4px 0;
   pointer-events: none;
   white-space: nowrap;
   z-index: 3;
@@ -9714,7 +9714,7 @@ input:focus {
   z-index: 31;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 8px;
   box-shadow: var(--shadow-md);
   padding: 5px;
   display: flex;
@@ -9807,7 +9807,7 @@ input:focus {
   background: rgba(255, 255, 255, 0.16);
   border: none;
   color: #fff;
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 5px 11px;
   cursor: pointer;
   font-size: 14px;
@@ -9854,7 +9854,7 @@ input:focus {
   cursor: pointer;
   display: inline-flex;
   padding: 2px;
-  border-radius: 5px;
+  border-radius: 6px;
 }
 
 .vsc-newfile:hover {
@@ -9965,7 +9965,7 @@ input:focus {
   color: #fff;
   font-size: 13px;
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: 4px;
   outline: none;
   font-family: inherit;
   min-width: 0;
@@ -10165,7 +10165,7 @@ input:focus {
   background: var(--green);
   color: #fff;
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -10633,7 +10633,7 @@ input:focus {
   display: inline-flex;
   align-items: center;
   padding: 4px;
-  border-radius: 7px;
+  border-radius: 8px;
   flex-shrink: 0;
 }
 
@@ -11742,7 +11742,7 @@ input:focus {
 .chat-avatar {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 19px;
   background: #dfe8f2;
   flex-shrink: 0;
@@ -11810,7 +11810,7 @@ input:focus {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   padding: 13px 16px;
   font-size: 15px;
 }
@@ -11822,7 +11822,7 @@ input:focus {
 
 .hub-chat-input button {
   border: none;
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--green);
   color: #fff;
   font-weight: 600;
@@ -11870,7 +11870,7 @@ input:focus {
   gap: 10px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   padding: 10px 12px;
   min-width: 200px;
 }
@@ -12162,7 +12162,7 @@ input:focus {
   font-size: 10px;
   font-weight: 600;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--green-soft);
   color: var(--green);
 }
@@ -12243,7 +12243,7 @@ input:focus {
 .org-field-select,
 .org-field-input {
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 7px 9px;
   font-size: 13px;
   font-weight: 600;
@@ -12367,7 +12367,7 @@ input:focus {
   height: 38px;
   border: none;
   background: none;
-  border-radius: 9px;
+  border-radius: 8px;
   color: var(--text);
   transition: background 0.15s;
 }
@@ -12452,7 +12452,7 @@ input:focus {
 .notif-thumb {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: 8px;
   flex: none;
   display: grid;
   place-items: center;
@@ -12864,7 +12864,7 @@ input:focus {
 .org-roles-perm .hub-todo-check {
   width: 16px;
   height: 16px;
-  border-radius: 5px;
+  border-radius: 6px;
 }
 
 .org-roles-perm input:checked + .hub-todo-check {
@@ -12969,7 +12969,7 @@ input:focus {
 .org-btn {
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 5px 11px;
   font-size: 12px;
   font-weight: 600;
@@ -13178,7 +13178,7 @@ input:focus {
   height: 38px;
   border: 1px dashed var(--green);
   background: var(--green-soft);
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 0 13px;
   font-size: 13px;
   font-weight: 600;
@@ -13198,7 +13198,7 @@ input:focus {
   border: none;
   background: var(--green);
   color: #fff;
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 0 15px;
   font-size: 13px;
   font-weight: 700;
@@ -13397,7 +13397,7 @@ input:focus {
   min-width: 13px;
   height: 13px;
   padding: 0 3px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--green);
   color: #fff;
   font-size: 9px;
@@ -13905,7 +13905,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   font-weight: 600;
   min-width: 17px;
   height: 17px;
-  border-radius: 9px;
+  border-radius: 8px;
   display: inline-grid;
   place-items: center;
   padding: 0 4px;
@@ -14553,7 +14553,7 @@ html:not(.dark) .meeting-controls .leave:hover {
 .hub-call.mini .video-avatar {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 18px;
 }
 
@@ -14786,7 +14786,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   gap: 4px;
   padding: 4px 10px;
   border: 1px solid var(--green);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--green-soft);
   color: var(--green);
   font-size: 12px;
@@ -14875,7 +14875,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   font-weight: 600;
   min-width: 18px;
   height: 18px;
-  border-radius: 9px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   padding: 0 4px;
@@ -14883,7 +14883,7 @@ html:not(.dark) .meeting-controls .leave:hover {
 
 .meeting-controls .leave {
   width: auto;
-  border-radius: 27px;
+  border-radius: 999px;
   padding: 0 24px;
   background: #d33;
   color: #fff;
@@ -14994,7 +14994,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   width: 24px;
   height: 24px;
   flex: none;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--red-soft);
   color: var(--red);
 }
@@ -15028,7 +15028,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   /* 채움 없는 흰 배경이면 이웃 초록 버튼들보다 낮아 보이는 착시가 생김 (실제 높이는 동일) */
   background: var(--surface-2);
   color: var(--text-sub);
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -15440,7 +15440,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   position: relative;
   width: 40px;
   height: 22px;
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--border);
   transition: background 0.15s;
   flex-shrink: 0;
@@ -15560,7 +15560,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   color: var(--green-dark);
   font-size: 12px;
   font-weight: 700;
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 4px 10px;
   cursor: pointer;
   white-space: nowrap;
@@ -15631,7 +15631,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   gap: 10px;
   margin-top: 10px;
   padding: 8px 12px;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--green-soft);
   font-size: 12.5px;
 }
@@ -15657,7 +15657,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   font-size: 12px;
   font-weight: 700;
   padding: 4px 12px;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .hub-followup-btn:hover {
@@ -15682,7 +15682,7 @@ html:not(.dark) .meeting-controls .leave:hover {
 .hub-roster-stack .hub-roster-face {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 13px;
   border: 1.5px solid var(--surface);
 }
@@ -16212,7 +16212,7 @@ html:not(.dark) .meeting-controls .leave:hover {
     z-index: 5;
     min-width: 18px;
     height: 18px;
-    border-radius: 9px;
+    border-radius: 8px;
     background: #e5484d;
     color: #fff;
     font-size: 11px;
@@ -16590,7 +16590,7 @@ html:not(.dark) .meeting-controls .leave:hover {
     gap: 7px;
     padding: 14px 6px;
     border: 1px solid var(--border);
-    border-radius: 13px;
+    border-radius: 12px;
     background: var(--surface);
     font-size: 13px;
     font-weight: 600;
@@ -16718,7 +16718,7 @@ html:not(.dark) .meeting-controls .leave:hover {
     padding: 0 12px;
     font-size: 14.5px;
     border: none;
-    border-radius: 9px;
+    border-radius: 8px;
     background: transparent;
   }
 
@@ -16752,7 +16752,7 @@ html:not(.dark) .meeting-controls .leave:hover {
     padding: 0 12px;
     font-size: 14px;
     border: none;
-    border-radius: 9px;
+    border-radius: 8px;
     background: transparent;
   }
 
@@ -16962,7 +16962,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   .pd-stat-icon {
     width: 34px;
     height: 34px;
-    border-radius: 9px;
+    border-radius: 8px;
   }
 
   .pd-stat-num {
@@ -17004,7 +17004,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   background: none;
   color: var(--text);
   padding: 7px 10px;
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 13px;
   text-align: left;
   cursor: pointer;
@@ -17236,7 +17236,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 3px 8px;
   font-size: 11.5px;
   cursor: pointer;
@@ -17390,7 +17390,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   height: auto;
   border: none;
   box-shadow: none;
-  border-radius: 9px;
+  border-radius: 8px;
   background: none;
   color: #e8eaf0;
   display: flex;
@@ -17580,7 +17580,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--green-soft);
   color: var(--green-dark);
 }

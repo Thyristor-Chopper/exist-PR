@@ -180,7 +180,7 @@ function RiskCard({ label, data }: { label: string; data: { level: string; reaso
         ? 'rgba(247,104,8,0.08)'
         : 'rgba(33,200,24,0.07)';
   return (
-    <div style={{ background: bg, borderRadius: 11, padding: '12px 14px' }}>
+    <div style={{ background: bg, borderRadius: 10, padding: '12px 14px' }}>
       <div style={{ fontSize: 12, color: 'var(--text-sub)', marginBottom: 3 }}>{label}</div>
       <div style={{ fontSize: 17, fontWeight: 800, color }}>{data.level}</div>
       <div style={{ fontSize: 12, color: 'var(--text-sub)', marginTop: 3 }}>{data.reason}</div>
@@ -217,7 +217,7 @@ const grid: CSSProperties = {
 };
 const trendBox: CSSProperties = {
   background: 'var(--bg)',
-  borderRadius: 9,
+  borderRadius: 8,
   padding: '9px 13px',
   fontSize: 13,
   color: 'var(--text-sub)',

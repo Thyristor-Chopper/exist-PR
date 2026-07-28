@@ -528,7 +528,7 @@ const heroGreeting: CSSProperties = { fontSize: 14, opacity: 0.85 };
 const heroChips: CSSProperties = { display: 'flex', gap: 10, flexWrap: 'wrap' };
 const heroChip: CSSProperties = {
   background: 'rgba(255,255,255,0.16)',
-  borderRadius: 11,
+  borderRadius: 10,
   padding: '7px 14px',
   fontSize: 13,
   display: 'flex',

@@ -155,7 +155,7 @@ const calTitle: CSSProperties = { fontSize: 13.5, fontWeight: 700, color: 'var(-
 const navBtn: CSSProperties = {
   width: 24,
   height: 24,
-  borderRadius: 7,
+  borderRadius: 8,
   border: 'none',
   background: 'var(--surface-2)',
   color: 'var(--text-sub)',
