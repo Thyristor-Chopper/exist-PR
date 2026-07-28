@@ -36,6 +36,8 @@ interface DmMessage {
   mine: boolean;
   text: string;
   ts: number;
+  /** 히스토리 조회 시점 기준 안읽음 — "여기까지 읽었어요" 구분선용 */
+  unread?: boolean;
 }
 
 /** 소켓으로 들어오는 실시간 메시지 (개인 DM이면 orgId = null) */
@@ -96,7 +98,14 @@ export function DmWindow({
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  // "여기까지 읽었어요" 구분선 — 창을 연 시점의 첫 안읽음 메시지 id (열려 있는 동안 고정).
+  // 첫 조회가 읽음 처리를 겸하므로 앵커는 상대별로 한 번만 기록 — StrictMode 이중 실행·재조회로
+  // 두 번째 응답(플래그 없음)이 앵커를 덮어쓰지 않게 한다
+  const [unreadMarkId, setUnreadMarkId] = useState<number | null>(null);
+  const unreadAnchorRef = useRef<Record<number, number | null>>({});
   const endRef = useRef<HTMLDivElement>(null);
+  const markRef = useRef<HTMLDivElement>(null);
+  const initialScrollDone = useRef(false);
 
   // 이 상대의 DM 창을 보고 있음을 서버에 알림 — 보는 동안은 서버가 알림(notifyUser) 생략
   useEffect(() => {
@@ -110,9 +119,18 @@ export function DmWindow({
   // 히스토리 로드 (열면서 상대 메시지 읽음 처리됨)
   useEffect(() => {
     let alive = true;
+    initialScrollDone.current = false;
     void api<DmMessage[]>(`/api/dm/${scope}/with/${peer.userId}`)
       .then((h) => {
-        if (alive) setMessages(h);
+        // 앵커 기록은 stale 응답이라도 수행 — 첫 조회가 읽음 처리를 겸하므로 플래그는
+        // "처음 도착한 응답"에만 있다 (StrictMode 이중 실행이 첫 응답을 버려도 앵커는 남게)
+        const first = h.find((m) => m.unread)?.id ?? null;
+        if (!(peer.userId in unreadAnchorRef.current) || (unreadAnchorRef.current[peer.userId] == null && first != null)) {
+          unreadAnchorRef.current[peer.userId] = first;
+        }
+        if (!alive) return;
+        setUnreadMarkId(unreadAnchorRef.current[peer.userId]);
+        setMessages(h);
       })
       .catch(() => {});
     return () => {
@@ -153,8 +171,16 @@ export function DmWindow({
     };
   }, [scope, scopeOrg, peer.userId]);
 
-  // 새 메시지 오면 맨 아래로
+  // 새 메시지 오면 맨 아래로 — 단, 처음 열 때 안읽음 구분선이 있으면 거기부터 보여준다
   useEffect(() => {
+    if (messages.length === 0) return;
+    if (!initialScrollDone.current) {
+      initialScrollDone.current = true;
+      if (markRef.current) {
+        markRef.current.scrollIntoView({ block: 'center' });
+        return;
+      }
+    }
     endRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
 
@@ -227,6 +253,11 @@ export function DmWindow({
             !!prev && prev.fromId === m.fromId && !showDate && m.ts - prev.ts < 5 * 60_000;
           return (
             <Fragment key={m.id}>
+              {m.id === unreadMarkId && (
+                <div className="chat-unread-divider" ref={markRef}>
+                  <span>여기까지 읽었어요</span>
+                </div>
+              )}
               {showDate && (
                 <div className="chat-date">
                   <span>{chatDateLabel(m.ts)}</span>

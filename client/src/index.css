@@ -11590,6 +11590,30 @@ input:focus {
   border-radius: 10px;
 }
 
+/* "여기까지 읽었어요" 안읽음 구분선 — 열었을 때의 읽음 경계, 창 닫을 때까지 고정 */
+.chat-unread-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.chat-unread-divider::before,
+.chat-unread-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--green);
+  opacity: 0.35;
+}
+
+.chat-unread-divider span {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+}
+
 /* 메시지 행 */
 .chat-row {
   display: flex;

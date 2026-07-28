@@ -176,7 +176,8 @@ export default function UnifiedInbox({ scope }: { scope: DmScope }) {
       window.dispatchEvent(
         new CustomEvent('exist:open-meeting', { detail: { code: it.code, title: it.name, tab: 'chat' } }),
       );
-      void api(`/api/meetings/${it.code}/messages/read`, { method: 'POST' }).catch(() => {});
+      // 서버 읽음 처리는 허브 채팅 탭이 히스토리 로드 "후"에 함 — 여기서 먼저 마킹하면
+      // 히스토리의 unread 플래그가 지워져 "여기까지 읽었어요" 구분선이 못 뜬다
       setGroups((p) => p.map((g) => (g.code === it.code ? { ...g, unread: 0 } : g)));
     } else if (it.peer) {
       const peer = it.peer;

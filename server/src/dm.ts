@@ -212,7 +212,7 @@ router.get('/:scope/with/:userId', (req: AuthedRequest, res) => {
 
   const rows = db
     .prepare(
-      `SELECT m.id, m.from_id, m.to_id, m.text, m.created_at, u.username, u.avatar
+      `SELECT m.id, m.from_id, m.to_id, m.text, m.read, m.created_at, u.username, u.avatar
        FROM dm_messages m JOIN users u ON u.id = m.from_id
        WHERE ${sc.sql}
          AND ((m.from_id = ? AND m.to_id = ?) OR (m.from_id = ? AND m.to_id = ?))
@@ -223,12 +223,14 @@ router.get('/:scope/with/:userId', (req: AuthedRequest, res) => {
     from_id: number;
     to_id: number;
     text: string;
+    read: number;
     created_at: string;
     username: string;
     avatar: string | null;
   }[];
 
-  // 상대가 보낸 메시지 읽음 처리
+  // 상대가 보낸 메시지 읽음 처리 — 응답에는 읽음 처리 "전" 상태(unread)를 실어
+  // 클라가 "여기까지 읽었어요" 구분선을 그릴 수 있게 한다
   db.prepare(
     `UPDATE dm_messages SET read = 1 WHERE ${sc.sql} AND from_id = ? AND to_id = ? AND read = 0`,
   ).run(...sc.args, peer, me);
@@ -242,6 +244,7 @@ router.get('/:scope/with/:userId', (req: AuthedRequest, res) => {
       mine: r.from_id === me,
       text: r.text,
       ts: new Date(r.created_at + 'Z').getTime(),
+      unread: r.from_id === peer && r.read === 0 ? true : undefined,
     })),
   );
 });

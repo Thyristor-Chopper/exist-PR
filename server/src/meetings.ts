@@ -1385,12 +1385,14 @@ router.get('/:code/messages', (req: AuthedRequest, res) => {
 
   const rows = db
     .prepare(
-      `SELECT u.username AS "from", u.avatar, m.text, m.file, m.channel_id, m.created_at FROM messages m
+      `SELECT m.id, m.user_id, u.username AS "from", u.avatar, m.text, m.file, m.channel_id, m.created_at FROM messages m
        JOIN users u ON u.id = m.user_id
        WHERE m.meeting_id = ? AND (m.channel_id = ? OR m.channel_id IS NULL)
        ORDER BY m.id DESC LIMIT 100`,
     )
     .all(meeting.id, channelId) as {
+    id: number;
+    user_id: number;
     from: string;
     avatar: string | null;
     text: string;
@@ -1399,14 +1401,24 @@ router.get('/:code/messages', (req: AuthedRequest, res) => {
     created_at: string;
   }[];
 
+  // "여기까지 읽었어요" 구분선용 — 내 last_read 이후의 남이 보낸 메시지에 unread 표시
+  const lastRead =
+    (
+      db
+        .prepare('SELECT last_read FROM chat_reads WHERE user_id = ? AND meeting_id = ?')
+        .get(req.userId!, meeting.id) as { last_read: number } | undefined
+    )?.last_read ?? 0;
+
   res.json(
     rows.reverse().map((r) => ({
+      id: r.id,
       from: r.from,
       avatar: r.avatar,
       text: r.text,
       file: r.file ? JSON.parse(r.file) : undefined,
       channelId: r.channel_id ?? channelId,
       ts: new Date(r.created_at + 'Z').getTime(),
+      unread: r.id > lastRead && r.user_id !== req.userId ? true : undefined,
     })),
   );
 });

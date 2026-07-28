@@ -38,6 +38,8 @@ export interface ChatFile {
 }
 export interface ChatMessage {
   code?: string;
+  /** 히스토리 조회에만 있음 (소켓 실시간 메시지엔 없음) */
+  id?: number;
   from: string;
   avatar?: string | null;
   text: string;
@@ -45,6 +47,8 @@ export interface ChatMessage {
   /** 소속 채팅 채널 (없으면 기본 채널) */
   channelId?: number | null;
   ts: number;
+  /** 히스토리 조회 시점 기준 안읽음 — "여기까지 읽었어요" 구분선용 */
+  unread?: boolean;
 }
 
 /** 선택한 장치 우선 getUserMedia — 선택 장치가 뽑혔거나 못 잡으면 기본 장치로 재시도 */
