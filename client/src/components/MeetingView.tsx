@@ -999,13 +999,13 @@ export default function MeetingView({
               marginBottom: 18,
             }}
           >
-            {/* 라운드 클리핑은 비디오만 — 알약·장치 메뉴는 바깥이라 위로 열려도 안 잘림 */}
+            {/* 라운드 클리핑은 비디오만 — 알약·장치 메뉴는 바깥이라 위로 열려도 안 잘림.
+                radius는 안의 .video-tile(14px)과 일치 + 배경 투명 — 어긋나면 모서리에 검은 테 비침 */}
             <div
               style={{
                 position: 'absolute',
                 inset: 0,
-                background: '#111',
-                borderRadius: 12,
+                borderRadius: 14,
                 overflow: 'hidden',
               }}
             >
