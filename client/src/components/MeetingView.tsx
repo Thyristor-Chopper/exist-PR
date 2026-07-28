@@ -169,9 +169,8 @@ function VideoTile({
         </>
       ) : (
         <div className="video-placeholder">
-          {/* 프로필 아바타 그대로 — 앱 다른 곳과 같은 모습 (없으면 Avatar 기본 이모지) */}
+          {/* 프로필 아바타만 — "카메라 꺼짐" 텍스트는 이름표 아이콘과 중복이라 뺌 (3사 관례) */}
           <Avatar value={avatar} className="video-avatar" />
-          <span className="cam-off-label">카메라 꺼짐</span>
         </div>
       )}
       <span className="video-name">
@@ -1073,6 +1072,24 @@ export default function MeetingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
+  // 통화 경과 시간 — 내 입장 시점 기준 (헤더 표시)
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (phase === 'preview') return;
+    const t0 = Date.now();
+    setElapsed(0);
+    const iv = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [phase]);
+  const fmtElapsed = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+      : `${m}:${String(sec).padStart(2, '0')}`;
+  };
+
   // 안드로이드 셸(Capacitor): 통화 중이면 홈 이동 시 화면째 OS PiP — 네이티브에 상태 전달
   useEffect(() => {
     const pip = (
@@ -1273,6 +1290,10 @@ export default function MeetingView({
                   </span>
                 ))}
               </span>
+            </span>
+            {' · '}
+            <span className="meeting-elapsed" title="통화 경과 시간">
+              {fmtElapsed(elapsed)}
             </span>
             {locked && (
               <span className="meeting-locked">

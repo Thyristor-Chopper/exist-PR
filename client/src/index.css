@@ -14074,6 +14074,13 @@ html:not(.dark) .meeting-controls .leave:hover {
   flex: none;
 }
 
+/* 통화 경과 시간 — 헤더 코드줄, 고정폭 숫자로 떨림 방지 */
+.meeting-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
 /* 발화자 하이라이트 — 자막(voice:caption) 신호 기반 초록 링 */
 .video-tile.speaking::after {
   content: '';
