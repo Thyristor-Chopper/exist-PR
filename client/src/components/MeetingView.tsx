@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Device } from 'mediasoup-client';
 import type { Transport, Producer } from 'mediasoup-client/types';
 import { getSocket, request } from '../lib/socket';
@@ -1063,75 +1063,6 @@ export default function MeetingView({
     if (peers.some((p) => p.username === lastRemoteSpeaker)) setPinned(lastRemoteSpeaker);
   }, [autoStage, lastRemoteSpeaker, hasScreen, peers]);
 
-  // OS 화면 속 화면(Video PiP) — 비디오 1개 제약이라 공유 화면 > 핀 > 최근 발화자 > 첫 원격 캠 > 내 캠 순으로 선정
-  const pipTrack = useMemo<MediaStreamTrack | null>(() => {
-    const me = user?.username ?? '';
-    const cands: (MediaStreamTrack | null | undefined)[] = [
-      screens[0]?.track,
-      pinned === me
-        ? camOn
-          ? localTrack
-          : null
-        : peers.find((p) => p.username === pinned && !p.videoPaused)?.videoTrack,
-      peers.find((p) => p.username === lastRemoteSpeaker && !p.videoPaused)?.videoTrack,
-      peers.find((p) => p.videoTrack && !p.videoPaused)?.videoTrack,
-      camOn ? localTrack : null,
-    ];
-    return cands.find(Boolean) ?? null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screens.length, pinned, lastRemoteSpeaker, peers, localTrack, camOn, user]);
-  const pipVideoRef = useRef<HTMLVideoElement>(null);
-  const [pipOn, setPipOn] = useState(false);
-  const pipSupported =
-    typeof document !== 'undefined' &&
-    (document.pictureInPictureEnabled ||
-      'webkitSetPresentationMode' in HTMLVideoElement.prototype);
-
-  // PiP 중 대상이 바뀌면(발화자 전환 등) 창 유지한 채 스트림 교체
-  useEffect(() => {
-    const el = pipVideoRef.current;
-    if (!el || !pipOn || !pipTrack) return;
-    el.srcObject = new MediaStream([pipTrack]);
-    void el.play().catch(() => {});
-  }, [pipTrack, pipOn]);
-
-  useEffect(() => {
-    const el = pipVideoRef.current;
-    if (!el) return;
-    const onLeave = () => setPipOn(false);
-    const onEnter = () => setPipOn(true); // 어떤 경로로 들어와도 상태 동기화
-    el.addEventListener('leavepictureinpicture', onLeave);
-    el.addEventListener('enterpictureinpicture', onEnter);
-    return () => {
-      el.removeEventListener('leavepictureinpicture', onLeave);
-      el.removeEventListener('enterpictureinpicture', onEnter);
-      if (document.pictureInPictureElement === el) void document.exitPictureInPicture().catch(() => {});
-    };
-  }, []);
-
-  async function togglePip() {
-    const el = pipVideoRef.current;
-    if (!el) return;
-    try {
-      if (document.pictureInPictureElement === el) {
-        await document.exitPictureInPicture();
-        return; // leave 이벤트가 상태 정리
-      }
-      if (!pipTrack) return;
-      el.srcObject = new MediaStream([pipTrack]);
-      await el.play().catch(() => {});
-      if (el.requestPictureInPicture) {
-        await el.requestPictureInPicture();
-      } else {
-        (
-          el as HTMLVideoElement & { webkitSetPresentationMode?: (m: string) => void }
-        ).webkitSetPresentationMode?.('picture-in-picture');
-      }
-      setPipOn(true);
-    } catch {
-      /* 미지원·사용자 거부 — 조용히 */
-    }
-  }
 
   // 입장하면 컨트롤 자동 숨김 타이머 시작
   useEffect(() => {
@@ -1394,18 +1325,6 @@ export default function MeetingView({
                     <i />
                   </span>
                 </button>
-                {pipSupported && (
-                  <button
-                    className="dev-menu-item"
-                    onClick={() => void togglePip()}
-                    title="통화 화면을 OS 플로팅 창으로 — 다른 앱을 보면서 통화"
-                  >
-                    <span className="dev-menu-label">화면 속 화면 (PiP)</span>
-                    <span className={`msched-sw${pipOn ? ' on' : ''}`}>
-                      <i />
-                    </span>
-                  </button>
-                )}
                 {isHost && (
                   <button
                     className="dev-menu-item"
@@ -1441,14 +1360,6 @@ export default function MeetingView({
         </div>
       </header>
 
-      {/* OS PiP용 숨김 비디오 — display:none이면 일부 브라우저가 PiP를 거부해 1px 오프스크린 */}
-      <video
-        ref={pipVideoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-      />
       <div className="meeting-body">
         <div
           className={`video-area${hasScreen || pinned ? ' with-screen' : ''}`}
