@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Device } from 'mediasoup-client';
 import type { Transport, Producer } from 'mediasoup-client/types';
 import { getSocket, request } from '../lib/socket';
@@ -1085,6 +1085,37 @@ export default function MeetingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, expanded]);
 
+  // ── 계산 배치(768px+) — 3사 방식: 인원·컨테이너 크기로 타일 폭을 계산해 잘림 없이 배치 ──
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridSize, setGridSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      setGridSize((prev) =>
+        Math.abs(prev.w - r.width) > 2 || Math.abs(prev.h - r.height) > 2
+          ? { w: r.width, h: r.height }
+          : prev,
+      );
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [phase]);
+  /** 열 수 1..n을 전부 시도해 16:9 타일이 가장 커지는 배치의 타일 폭 */
+  function computeTileWidth(W: number, H: number, n: number, gap = 12): number {
+    if (!W || !H || !n) return 320;
+    let best = 0;
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const byW = (W - gap * (cols - 1)) / cols;
+      const byH = (((H - gap * (rows - 1)) / rows) * 16) / 9;
+      const w = Math.min(byW, byH);
+      if (w > best) best = w;
+    }
+    return Math.max(120, Math.floor(best));
+  }
+
   // 통화 경과 시간 — 내 입장 시점 기준 (헤더 표시)
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -1529,7 +1560,15 @@ export default function MeetingView({
               );
             })()}
           <div
-            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ''} count-${peers.length + 1}`}
+            ref={gridRef}
+            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ' computed'} count-${peers.length + 1}`}
+            style={
+              hasScreen || pinned
+                ? undefined
+                : ({
+                    '--tile-w': `${computeTileWidth(gridSize.w, gridSize.h, peers.length + 1)}px`,
+                  } as CSSProperties)
+            }
           >
             <VideoTile
               track={localTrack}

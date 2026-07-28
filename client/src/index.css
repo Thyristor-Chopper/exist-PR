@@ -14126,6 +14126,33 @@ html:not(.dark) .meeting-controls .leave:hover {
   display: contents;
 }
 
+/* ── 계산 배치(768px+) — 3사 방식: JS가 인원·컨테이너로 타일 폭을 계산 (--tile-w).
+   flex wrap + 가운데 정렬 = 잘림 0, 마지막 행 중앙, 세로 넘침 원천 차단.
+   모바일(≤767)은 실측 검증된 2열 채움형 그대로 ── */
+@media (min-width: 768px) {
+  .video-grid.computed {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    align-items: center;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  .video-grid.computed .video-tile {
+    width: var(--tile-w, 320px);
+    /* 높이 명시 — placeholder(아바타) 내용이 타일을 16:9보다 세로로 늘려 계산이 어긋나는 것 방지 */
+    height: calc(var(--tile-w, 320px) * 9 / 16);
+    flex: none;
+  }
+
+  .video-grid.computed .video-placeholder {
+    min-height: 0;
+    height: 100%;
+  }
+}
+
 .video-grid.filmstrip {
   flex: 0 0 130px;
   display: flex;
