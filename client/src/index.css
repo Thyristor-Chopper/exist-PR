@@ -14081,6 +14081,76 @@ html:not(.dark) .meeting-controls .leave:hover {
   font-weight: 600;
 }
 
+/* 타일 핀 힌트 — 기본 숨김, 마우스 환경 hover에서만 표시 */
+.tile-pin-hint {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* hover 어포던스 — 클릭(핀) 가능함을 알림 */
+  .video-tile.pressable:hover {
+    filter: brightness(1.07);
+  }
+
+  .tile-pin-hint {
+    display: flex;
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 3;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+  }
+
+  .video-tile.pressable:hover .tile-pin-hint {
+    opacity: 1;
+  }
+
+  /* 강퇴는 hover 시에만 — 빨간 버튼 상시 노출은 위협적 (터치 기기는 hover가 없어 상시 유지) */
+  .kick-btn {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .video-tile:hover .kick-btn {
+    opacity: 1;
+  }
+}
+
+/* 전체화면(⛶) — 데스크톱도 컨트롤 오버레이 + 마우스 idle 자동 숨김 */
+.meeting-tab-host.fullscreen .meeting-room {
+  position: relative;
+}
+
+.meeting-tab-host.fullscreen .meeting-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.meeting-tab-host.fullscreen .meeting-room.ctl-hidden .meeting-controls {
+  transform: translateY(130%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.meeting-tab-host.fullscreen .meeting-body {
+  padding-bottom: 14px;
+}
+
 /* 발화자 하이라이트 — 자막(voice:caption) 신호 기반 초록 링 */
 .video-tile.speaking::after {
   content: '';

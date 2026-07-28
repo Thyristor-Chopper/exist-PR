@@ -8,7 +8,7 @@ import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon, GearIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon, GearIcon, PinIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -190,6 +190,12 @@ function VideoTile({
           </span>
         )}
       </span>
+      {/* 핀 힌트 — 마우스 hover에서만 (클릭=확대 가능함을 알림) */}
+      {onPress && !isScreen && (
+        <span className="tile-pin-hint" aria-hidden>
+          <PinIcon size={13} />
+        </span>
+      )}
       {onKick && (
         <button
           className="kick-btn"
@@ -322,10 +328,16 @@ export default function MeetingView({
   const devMenuOpenRef = useRef(false); // 메뉴 열림 중엔 자동 숨김 보류
   const ctlJustShown = useRef(false); // 터치로 방금 표시됨 — 이어지는 click이 도로 숨기지 않게
   const areaTouchY = useRef<number | null>(null); // 아래 스와이프 = 툴바 숨김 감지용
+  // 컨트롤 항상 표시(자동 숨김 끔) — ⚙ 설정, 기기별 저장
+  const [ctlAlways, setCtlAlways] = useState(() => localStorage.getItem('call:ctlAlways') === '1');
+  const ctlAlwaysRef = useRef(ctlAlways);
+  ctlAlwaysRef.current = ctlAlways;
+  /** 자동 숨김 대상인가 — 모바일 전부 + 데스크톱은 전체화면일 때만. "항상 표시" 설정이 우선 */
+  const shouldAutoHide = () => !ctlAlwaysRef.current && (isMobileView() || !!expanded);
   const bumpControls = () => {
     setCtlHidden(false);
     if (ctlTimer.current) clearTimeout(ctlTimer.current);
-    if (isMobileView())
+    if (shouldAutoHide())
       ctlTimer.current = setTimeout(function hide() {
         if (devMenuOpenRef.current) {
           ctlTimer.current = setTimeout(hide, 2000);
@@ -334,6 +346,7 @@ export default function MeetingView({
         setCtlHidden(true);
       }, 4000);
   };
+  const lastMouseBump = useRef(0);
 
   const producersRef = useRef<{
     audio?: Producer;
@@ -1063,14 +1076,14 @@ export default function MeetingView({
   }, [autoStage, lastRemoteSpeaker, hasScreen, peers]);
 
 
-  // 입장하면 컨트롤 자동 숨김 타이머 시작
+  // 입장·전체화면 전환 시 컨트롤 자동 숨김 타이머 (재)시작
   useEffect(() => {
     if (phase !== 'preview') bumpControls();
     return () => {
       if (ctlTimer.current) clearTimeout(ctlTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [phase, expanded]);
 
   // 통화 경과 시간 — 내 입장 시점 기준 (헤더 표시)
   const [elapsed, setElapsed] = useState(0);
@@ -1265,7 +1278,16 @@ export default function MeetingView({
   }
 
   return (
-    <div className={`meeting-room${embedded ? ' embedded' : ''}${ctlHidden ? ' ctl-hidden' : ''}`}>
+    <div
+      className={`meeting-room${embedded ? ' embedded' : ''}${ctlHidden ? ' ctl-hidden' : ''}`}
+      onMouseMove={() => {
+        // 데스크톱 전체화면: 마우스가 움직이면 표시, 4초 idle이면 숨김 (3사 문법)
+        const n = Date.now();
+        if (n - lastMouseBump.current < 400) return;
+        lastMouseBump.current = n;
+        if (shouldAutoHide()) bumpControls();
+      }}
+    >
       <header className="meeting-header">
         {!embedded && <Logo />}
         <div className="meeting-info">
@@ -1346,6 +1368,28 @@ export default function MeetingView({
                     <i />
                   </span>
                 </button>
+                <button
+                  className="dev-menu-item"
+                  onClick={() => {
+                    setCtlAlways((v) => {
+                      const next = !v;
+                      localStorage.setItem('call:ctlAlways', next ? '1' : '0');
+                      if (next) {
+                        if (ctlTimer.current) clearTimeout(ctlTimer.current);
+                        setCtlHidden(false);
+                      } else {
+                        bumpControls(); // 다시 자동 숨김 모드 — 타이머 재시작
+                      }
+                      return next;
+                    });
+                  }}
+                  title="켜면 컨트롤 바가 자동으로 숨지 않아요"
+                >
+                  <span className="dev-menu-label">컨트롤 항상 표시</span>
+                  <span className={`msched-sw${ctlAlways ? ' on' : ''}`}>
+                    <i />
+                  </span>
+                </button>
                 {isHost && (
                   <button
                     className="dev-menu-item"
@@ -1422,9 +1466,9 @@ export default function MeetingView({
               return;
             }
             if (justShown) return; // 방금 터치로 표시됨 — 같은 탭이 도로 숨기지 않게
-            // 빈 영역 탭 = 컨트롤 토글 (모바일)
+            // 빈 영역 탭·클릭 = 컨트롤 토글 (자동 숨김 대상 화면에서만)
             if (ctlHidden) bumpControls();
-            else if (isMobileView()) {
+            else if (shouldAutoHide()) {
               if (ctlTimer.current) clearTimeout(ctlTimer.current);
               setCtlHidden(true);
             }
