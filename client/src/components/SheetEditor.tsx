@@ -3,7 +3,7 @@ import type React from 'react';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { useAuthStore } from '../store';
-import { DownloadIcon } from './Icons';
+import { DownloadIcon, CloseIcon } from './Icons';
 import ColorGrid from './ColorGrid';
 import OverflowToolbar from './OverflowToolbar';
 
@@ -1777,7 +1777,7 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
             autoFocus
           />
           <button className="sheet-find-close" onClick={() => { setFilter(null); setFilterOpen(false); }}>
-            해제 ✕
+            해제 <CloseIcon size={11} />
           </button>
         </div>
       )}
@@ -1826,7 +1826,7 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
           />
           <button onClick={doReplaceAll}>모두 바꾸기</button>
           <button className="sheet-find-close" onClick={() => setFindOpen(false)}>
-            ✕
+            <CloseIcon size={12} />
           </button>
         </div>
       )}
@@ -1953,7 +1953,7 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
             )}
             {sheets.length > 1 && (
               <button className="sheet-tab-close" onClick={(e) => deleteSheet(s.id, e)} title="삭제">
-                ×
+                <CloseIcon size={12} />
               </button>
             )}
           </div>
@@ -1985,7 +1985,7 @@ export default function SheetEditor({ roomId, active = true }: { roomId: string;
                   {cellKey(Math.min(anchor.r, sel.r), Math.min(anchor.c, sel.c))}:
                   {cellKey(Math.max(anchor.r, sel.r), Math.max(anchor.c, sel.c))}
                 </span>
-                <button className="sheet-chart-close" onClick={() => setChart(null)}>✕</button>
+                <button className="sheet-chart-close" onClick={() => setChart(null)}><CloseIcon size={13} /></button>
               </div>
               <div className="sheet-chart-body">
                 {empty ? (

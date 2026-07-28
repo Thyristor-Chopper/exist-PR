@@ -249,7 +249,13 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
                       onClick={() => void findSlots()}
                       title="참가자 전원의 일정을 보고 모두 비는 시간을 찾아요"
                     >
-                      {slotState === 'loading' ? '찾는 중…' : '✨ 겹치는 시간 찾기'}
+                      {slotState === 'loading' ? (
+                        '찾는 중…'
+                      ) : (
+                        <>
+                          <SparklesIcon size={13} /> 겹치는 시간 찾기
+                        </>
+                      )}
                     </button>
                   ) : slots.length === 0 ? (
                     <span className="hub-recap-slot-empty">다음 7일 평일에 빈 시간을 못 찾았어요</span>

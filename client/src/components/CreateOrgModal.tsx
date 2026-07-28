@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useOrgStore, type Org } from '../orgStore';
+import { CheckMarkIcon, BuildingIcon } from './Icons';
 
 interface Props {
   open: boolean;
@@ -62,7 +63,7 @@ export default function CreateOrgModal({ open, onClose }: Props) {
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         {created ? (
           <>
-            <div className="modal-head">🏢 {created.name} 조직이 만들어졌어요</div>
+            <div className="modal-head"><BuildingIcon size={16} /> {created.name} 조직이 만들어졌어요</div>
             <div className="modal-sub">
               이 가입코드를 팀원에게 공유하세요. 신청이 오면 멤버 관리에서 승인할 수 있어요.
             </div>
@@ -70,7 +71,7 @@ export default function CreateOrgModal({ open, onClose }: Props) {
               {created.joinCode}
             </div>
             <button className="modal-ghost" onClick={copyCode}>
-              {copied ? '✓ 복사됨' : '가입코드 복사하기'}
+              {copied ? <><CheckMarkIcon size={12} /> 복사됨</> : '가입코드 복사하기'}
             </button>
             <div className="modal-actions">
               <button className="modal-primary" onClick={onClose}>

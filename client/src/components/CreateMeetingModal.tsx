@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useOrgStore, type OrgContext } from '../orgStore';
 import { useDisplayName } from '../names';
 import { useAuthStore } from '../store';
-import { CloseIcon, CalendarIcon, CopyIcon, CheckMarkIcon, BuildingIcon } from './Icons';
+import { CloseIcon, CalendarIcon, CopyIcon, CheckMarkIcon, BuildingIcon, UserIcon } from './Icons';
 import Avatar from './Avatar';
 
 interface Person {
@@ -293,7 +293,7 @@ export default function CreateMeetingModal({ open, onClose, onCreated, defaultSc
                     className={`cm-org${orgCtx === 'personal' ? ' on' : ''}`}
                     onClick={() => setOrgCtx('personal')}
                   >
-                    <span className="cm-org-ic personal">👤</span>
+                    <span className="cm-org-ic personal"><UserIcon size={15} /></span>
                     <span className="cm-org-name">개인 그룹</span>
                   </button>
                   {orgs.map((o) => (

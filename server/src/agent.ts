@@ -641,7 +641,147 @@ router.get('/catchup', async (req: AuthedRequest, res) => {
   res.json(await getCatchup(req.userId!, scope));
 });
 
+/** 확인 대기 결정 리스트 — 홈 "확인할 결정" 카드용.
+ *  내 그룹의 결정 원장에서 내가 아직 수신확인(ack) 안 한 것, 최신순 20건 (?org= 스코프) */
+router.get('/pending-decisions', (req: AuthedRequest, res) => {
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  const sc = scopeSql(scope);
+  const rows = db
+    .prepare(
+      `SELECT r.id AS recapId, r.decisions, r.created_at, m.code, m.title FROM meeting_recaps r
+       JOIN meetings m ON m.id = r.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = ?${sc.sql}
+       ORDER BY r.id DESC LIMIT 100`,
+    )
+    .all(req.userId, ...sc.args) as {
+    recapId: number;
+    decisions: string;
+    created_at: string;
+    code: string;
+    title: string;
+  }[];
+  const ackStmt = db.prepare(
+    'SELECT decision_idx FROM decision_acks WHERE recap_id = ? AND user_id = ?',
+  );
+  const items: {
+    recapId: number;
+    idx: number;
+    decision: string;
+    code: string;
+    title: string;
+    ts: number;
+  }[] = [];
+  for (const r of rows) {
+    const acked = new Set(
+      (ackStmt.all(r.recapId, req.userId) as { decision_idx: number }[]).map(
+        (a) => a.decision_idx,
+      ),
+    );
+    const ds = JSON.parse(r.decisions) as string[];
+    for (let i = 0; i < ds.length; i++) {
+      if (acked.has(i)) continue;
+      items.push({
+        recapId: r.recapId,
+        idx: i,
+        decision: ds[i],
+        code: r.code,
+        title: r.title,
+        ts: new Date(r.created_at + 'Z').getTime(),
+      });
+      if (items.length >= 20) break;
+    }
+    if (items.length >= 20) break;
+  }
+  res.json({ items });
+});
+
 /** 개인 대시보드 요약 — 참여 회의·미완료 할 일·다음 일정·라이브 통화 (?org= 스코프) */
+/** 전역 검색(Ctrl+K) — 내가 참가한 그룹 범위에서 채팅·결정·할 일·파일·일정·그룹명을 한 번에.
+ *  "기록이 조직에 남는다"의 회수 경로. LIKE 기반(소규모 팀 충분), 카테고리당 최대 5건 */
+router.get('/search', (req: AuthedRequest, res) => {
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  const q = String(req.query.q ?? '').trim();
+  if (!q) return res.json({ groups: [], messages: [], decisions: [], todos: [], files: [], events: [] });
+  const sc = scopeSql(scope);
+  const like = `%${q.replace(/[%_]/g, (c) => '\\' + c)}%`;
+  const uid = req.userId!;
+
+  const groups = db
+    .prepare(
+      `SELECT m.code, m.title FROM meetings m
+       JOIN meeting_participants mp ON mp.meeting_id = m.id
+       WHERE mp.user_id = ? AND m.title LIKE ? ESCAPE '\\'${sc.sql} LIMIT 5`,
+    )
+    .all(uid, like, ...sc.args) as { code: string; title: string }[];
+
+  const messages = db
+    .prepare(
+      `SELECT msg.text, COALESCE(NULLIF(u.name, ''), u.username) AS sub, m.code, m.title, msg.created_at AS ts
+       FROM messages msg
+       JOIN users u ON u.id = msg.user_id
+       JOIN meetings m ON m.id = msg.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = m.id AND mp.user_id = ?
+       WHERE msg.text LIKE ? ESCAPE '\\'${sc.sql}
+       ORDER BY msg.id DESC LIMIT 5`,
+    )
+    .all(uid, like, ...sc.args) as { text: string; sub: string; code: string; title: string; ts: string }[];
+
+  // 결정 — recap의 decisions JSON에서 매칭 문장만 추출
+  const recapRows = db
+    .prepare(
+      `SELECT r.decisions, m.code, m.title, r.created_at AS ts FROM meeting_recaps r
+       JOIN meetings m ON m.id = r.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = ?
+       WHERE r.decisions LIKE ? ESCAPE '\\'${sc.sql}
+       ORDER BY r.id DESC LIMIT 20`,
+    )
+    .all(uid, like, ...sc.args) as { decisions: string; code: string; title: string; ts: string }[];
+  const decisions: { text: string; code: string; title: string; ts: string }[] = [];
+  const ql = q.toLowerCase();
+  for (const r of recapRows) {
+    for (const d of JSON.parse(r.decisions) as string[]) {
+      if (d.toLowerCase().includes(ql)) decisions.push({ text: d, code: r.code, title: r.title, ts: r.ts });
+      if (decisions.length >= 5) break;
+    }
+    if (decisions.length >= 5) break;
+  }
+
+  const todos = db
+    .prepare(
+      `SELECT t.title AS text, t.done, m.code, m.title FROM todos t
+       LEFT JOIN meetings m ON m.id = t.meeting_id
+       WHERE t.title LIKE ? ESCAPE '\\'
+         AND ((t.meeting_id IS NULL AND t.user_id = ?)
+           OR EXISTS (SELECT 1 FROM meeting_participants mp WHERE mp.meeting_id = t.meeting_id AND mp.user_id = ?))${sc.sql}
+       ORDER BY t.id DESC LIMIT 5`,
+    )
+    .all(like, uid, uid, ...sc.args) as { text: string; done: number; code: string | null; title: string | null }[];
+
+  const files = db
+    .prepare(
+      `SELECT f.name AS text, f.type AS sub, m.code, m.title FROM collab_files f
+       JOIN meetings m ON m.id = f.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = f.meeting_id AND mp.user_id = ?
+       WHERE f.deleted_at IS NULL AND f.name LIKE ? ESCAPE '\\'${sc.sql}
+       ORDER BY f.id DESC LIMIT 5`,
+    )
+    .all(uid, like, ...sc.args) as { text: string; sub: string; code: string; title: string }[];
+
+  const events = db
+    .prepare(
+      `SELECT e.title AS text, e.date AS sub, m.code, m.title FROM meeting_events e
+       JOIN meetings m ON m.id = e.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = e.meeting_id AND mp.user_id = ?
+       WHERE e.title LIKE ? ESCAPE '\\'${sc.sql}
+       ORDER BY e.date DESC LIMIT 5`,
+    )
+    .all(uid, like, ...sc.args) as { text: string; sub: string; code: string; title: string }[];
+
+  res.json({ groups, messages, decisions, todos, files, events });
+});
+
 router.get('/overview', (req: AuthedRequest, res) => {
   const scope = parseScope(req, res);
   if (scope === null) return;
@@ -679,13 +819,22 @@ router.get('/overview', (req: AuthedRequest, res) => {
   // 히어로 뱃지 — 수신확인 대기 결정 (내 그룹의 결정 중 내가 ack 안 한 것)
   const recapRows = db
     .prepare(
-      `SELECT r.decisions FROM meeting_recaps r
+      `SELECT r.decisions, r.created_at FROM meeting_recaps r
        JOIN meetings m ON m.id = r.meeting_id
        JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = ?${sc.sql}`,
     )
-    .all(req.userId, ...sc.args) as { decisions: string }[];
+    .all(req.userId, ...sc.args) as { decisions: string; created_at: string }[];
   const totalDecisions = recapRows.reduce(
     (s, r) => s + (JSON.parse(r.decisions) as string[]).length,
+    0,
+  );
+  // 스탯 카드 — 이번 주(최근 7일) 내 그룹에서 나온 결정 수. "결정을 세는 조직"의 홈 지표
+  const weekAgo = now - 7 * 864e5;
+  const weekDecisions = recapRows.reduce(
+    (s, r) =>
+      new Date(r.created_at + 'Z').getTime() >= weekAgo
+        ? s + (JSON.parse(r.decisions) as string[]).length
+        : s,
     0,
   );
   const myAcks = (
@@ -707,6 +856,7 @@ router.get('/overview', (req: AuthedRequest, res) => {
     todoOverdue: overdue.length,
     unreadTotal: dmUnread + chatUnread,
     pendingAcks: Math.max(0, totalDecisions - myAcks),
+    weekDecisions,
     liveCalls: ctx.meetings
       .filter((m) => m.in_call > 0)
       .map((m) => ({ title: m.title, code: m.code, inCall: m.in_call })),

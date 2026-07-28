@@ -308,10 +308,117 @@ export function UsersIcon({ size }: IconProps) {
   );
 }
 
+export function SearchIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+      <path d="M16.5 16.5L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function MailIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M3 7l9 6 9-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 export function ChevronIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function ChevronUpIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M6 15l6-6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function ChevronLeftIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function ChevronRightIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/** 경고 삼각형 — 인사이트 리스크 등 */
+export function AlertIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M12 4 21 19.6H3L12 4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M12 10v4.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="16.9" r="1.05" fill="currentColor" />
+    </Svg>
+  );
+}
+
+/** 전구 — 추천·제안 */
+export function BulbIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path
+        d="M12 3.2a6 6 0 0 1 3.6 10.8c-.8.6-1.1 1.3-1.1 2H9.5c0-.7-.3-1.4-1.1-2A6 6 0 0 1 12 3.2z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M9.8 19h4.4M10.6 21.4h2.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** 잎 — ESG·친환경 */
+export function LeafIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path
+        d="M19.5 4.5C13 4.5 6.8 6.8 6.8 13.4c0 3.4 2.4 5.9 5.5 5.9 6.2 0 7.2-8.4 7.2-14.8z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M4.5 20.5c2.5-5 6-8.5 10-11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** 단일 사용자 — 개인 워크스페이스 */
+export function UserIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="12" cy="8" r="3.6" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5 20.5a7 7 0 0 1 14 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** 번개 — 빠른 시작 */
+export function BoltIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path
+        d="M13.2 2.8 5.5 13.4h5l-1 7.8 7.9-10.9h-5l.8-7.5z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }

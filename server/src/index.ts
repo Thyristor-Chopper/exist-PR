@@ -8,6 +8,7 @@ import { getUserContext } from './agent.js';
 import { attachYjs } from './ydoc.js';
 import { initNotifier, notifyUser } from './notify.js';
 import { ensureAgentUser } from './steward.js';
+import { runTodoReminders } from './todos.js';
 import { runDecisionReminders } from './recap.js';
 import { createApp } from './app.js';
 
@@ -217,6 +218,22 @@ setInterval(() => {
     }
   }
 }, 60_000);
+
+// 할 일 마감 리마인드 — AI 총무가 임박(내일·오늘)·지남을 알아서 조름. 부팅 직후 1회 + 10분 간격
+setTimeout(() => {
+  try {
+    runTodoReminders();
+  } catch (err) {
+    console.error('[todos] 마감 리마인드 실패:', err);
+  }
+}, 20_000);
+setInterval(() => {
+  try {
+    runTodoReminders();
+  } catch (err) {
+    console.error('[todos] 마감 리마인드 실패:', err);
+  }
+}, 10 * 60_000);
 
 // 미확인자 리마인드 — 원장에 서명이 없는 참가자를 recap당 1회 보챈다 (현장 요구: "미확인자 알림")
 setInterval(() => {

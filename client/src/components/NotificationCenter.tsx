@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { getSocket } from '../lib/socket';
 import { useDisplayName } from '../names';
-import { BellIcon, PhoneIcon, SparklesIcon } from './Icons';
+import { BellIcon, PhoneIcon, SparklesIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
 import MeetingThumb from './MeetingThumb';
 
 interface Notification {
@@ -137,7 +137,7 @@ export default function NotificationCenter() {
             <span>{past ? '지난 알림' : '알림'}</span>
             {past ? (
               <button className="notif-clear" onClick={backToCurrent}>
-                ‹ 최근 알림
+                <ChevronLeftIcon size={13} /> 최근 알림
               </button>
             ) : (
               items.length > 0 && (
@@ -216,7 +216,7 @@ export default function NotificationCenter() {
               </button>
             ) : (
               <button className="notif-foot-btn" onClick={showPast}>
-                지난 알림 보기 ›
+                지난 알림 보기 <ChevronRightIcon size={13} />
               </button>
             )}
           </div>

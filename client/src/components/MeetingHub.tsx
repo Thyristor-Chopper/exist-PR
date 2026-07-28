@@ -15,6 +15,7 @@ import RecapPanel from './RecapPanel';
 import { DmWindow, type DmScope, type Thread } from './DirectMessages';
 import MentionInput, { type MentionCandidate } from './MentionInput';
 import { togglePin, isPinned, PINS_EVENT } from '../lib/pins';
+import { dueBadge } from '../lib/due';
 import { useDisplayName } from '../names';
 import {
   PhoneIcon,
@@ -33,6 +34,9 @@ import {
   BellIcon,
   BellOffIcon,
   AtSignIcon,
+  PenIcon,
+  CloseIcon,
+  ChevronRightIcon,
 } from './Icons';
 
 interface Participant {
@@ -163,6 +167,8 @@ interface MeetingTodo {
   author?: string;
   /** 담당자 username 목록 (회의 할 일 — 여러 명 가능) */
   assignees?: string[];
+  /** 마감일 YYYY-MM-DD — AI 총무가 임박·지남을 리마인드 */
+  due_at?: string | null;
 }
 
 function dday(endDate: string): number | null {
@@ -307,6 +313,19 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     });
   }
 
+  // 통화 참가자 패널의 "1:1 채팅" — 통화 UI엔 참가자 원본이 없어 이름으로 넘어온 걸 여기서 해석
+  useEffect(() => {
+    function onCallDm(e: Event) {
+      const uname = (e as CustomEvent<{ username: string }>).detail?.username;
+      if (!uname) return;
+      const p = detail?.participants.find((x) => x.username === uname);
+      if (p) openDm(p);
+    }
+    window.addEventListener('exist:call-dm', onCallDm);
+    return () => window.removeEventListener('exist:call-dm', onCallDm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail]);
+
   // 모바일 — 서브 화면이 대시보드 위 오버레이로 뜨고, 드래그하면 아래 대시보드가 보인다
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
   useEffect(() => {
@@ -435,6 +454,12 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   const onlineRef = useRef<number>(1); // 통화 인원 — 리사이즈 캡(다 들어가면 그만)용
   const [todos, setTodos] = useState<MeetingTodo[]>([]);
   const [todoInput, setTodoInput] = useState('');
+  // 할 일 마감·제목 인라인 편집
+  const [newDue, setNewDue] = useState('');
+  const [newDueOpen, setNewDueOpen] = useState(false);
+  const [dueEditId, setDueEditId] = useState<number | null>(null);
+  const [editTodoId, setEditTodoId] = useState<number | null>(null);
+  const [editTodoTitle, setEditTodoTitle] = useState('');
   // 담당자 피커 — 열려있는 대상(할 일 id 또는 추가 폼 'new')과 추가 폼의 선택 상태
   const [assignPick, setAssignPick] = useState<number | 'new' | null>(null);
   const [newAssign, setNewAssign] = useState<string[]>([]);
@@ -469,11 +494,29 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     if (!todoInput.trim()) return;
     await api('/api/todos', {
       method: 'POST',
-      body: { title: todoInput, meeting: code, assignees: newAssign },
+      body: { title: todoInput, meeting: code, assignees: newAssign, due_at: newDue || null },
     });
     setTodoInput('');
     setNewAssign([]);
     setAssignPick(null);
+    setNewDue('');
+    setNewDueOpen(false);
+    void reloadTodos();
+  }
+  async function saveDue(t: MeetingTodo, value: string) {
+    await api(`/api/todos/${t.id}`, { method: 'PATCH', body: { due_at: value || null } });
+    setDueEditId(null);
+    void reloadTodos();
+  }
+  async function renameTodo(e: React.FormEvent) {
+    e.preventDefault();
+    const title = editTodoTitle.trim();
+    if (!title || editTodoId == null) {
+      setEditTodoId(null);
+      return;
+    }
+    await api(`/api/todos/${editTodoId}`, { method: 'PATCH', body: { title } });
+    setEditTodoId(null);
     void reloadTodos();
   }
   async function toggleAssignee(t: MeetingTodo, username: string) {
@@ -870,6 +913,8 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     attendees: string[];
     ts: number;
     acks: { username: string; ts: number }[];
+    /** 이 recap에서 파생된 할 일 (실행 추적) */
+    todos?: { title: string; done: number }[];
   }
   interface AgendaItem {
     title: string;
@@ -890,6 +935,31 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }).catch(() => {});
   }
   const [agenda, setAgenda] = useState<AgendaItem[] | null>(null); // null = 로딩 중
+  const [agendaOpen, setAgendaOpen] = useState(false); // 회의 직전에만 가치 — 기본 접힘
+  const [rosterOpen, setRosterOpen] = useState(false); // 참가자 명함 — 기본 접힘(아바타 스택만)
+  const [remindSent, setRemindSent] = useState(false);
+  /** 미확인 팔로업 — 최신 결정 중 미확인자가 있는 첫 항목 (관리자에게만 노출) */
+  const unackedFollowup = (() => {
+    if (!detail) return null;
+    for (const d of recentDecisions) {
+      const ackedNames = new Set(d.acks.map((a) => a.username));
+      const missing = detail.participants.filter((p) => !ackedNames.has(p.username)).length;
+      if (missing > 0) return { d, missing };
+    }
+    return null;
+  })();
+  async function remindDecision(d: LedgerEntry) {
+    try {
+      await api<{ reminded: number }>(`/api/meetings/${code}/decisions/remind`, {
+        method: 'POST',
+        body: { recapId: d.recapId, idx: d.idx },
+      });
+      setRemindSent(true);
+    } catch (err) {
+      // 쿨다운(이미 최근에 보냄)도 사용자에겐 "보냄" 상태가 맞음 — 나머지는 전역 토스트
+      if (String((err as Error)?.message ?? '').includes('이미')) setRemindSent(true);
+    }
+  }
   useEffect(() => {
     let alive = true;
     void api<LedgerEntry[]>(`/api/meetings/${code}/decisions`)
@@ -1163,7 +1233,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             className="hub-preview-more"
                             onClick={() => setSubtab('decisions')}
                           >
-                            전체 보기 ›
+                            전체 보기 <ChevronRightIcon size={12} />
                           </button>
                         )}
                       </div>
@@ -1178,9 +1248,24 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             return (
                               <div key={`${d.recapId}-${i}`} className="hub-decision-row">
                                 <span className="hub-decision-dot" aria-hidden>
-                                  ✓
+                                  <CheckMarkIcon size={12} />
                                 </span>
                                 <Marquee className="hub-decision-text">{d.decision}</Marquee>
+                                {/* 도달·실행 상태 — "도착했음을 증명한다"를 첫 화면 숫자로 */}
+                                <span
+                                  className={`hub-decision-stat${d.acks.length >= detail.participants.length ? ' full' : ''}`}
+                                  title={`확인 ${d.acks.length}/${detail.participants.length}명`}
+                                >
+                                  확인 {d.acks.length}/{detail.participants.length}
+                                </span>
+                                {(d.todos ?? []).length > 0 && (
+                                  <span
+                                    className={`hub-decision-stat${d.todos!.every((t) => t.done) ? ' full' : ''}`}
+                                    title={d.todos!.map((t) => `${t.done ? '✓' : '·'} ${t.title}`).join('\n')}
+                                  >
+                                    실행 {d.todos!.filter((t) => t.done).length}/{d.todos!.length}
+                                  </span>
+                                )}
                                 <span className="hub-decision-when">
                                   {new Date(d.ts).toLocaleDateString('ko-KR', {
                                     month: 'numeric',
@@ -1189,9 +1274,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 </span>
                                 {/* 수신 확인 (회람 사인) */}
                                 {acked ? (
-                                  <span className="hub-decision-ack done">
-                                    ✓ {d.acks.length}
-                                  </span>
+                                  <span className="hub-decision-ack done">확인함 <CheckMarkIcon size={11} /></span>
                                 ) : (
                                   <button
                                     className="hub-decision-ack"
@@ -1206,33 +1289,64 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           })}
                         </div>
                       )}
-                    </section>
-
-                    {/* 다음 회의 아젠다 — 총무가 미결 기록에서 미리 뽑은 안건 초안 */}
-                    <section className="hub-section">
-                      <div className="hub-section-title">
-                        <ListIcon size={15} /> 다음 회의 아젠다
-                        <span className="hub-agenda-badge">AI 제안</span>
-                      </div>
-                      {agenda === null ? (
-                        <div className="hub-section-empty">기록을 보고 안건을 정리하는 중…</div>
-                      ) : agenda.length === 0 ? (
-                        <div className="hub-section-empty">
-                          아직 제안할 안건이 없어요 — 통화·할 일이 쌓이면 여기에 초안이 떠요
-                        </div>
-                      ) : (
-                        <div className="hub-agenda-list">
-                          {agenda.map((a, i) => (
-                            <div key={i} className="hub-agenda-row">
-                              <span className="hub-agenda-num">{i + 1}</span>
-                              <div className="hub-agenda-body">
-                                <Marquee className="hub-agenda-title">{a.title}</Marquee>
-                                {a.why && <span className="hub-agenda-why">{a.why}</span>}
-                              </div>
-                            </div>
-                          ))}
+                      {/* 미확인 팔로업 — 전달의 마지막 1미터. 관리자에게만, AI 총무가 대신 조름 */}
+                      {(detail.isHost || detail.canManage) && unackedFollowup && (
+                        <div className="hub-followup">
+                          <span className="hub-followup-text">
+                            '{unackedFollowup.d.decision.slice(0, 24)}
+                            {unackedFollowup.d.decision.length > 24 ? '…' : ''}' 아직{' '}
+                            <b>{unackedFollowup.missing}명 미확인</b>
+                          </span>
+                          {remindSent ? (
+                            <span className="hub-followup-done">리마인드 보냄 <CheckMarkIcon size={12} /></span>
+                          ) : (
+                            <button
+                              className="hub-followup-btn"
+                              title="미확인자에게 AI 총무가 확인을 요청해요"
+                              onClick={() => void remindDecision(unackedFollowup.d)}
+                            >
+                              리마인드
+                            </button>
+                          )}
                         </div>
                       )}
+                    </section>
+
+                    {/* 다음 회의 아젠다 — 회의 직전에만 가치 있는 정보라 기본 접힘 */}
+                    <section className="hub-section">
+                      <div
+                        className="hub-section-title clickable"
+                        onClick={() => setAgendaOpen((v) => !v)}
+                      >
+                        <ListIcon size={15} /> 다음 회의 아젠다
+                        <span className="hub-agenda-badge">AI 제안</span>
+                        <span className="hub-fold-meta">
+                          {agenda === null ? '정리 중…' : `안건 ${agenda.length}건`}
+                        </span>
+                        <span className={`hub-fold-chev${agendaOpen ? ' open' : ''}`} aria-hidden>
+                          <ChevronIcon size={14} />
+                        </span>
+                      </div>
+                      {agendaOpen &&
+                        (agenda === null ? (
+                          <div className="hub-section-empty">기록을 보고 안건을 정리하는 중…</div>
+                        ) : agenda.length === 0 ? (
+                          <div className="hub-section-empty">
+                            아직 제안할 안건이 없어요 — 통화·할 일이 쌓이면 여기에 초안이 떠요
+                          </div>
+                        ) : (
+                          <div className="hub-agenda-list">
+                            {agenda.map((a, i) => (
+                              <div key={i} className="hub-agenda-row">
+                                <span className="hub-agenda-num">{i + 1}</span>
+                                <div className="hub-agenda-body">
+                                  <Marquee className="hub-agenda-title">{a.title}</Marquee>
+                                  {a.why && <span className="hub-agenda-why">{a.why}</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
                     </section>
 
                 {/* 일정 (메인으로 이동) */}
@@ -1258,30 +1372,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   </div>
 
                   <aside className="hub-dash-side">
-                    {/* 최근 채팅 (사이드로 이동) */}
-                    <section className="hub-section">
-                      <div className="hub-section-title">
-                        <ChatIcon size={15} /> 최근 채팅
-                        {messages.length > 0 && (
-                          <button className="hub-preview-more" onClick={() => setSubtab('chat')}>
-                            더 보기 ›
-                          </button>
-                        )}
-                      </div>
-                      {messages.length > 0 ? (
-                        <div className="hub-preview">
-                          {messages.slice(-3).map((m, i) => (
-                            <div key={i} className="hub-preview-msg">
-                              <b>{dn(m.from)}</b>
-                              <Marquee className="hub-preview-text">{m.text}</Marquee>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="hub-section-empty">아직 대화가 없어요</div>
-                      )}
-                    </section>
-
+                    {/* 최근 채팅 카드 제거 — 채팅 탭이 1클릭인데 자리만 먹음 (7/28 주호·효헌 합의) */}
                     {/* 할 일 (사이드로 이동) */}
                     <section className="hub-section">
                       <div className="hub-section-title">
@@ -1319,8 +1410,67 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 <span className="hub-todo-check" aria-hidden>
                                   <CheckMarkIcon size={16} />
                                 </span>
-                                <Marquee className="hub-todo-text">{t.title}</Marquee>
+                                {editTodoId === t.id ? (
+                                  <form className="hub-todo-rename" onSubmit={renameTodo}>
+                                    <input
+                                      autoFocus
+                                      value={editTodoTitle}
+                                      onChange={(e) => setEditTodoTitle(e.target.value)}
+                                      onClick={(e) => e.preventDefault()}
+                                      onBlur={() => setEditTodoId(null)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Escape') setEditTodoId(null);
+                                      }}
+                                      maxLength={200}
+                                    />
+                                  </form>
+                                ) : (
+                                  <Marquee className="hub-todo-text">{t.title}</Marquee>
+                                )}
                               </label>
+                              {editTodoId !== t.id && (
+                                <span
+                                  className="hub-todo-editbtn"
+                                  title="내용 수정"
+                                  onClick={() => {
+                                    setEditTodoId(t.id);
+                                    setEditTodoTitle(t.title);
+                                  }}
+                                >
+                                  <PenIcon size={11} />
+                                </span>
+                              )}
+                              {dueEditId === t.id ? (
+                                <input
+                                  type="date"
+                                  className="hub-todo-due-input"
+                                  autoFocus
+                                  defaultValue={t.due_at?.slice(0, 10) ?? ''}
+                                  onChange={(e) => void saveDue(t, e.target.value)}
+                                  onBlur={() => setDueEditId(null)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') setDueEditId(null);
+                                  }}
+                                />
+                              ) : t.due_at && dueBadge(t.due_at) ? (
+                                <button
+                                  type="button"
+                                  className={`hub-todo-due ${dueBadge(t.due_at)!.cls}`}
+                                  title="마감일 변경 (지우려면 선택 후 비우기)"
+                                  onClick={() => setDueEditId(t.id)}
+                                >
+                                  {dueBadge(t.due_at)!.label}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="hub-todo-due ghost"
+                                  title="마감일 지정"
+                                  onClick={() => setDueEditId(t.id)}
+                                >
+                                  기한
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className={`hub-todo-assign${(t.assignees ?? []).length ? ' has faces' : ''}`}
@@ -1390,7 +1540,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 onClick={() => void deleteTodo(t)}
                                 title="삭제"
                               >
-                                ×
+                                <CloseIcon size={12} />
                               </button>
                             </div>
                           ))}
@@ -1404,6 +1554,25 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           onChange={(e) => setTodoInput(e.target.value)}
                           placeholder="할 일 추가"
                         />
+                        {newDueOpen ? (
+                          <input
+                            type="date"
+                            className="hub-todo-due-input"
+                            autoFocus
+                            value={newDue}
+                            onChange={(e) => setNewDue(e.target.value)}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className={`hub-todo-due ghost icon${newDue ? ' set' : ''}`}
+                            title={newDue ? `마감 ${newDue}` : '마감일 지정'}
+                            onClick={() => setNewDueOpen(true)}
+                          >
+                            <CalendarIcon size={14} />
+                            {newDue ? dueBadge(newDue)?.label : null}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={`hub-todo-assign${newAssign.length ? ' has' : ''}`}
@@ -1440,12 +1609,35 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                       </form>
                     </section>
 
-                    {/* 참가자 — 조직 회의면 부서별 명함 */}
+                    {/* 참가자 — 기본은 아바타 스택만(조직 그룹은 조직도와 중복), 펼치면 부서별 명함 */}
                     <section className="hub-section">
-                      <div className="hub-section-title">
+                      <div
+                        className="hub-section-title clickable"
+                        onClick={() => setRosterOpen((v) => !v)}
+                      >
                         <UsersIcon size={15} /> 참가자 <b>{detail.participants.length}</b>
                         {detail.orgName && <span className="hub-roster-org">· {detail.orgName}</span>}
+                        {!rosterOpen && (
+                          <span className="hub-roster-stack">
+                            {detail.participants.slice(0, 5).map((p) => (
+                              <Avatar
+                                key={p.username}
+                                value={p.avatar}
+                                className="hub-roster-face"
+                              />
+                            ))}
+                            {detail.participants.length > 5 && (
+                              <span className="hub-assign-more">
+                                +{detail.participants.length - 5}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        <span className={`hub-fold-chev${rosterOpen ? ' open' : ''}`} aria-hidden>
+                          <ChevronIcon size={14} />
+                        </span>
                       </div>
+                      {rosterOpen && (
                       <div className="hub-roster">
                         {groupByDept(detail.participants).map((group) => (
                           <div key={group.dept ?? '__none'} className="hub-dept">
@@ -1496,6 +1688,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           </div>
                         ))}
                       </div>
+                      )}
                     </section>
                   </aside>
                 </div>
@@ -1859,7 +2052,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             setEditChannelName(ch.name);
                           }}
                         >
-                          ✎
+                          <PenIcon size={11} />
                         </span>
                       )}
                       {(detail?.isHost || detail?.canManage) && !ch.isDefault && ch.kind !== 'call' && (
@@ -1871,7 +2064,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             void deleteChannel(ch);
                           }}
                         >
-                          ×
+                          <CloseIcon size={12} />
                         </span>
                       )}
                       <span
@@ -2007,7 +2200,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 className="chat-decision-btn"
                                 onClick={() => void recordSuggestedDecision(m.text)}
                               >
-                                ✓ 원장에 기록
+                                <CheckMarkIcon size={12} /> 원장에 기록
                               </button>
                             )}
                           </div>

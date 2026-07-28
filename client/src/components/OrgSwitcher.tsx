@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrgStore, type OrgContext } from '../orgStore';
-import { BuildingIcon, ChevronIcon, PlusIcon, UsersIcon } from './Icons';
+import { BuildingIcon, ChevronIcon, PlusIcon, UsersIcon, CheckMarkIcon } from './Icons';
 import CreateOrgModal from './CreateOrgModal';
 import JoinOrgModal from './JoinOrgModal';
 
@@ -74,7 +74,7 @@ export default function OrgSwitcher() {
                 <UsersIcon size={15} />
               </span>
               개인
-              {current === 'personal' && <span className="org-check">✓</span>}
+              {current === 'personal' && <span className="org-check"><CheckMarkIcon size={13} /></span>}
             </button>
             {orgs.map((o) => (
               <button
@@ -100,7 +100,7 @@ export default function OrgSwitcher() {
                 >
                   <UsersIcon size={14} />
                 </span>
-                {current === o.id && <span className="org-check">✓</span>}
+                {current === o.id && <span className="org-check"><CheckMarkIcon size={13} /></span>}
               </button>
             ))}
           </div>

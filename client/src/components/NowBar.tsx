@@ -18,10 +18,27 @@ import {
   PhoneIcon,
   GearIcon,
   LogOutIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  SearchIcon,
 } from './Icons';
 import { getSocket } from '../lib/socket';
 import { useOrgStore } from '../orgStore';
+import { dueBadge } from '../lib/due';
 import { useDisplayName } from '../names';
+
+/** 전역 검색 버튼 — Ctrl+K 없는 모바일·태블릿의 진입점 (GlobalSearch가 이벤트 수신) */
+function SearchButton() {
+  return (
+    <button
+      className="nowbar-theme"
+      onClick={() => window.dispatchEvent(new Event('exist:open-search'))}
+      title="전역 검색 (Ctrl+K)"
+    >
+      <SearchIcon size={17} />
+    </button>
+  );
+}
 
 function ThemeToggle() {
   const [dark, setDark] = useState(() =>
@@ -333,11 +350,11 @@ function MonthCalendar({ meetings, now }: { meetings: Meeting[]; now: Date }) {
   return (
     <div className="nb-cal">
       <div className="nb-cal-head">
-        <button onClick={() => setOffset((o) => o - 1)}>‹</button>
+        <button onClick={() => setOffset((o) => o - 1)}><ChevronLeftIcon size={13} /></button>
         <span>
           {year}년 {month + 1}월
         </span>
-        <button onClick={() => setOffset((o) => o + 1)}>›</button>
+        <button onClick={() => setOffset((o) => o + 1)}><ChevronRightIcon size={13} /></button>
       </div>
       <div className="nb-cal-grid">
         {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
@@ -752,6 +769,7 @@ function NowBar({
         </div>
         {shadeOpen && <button className="nb-shade-scrim" onClick={() => setShadeOpen(false)} />}
         <NowClock now={now} />
+        <SearchButton />
         <ThemeToggle />
         <NotificationCenter />
         <ProfileMenu avatar={avatar} onOpenSettings={() => setSettingsOpen(true)} />
@@ -816,6 +834,11 @@ function NowBar({
                   <CheckMarkIcon size={14} />
                 </span>
                 <Marquee className="nowbar-todo-text">{todo.title}</Marquee>
+                {todo.due_at && dueBadge(todo.due_at) && (
+                  <span className={`nb-todo-due ${dueBadge(todo.due_at)!.cls}`}>
+                    {dueBadge(todo.due_at)!.label}
+                  </span>
+                )}
                 <TodoAssignees profiles={todo.assigneeProfiles} />
               </div>
             ))}
@@ -995,6 +1018,11 @@ function NowBar({
                       <CheckMarkIcon size={14} />
                     </span>
                     <Marquee className="nowbar-todo-text">{todo.title}</Marquee>
+                    {todo.due_at && dueBadge(todo.due_at) && (
+                      <span className={`nb-todo-due ${dueBadge(todo.due_at)!.cls}`}>
+                        {dueBadge(todo.due_at)!.label}
+                      </span>
+                    )}
                     <TodoAssignees profiles={todo.assigneeProfiles} />
                   </label>
                 ))}
@@ -1097,6 +1125,7 @@ function NowBar({
 
       <NowClock now={now} />
 
+      <SearchButton />
       <ThemeToggle />
       <NotificationCenter />
       <ProfileMenu avatar={avatar} onOpenSettings={() => setSettingsOpen(true)} />

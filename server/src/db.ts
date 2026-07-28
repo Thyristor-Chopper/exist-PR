@@ -357,6 +357,28 @@ if (!db.prepare("SELECT 1 FROM meta WHERE key = 'todo_assignees_v1'").get()) {
   db.prepare("INSERT INTO meta (key, value) VALUES ('todo_assignees_v1', '1')").run();
 }
 
+// 마이그레이션: 할 일 출처 recap — 결정 원장에서 "이 결정이 실행됐나" 역추적용.
+// better-sqlite3는 FK 강제가 기본 ON — SET NULL 없으면 recap 삭제(그룹 삭제)가 막힘
+try {
+  db.exec(
+    `ALTER TABLE todos ADD COLUMN recap_id INTEGER REFERENCES meeting_recaps(id) ON DELETE SET NULL`,
+  );
+} catch {
+  /* 이미 존재 */
+}
+
+// 마이그레이션: 할 일 마감 리마인드 발송 플래그 (임박·지남 각 1회 — 재발송 방지)
+try {
+  db.exec(`ALTER TABLE todos ADD COLUMN reminded_soon INTEGER NOT NULL DEFAULT 0`);
+} catch {
+  /* 이미 존재 */
+}
+try {
+  db.exec(`ALTER TABLE todos ADD COLUMN reminded_overdue INTEGER NOT NULL DEFAULT 0`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 마이그레이션: 회의 일정 이벤트 종료 시간 (통화 시작~종료 블록) — null이면 종료 시간 없음
 try {
   db.exec(`ALTER TABLE meeting_events ADD COLUMN end_time TEXT`);

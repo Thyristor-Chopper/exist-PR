@@ -341,8 +341,8 @@ export async function runRecapForMeeting(
     const uid = byName.get(a.assignee);
     if (!uid) continue;
     const todoInfo = db
-      .prepare('INSERT INTO todos (user_id, meeting_id, title) VALUES (?, ?, ?)')
-      .run(uid, meeting.id, a.title.slice(0, 200));
+      .prepare('INSERT INTO todos (user_id, meeting_id, title, recap_id) VALUES (?, ?, ?, ?)')
+      .run(uid, meeting.id, a.title.slice(0, 200), recapId);
     db.prepare('INSERT OR IGNORE INTO todo_assignees (todo_id, user_id) VALUES (?, ?)').run(
       todoInfo.lastInsertRowid,
       uid,
@@ -389,6 +389,8 @@ export interface LedgerEntry {
   ts: number;
   /** 수신 확인한 사람들 (회람 사인) — note = 현장 피드백 한 줄(선택) */
   acks: { username: string; ts: number; note: string | null }[];
+  /** 이 recap에서 파생된 할 일 — 결정이 실행됐는지 추적 (P1 체인의 실행 단계) */
+  todos: { title: string; done: number }[];
 }
 
 /** 결정 원장 — 이 그룹의 모든 recap 결정을 시간순(최신 먼저)으로 편다.
@@ -404,6 +406,7 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
     `SELECT a.decision_idx, u.username, a.created_at, a.note FROM decision_acks a
      JOIN users u ON u.id = a.user_id WHERE a.recap_id = ? ORDER BY a.id`,
   );
+  const todoStmt = db.prepare('SELECT title, done FROM todos WHERE recap_id = ? ORDER BY id');
   const out: LedgerEntry[] = [];
   for (const r of rows) {
     const ts = new Date(r.created_at + 'Z').getTime();
@@ -415,6 +418,7 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
       note: string | null;
     }[];
     const decisions = JSON.parse(r.decisions) as string[];
+    const recapTodos = todoStmt.all(r.id) as { title: string; done: number }[];
     const whys = parseWhys(r.whys, decisions.length);
     for (let idx = 0; idx < decisions.length; idx++) {
       out.push({
@@ -431,6 +435,7 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
             ts: new Date(a.created_at + 'Z').getTime(),
             note: a.note ?? null,
           })),
+        todos: recapTodos,
       });
       if (out.length >= limit) return out;
     }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Device } from 'mediasoup-client';
 import type { Transport, Producer } from 'mediasoup-client/types';
 import { getSocket, request } from '../lib/socket';
@@ -8,7 +8,7 @@ import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon, GearIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, CheckMarkIcon, GearIcon, PinIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -114,6 +114,25 @@ function VideoTile({
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const showVideo = !!track && !paused;
+  // 화면공유 실비율 — 타일을 콘텐츠 비율에 맞춰 레터박스 없이 (창 리사이즈도 추적)
+  const [mediaRatio, setMediaRatio] = useState<number | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !isScreen || !showVideo) {
+      setMediaRatio(null);
+      return;
+    }
+    const upd = () => {
+      if (el.videoWidth && el.videoHeight) setMediaRatio(el.videoWidth / el.videoHeight);
+    };
+    el.addEventListener('loadedmetadata', upd);
+    el.addEventListener('resize', upd);
+    upd();
+    return () => {
+      el.removeEventListener('loadedmetadata', upd);
+      el.removeEventListener('resize', upd);
+    };
+  }, [track, isScreen, showVideo]);
   // RTP가 끊기면 브라우저는 트랙을 mute시키고 <video>는 마지막 프레임에 얼어붙는다
   // — 얼어 보이는 대신 수신 대기 상태를 표시 (원격 트랙만)
   const [stalled, setStalled] = useState(false);
@@ -148,6 +167,7 @@ function VideoTile({
   return (
     <div
       className={`video-tile${isScreen ? ' screen' : ''}${speaking && !isScreen ? ' speaking' : ''}${onPress ? ' pressable' : ''}`}
+      style={isScreen && mediaRatio ? { aspectRatio: `${mediaRatio}` } : undefined}
       onClick={onPress}
     >
       {showVideo ? (
@@ -173,13 +193,16 @@ function VideoTile({
         </>
       ) : (
         <div className="video-placeholder">
-          {/* 프로필 아바타 그대로 — 앱 다른 곳과 같은 모습 (없으면 Avatar 기본 이모지) */}
+          {/* 프로필 아바타만 — "카메라 꺼짐" 텍스트는 이름표 아이콘과 중복이라 뺌 (3사 관례) */}
           <Avatar value={avatar} className="video-avatar" />
-          <span className="cam-off-label">카메라 꺼짐</span>
         </div>
       )}
       <span className="video-name">
-        {isScreen && '🖥️ '}
+        {isScreen && (
+          <span className="tile-screen-ic" title="화면 공유" aria-hidden>
+            <ScreenIcon size={11} />
+          </span>
+        )}
         {username}
         {isLocal && ' (나)'}
         {micMuted && !isScreen && (
@@ -195,6 +218,12 @@ function VideoTile({
           </span>
         )}
       </span>
+      {/* 핀 힌트 — 마우스 hover에서만 (클릭=확대 가능함을 알림) */}
+      {onPress && !isScreen && (
+        <span className="tile-pin-hint" aria-hidden>
+          <PinIcon size={13} />
+        </span>
+      )}
       {onKick && (
         <button
           className="kick-btn"
@@ -272,7 +301,8 @@ export default function MeetingView({
   const [cams, setCams] = useState<MediaDeviceInfo[]>([]);
   const [micId, setMicId] = useState(() => localStorage.getItem('exist:mic-device') ?? '');
   const [camId, setCamId] = useState(() => localStorage.getItem('exist:cam-device') ?? '');
-  const [devMenu, setDevMenu] = useState<'mic' | 'cam' | 'opts' | null>(null); // 장치 선택 메뉴 + 통화 설정(opts)
+  const [devMenu, setDevMenu] = useState<'mic' | 'cam' | 'opts' | 'people' | null>(null); // 장치 선택 + 통화 설정 + 참가자 패널
+  const [pplQ, setPplQ] = useState(''); // 참가자 패널 검색 (인원 많을 때)
   useEffect(() => {
     devMenuOpenRef.current = devMenu != null;
   }, [devMenu]);
@@ -320,6 +350,67 @@ export default function MeetingView({
   };
   // 탭 핀 — 타일을 누르면 그 사람을 무대에 크게 (화면공유 중엔 비활성)
   const [pinned, setPinned] = useState<string | null>(null);
+  // ── 페이지네이션(줌 방식) — 1000명이어도 화면엔 한 페이지만 렌더, 오디오는 전원 유지 ──
+  const [vw, setVw] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const [page, setPage] = useState(0);
+
+  // ── 계산 배치(768px+) — 3사 방식: 인원·컨테이너 크기로 타일 폭을 계산해 잘림 없이 배치 ──
+  const [gridSize, setGridSize] = useState({ w: 0, h: 0 });
+  const gridRoRef = useRef<ResizeObserver | null>(null);
+  // 콜백 ref — 페이지 전환 애니메이션이 key 리마운트를 쓰므로 새 노드마다 observer 재부착
+  const gridRefCb = useCallback((el: HTMLDivElement | null) => {
+    gridRoRef.current?.disconnect();
+    gridRoRef.current = null;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      setGridSize((prev) =>
+        Math.abs(prev.w - r.width) > 2 || Math.abs(prev.h - r.height) > 2
+          ? { w: r.width, h: r.height }
+          : prev,
+      );
+    });
+    ro.observe(el);
+    gridRoRef.current = ro;
+  }, []);
+  // 페이지 전환 방향 — 리마운트 시 이 방향으로 슬라이드 인
+  const [slideDir, setSlideDir] = useState<'next' | 'prev'>('next');
+
+  /** 미트식 동적 페이지 상한 — 가용 크기에 "최소 타일(160×120)"이 몇 개 들어가는가. 안전핀 49 */
+  const MIN_TILE_W = 160;
+  const MIN_TILE_H = 120;
+  const pageCap = gridSize.w
+    ? Math.max(
+        2,
+        Math.min(
+          49,
+          Math.max(1, Math.floor(gridSize.w / MIN_TILE_W)) *
+            Math.max(1, Math.floor(gridSize.h / MIN_TILE_H)),
+        ),
+      )
+    : 12;
+
+  /** 미트식 채움형 배치 — n명을 꽉 채울 때 타일 비율이 16:9에 가장 가까워지는 열×행 */
+  function computeGridShape(W: number, H: number, n: number): { cols: number; rows: number } {
+    if (!W || !H || n <= 1) return { cols: 1, rows: 1 };
+    let best = { cols: 1, rows: n };
+    let bestScore = Infinity;
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const ratio = W / cols / (H / rows);
+      const score = Math.abs(Math.log(ratio / (16 / 9)));
+      if (score < bestScore) {
+        bestScore = score;
+        best = { cols, rows };
+      }
+    }
+    return best;
+  }
   // 발화자 자동 무대 — 최근 원격 발화자를 자동 핀 (수동 핀하면 꺼짐, 줌 스피커 뷰)
   const [autoStage, setAutoStage] = useState(false);
   const [lastRemoteSpeaker, setLastRemoteSpeaker] = useState<string | null>(null);
@@ -330,10 +421,17 @@ export default function MeetingView({
   const devMenuOpenRef = useRef(false); // 메뉴 열림 중엔 자동 숨김 보류
   const ctlJustShown = useRef(false); // 터치로 방금 표시됨 — 이어지는 click이 도로 숨기지 않게
   const areaTouchY = useRef<number | null>(null); // 아래 스와이프 = 툴바 숨김 감지용
+  const areaTouchX = useRef<number | null>(null); // 좌우 스와이프 = 페이지 넘김 (모바일)
+  // 컨트롤 항상 표시(자동 숨김 끔) — ⚙ 설정, 기기별 저장
+  const [ctlAlways, setCtlAlways] = useState(() => localStorage.getItem('call:ctlAlways') === '1');
+  const ctlAlwaysRef = useRef(ctlAlways);
+  ctlAlwaysRef.current = ctlAlways;
+  /** 자동 숨김 대상인가 — 모바일 전부 + 데스크톱은 전체화면일 때만. "항상 표시" 설정이 우선 */
+  const shouldAutoHide = () => !ctlAlwaysRef.current && (isMobileView() || !!expanded);
   const bumpControls = () => {
     setCtlHidden(false);
     if (ctlTimer.current) clearTimeout(ctlTimer.current);
-    if (isMobileView())
+    if (shouldAutoHide())
       ctlTimer.current = setTimeout(function hide() {
         if (devMenuOpenRef.current) {
           ctlTimer.current = setTimeout(hide, 2000);
@@ -342,6 +440,7 @@ export default function MeetingView({
         setCtlHidden(true);
       }, 4000);
   };
+  const lastMouseBump = useRef(0);
 
   const producersRef = useRef<{
     audio?: Producer;
@@ -748,6 +847,18 @@ export default function MeetingView({
       socket.on('room:kicked', () => {
         onLeaveRef.current('호스트가 회의에서 내보냈습니다');
       });
+      // 호스트 전체 음소거 — 내 마이크를 끄기만 함 (다시 켜는 건 자유, 3사 문법)
+      socket.on('room:muted-by-host', ({ by }: { by: string }) => {
+        const p = producersRef.current.audio;
+        if (p && !p.paused) {
+          p.pause();
+          void request(socket, 'producer:pause', { producerId: p.id }).catch(() => {});
+        }
+        setMicOn(false);
+        window.dispatchEvent(
+          new CustomEvent('app:error', { detail: `호스트가 전체 음소거를 실행했어요 (${by})` }),
+        );
+      });
 
       setStatus('');
     }
@@ -773,6 +884,7 @@ export default function MeetingView({
       speakingTimers.current.clear();
       socket.off('room:locked');
       socket.off('room:kicked');
+      socket.off('room:muted-by-host');
       sendTransportRef.current?.close();
       recvTransport?.close();
       localStream?.getTracks().forEach((t) => t.stop());
@@ -1063,6 +1175,47 @@ export default function MeetingView({
     ];
   const hasScreen = screens.length > 0;
 
+  // 페이지 슬라이스 — 0페이지 = 나 + (cap-1)명, 이후 페이지 = cap명씩
+  const totalPages = Math.max(1, Math.ceil((peers.length + 1) / pageCap));
+  const pageNow = Math.min(page, totalPages - 1);
+  const pagedPeers =
+    pageNow === 0
+      ? peers.slice(0, pageCap - 1)
+      : peers.slice(pageCap - 1 + (pageNow - 1) * pageCap, pageCap - 1 + pageNow * pageCap);
+  const visibleCount = (pageNow === 0 ? 1 : 0) + pagedPeers.length;
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(totalPages - 1);
+  }, [page, totalPages]);
+
+  // 필름스트립(핀·공유 무대) 페이지 — 스트립 폭에 들어가는 만큼씩 넘겨서 전원 확인 가능.
+  // 핀 대상은 무대에 이미 크게 있으니 스트립에서 제외 (내가 핀이면 내 타일도 빠짐 — 3사 문법)
+  const stripSelfShown = !pinned || pinned !== (user?.username ?? '');
+  const stripPool = pinned ? peers.filter((p) => p.username !== pinned) : peers;
+  const stripTileW = vw < 768 ? 160 : 220;
+  const stripCap = Math.max(2, Math.floor((gridSize.w - 90) / (stripTileW + 10)));
+  const stripTotal = Math.max(
+    1,
+    Math.ceil((stripPool.length + (stripSelfShown ? 1 : 0)) / stripCap),
+  );
+  const [stripPage, setStripPage] = useState(0);
+  const stripNow = Math.min(stripPage, stripTotal - 1);
+  const stripOff = stripSelfShown ? 1 : 0;
+  const stripPeers =
+    stripNow === 0
+      ? stripPool.slice(0, stripCap - stripOff)
+      : stripPool.slice(
+          stripCap - stripOff + (stripNow - 1) * stripCap,
+          stripCap - stripOff + stripNow * stripCap,
+        );
+  useEffect(() => {
+    if (stripPage > stripTotal - 1) setStripPage(stripTotal - 1);
+  }, [stripPage, stripTotal]);
+  // 스트립 접기 — 무대에만 집중. 무대 모드를 벗어나면 원복
+  const [stripHidden, setStripHidden] = useState(false);
+  useEffect(() => {
+    if (!hasScreen && !pinned) setStripHidden(false);
+  }, [hasScreen, pinned]);
+
   // 핀 정리 — 화면공유가 시작되면 해제, 핀한 사람이 나가도 해제
   useEffect(() => {
     if (hasScreen) setPinned(null);
@@ -1083,83 +1236,55 @@ export default function MeetingView({
     if (peers.some((p) => p.username === lastRemoteSpeaker)) setPinned(lastRemoteSpeaker);
   }, [autoStage, lastRemoteSpeaker, hasScreen, peers]);
 
-  // OS 화면 속 화면(Video PiP) — 비디오 1개 제약이라 공유 화면 > 핀 > 최근 발화자 > 첫 원격 캠 > 내 캠 순으로 선정
-  const pipTrack = useMemo<MediaStreamTrack | null>(() => {
-    const me = user?.username ?? '';
-    const cands: (MediaStreamTrack | null | undefined)[] = [
-      screens[0]?.track,
-      pinned === me
-        ? camOn
-          ? localTrack
-          : null
-        : peers.find((p) => p.username === pinned && !p.videoPaused)?.videoTrack,
-      peers.find((p) => p.username === lastRemoteSpeaker && !p.videoPaused)?.videoTrack,
-      peers.find((p) => p.videoTrack && !p.videoPaused)?.videoTrack,
-      camOn ? localTrack : null,
-    ];
-    return cands.find(Boolean) ?? null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screens.length, pinned, lastRemoteSpeaker, peers, localTrack, camOn, user]);
-  const pipVideoRef = useRef<HTMLVideoElement>(null);
-  const [pipOn, setPipOn] = useState(false);
-  const pipSupported =
-    typeof document !== 'undefined' &&
-    (document.pictureInPictureEnabled ||
-      'webkitSetPresentationMode' in HTMLVideoElement.prototype);
 
-  // PiP 중 대상이 바뀌면(발화자 전환 등) 창 유지한 채 스트림 교체
-  useEffect(() => {
-    const el = pipVideoRef.current;
-    if (!el || !pipOn || !pipTrack) return;
-    el.srcObject = new MediaStream([pipTrack]);
-    void el.play().catch(() => {});
-  }, [pipTrack, pipOn]);
-
-  useEffect(() => {
-    const el = pipVideoRef.current;
-    if (!el) return;
-    const onLeave = () => setPipOn(false);
-    const onEnter = () => setPipOn(true); // 어떤 경로로 들어와도 상태 동기화
-    el.addEventListener('leavepictureinpicture', onLeave);
-    el.addEventListener('enterpictureinpicture', onEnter);
-    return () => {
-      el.removeEventListener('leavepictureinpicture', onLeave);
-      el.removeEventListener('enterpictureinpicture', onEnter);
-      if (document.pictureInPictureElement === el) void document.exitPictureInPicture().catch(() => {});
-    };
-  }, []);
-
-  async function togglePip() {
-    const el = pipVideoRef.current;
-    if (!el) return;
-    try {
-      if (document.pictureInPictureElement === el) {
-        await document.exitPictureInPicture();
-        return; // leave 이벤트가 상태 정리
-      }
-      if (!pipTrack) return;
-      el.srcObject = new MediaStream([pipTrack]);
-      await el.play().catch(() => {});
-      if (el.requestPictureInPicture) {
-        await el.requestPictureInPicture();
-      } else {
-        (
-          el as HTMLVideoElement & { webkitSetPresentationMode?: (m: string) => void }
-        ).webkitSetPresentationMode?.('picture-in-picture');
-      }
-      setPipOn(true);
-    } catch {
-      /* 미지원·사용자 거부 — 조용히 */
-    }
-  }
-
-  // 입장하면 컨트롤 자동 숨김 타이머 시작
+  // 입장·전체화면 전환 시 컨트롤 자동 숨김 타이머 (재)시작
   useEffect(() => {
     if (phase !== 'preview') bumpControls();
     return () => {
       if (ctlTimer.current) clearTimeout(ctlTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, expanded]);
+
+  // 통화 경과 시간 — 내 입장 시점 기준 (헤더 표시)
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (phase === 'preview') return;
+    const t0 = Date.now();
+    setElapsed(0);
+    const iv = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [phase]);
+  const fmtElapsed = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+      : `${m}:${String(sec).padStart(2, '0')}`;
+  };
+
+  // 안드로이드 셸(Capacitor): 통화 중이면 홈 이동 시 화면째 OS PiP — 네이티브에 상태 전달
+  useEffect(() => {
+    const pip = (
+      window as unknown as {
+        Capacitor?: { Plugins?: { CallPip?: { setCallActive: (o: { active: boolean }) => void } } };
+      }
+    ).Capacitor?.Plugins?.CallPip;
+    if (!pip) return; // 일반 브라우저 — 해당 없음
+    const active = phase !== 'preview';
+    try {
+      pip.setCallActive({ active });
+    } catch {
+      /* 브릿지 오류 무시 */
+    }
+    return () => {
+      try {
+        pip.setCallActive({ active: false });
+      } catch {
+        /* ignore */
+      }
+    };
   }, [phase]);
 
   // 입장 전 디바이스 프리뷰 게이트 (카메라/마이크 미리 확인 후 입장)
@@ -1238,13 +1363,13 @@ export default function MeetingView({
               marginBottom: 18,
             }}
           >
-            {/* 라운드 클리핑은 비디오만 — 알약·장치 메뉴는 바깥이라 위로 열려도 안 잘림 */}
+            {/* 라운드 클리핑은 비디오만 — 알약·장치 메뉴는 바깥이라 위로 열려도 안 잘림.
+                radius는 안의 .video-tile(14px)과 일치 + 배경 투명 — 어긋나면 모서리에 검은 테 비침 */}
             <div
               style={{
                 position: 'absolute',
                 inset: 0,
-                background: '#111',
-                borderRadius: 12,
+                borderRadius: 14,
                 overflow: 'hidden',
               }}
             >
@@ -1314,32 +1439,131 @@ export default function MeetingView({
   }
 
   return (
-    <div className={`meeting-room${embedded ? ' embedded' : ''}${ctlHidden ? ' ctl-hidden' : ''}`}>
+    <div
+      className={`meeting-room${embedded ? ' embedded' : ''}${ctlHidden ? ' ctl-hidden' : ''}`}
+      onMouseMove={() => {
+        // 데스크톱 전체화면: 마우스가 움직이면 표시, 4초 idle이면 숨김 (3사 문법)
+        const n = Date.now();
+        if (n - lastMouseBump.current < 400) return;
+        lastMouseBump.current = n;
+        if (shouldAutoHide()) bumpControls();
+      }}
+    >
       <header className="meeting-header">
         {!embedded && <Logo />}
         <div className="meeting-info">
           <span className="meeting-title">{title || '회의'}</span>
           <span className="meeting-code">
             코드 <b>{code}</b> ·{' '}
-            <span className="mv-peers-hover">
-              참가자 {peers.length + 1}명
-              {/* hover 시 참여 중 유저 프로필 리스트 — 담당자·접속자 팝업과 동일 톤, 헤더라 아래로 */}
-              <span className="hub-assign-tip down" aria-hidden>
-                <span className="hub-assign-tip-row">
-                  <Avatar
-                    value={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
-                    className="hub-assign-avatar"
+            <span className="ppl-wrap">
+              {/* 클릭 = 참가자 패널 — 명단·마이크 상태·1:1 채팅·강퇴 (100명 페이지네이션에서 명단 확인 경로) */}
+              <button
+                className="mv-peers-btn"
+                onClick={() => {
+                  setPplQ('');
+                  setDevMenu((v) => (v === 'people' ? null : 'people'));
+                }}
+                title="참가자 목록 열기"
+              >
+                참가자 {peers.length + 1}명
+              </button>
+              {devMenu === 'people' && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 39 }}
+                    onClick={() => setDevMenu(null)}
                   />
-                  <span>{dn(user?.username ?? '나')} (나)</span>
-                </span>
-                {peers.map((p) => (
-                  <span key={p.peerId} className="hub-assign-tip-row">
-                    <Avatar value={peerAvatars?.[p.username] ?? null} className="hub-assign-avatar" />
-                    <span>{dn(p.username)}</span>
-                  </span>
-                ))}
-              </span>
+                  <div className="dev-menu ppl-menu">
+                    <div className="dev-menu-title">참가자 {peers.length + 1}명</div>
+                    {peers.length >= 8 && (
+                      <input
+                        className="ppl-search"
+                        value={pplQ}
+                        onChange={(e) => setPplQ(e.target.value)}
+                        placeholder="이름 검색"
+                        autoFocus
+                      />
+                    )}
+                    <div className="ppl-list">
+                      <div className="ppl-row">
+                        <Avatar
+                          value={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
+                          className="hub-assign-avatar"
+                        />
+                        <span className="ppl-name">{dn(user?.username ?? '나')} (나)</span>
+                        <span
+                          className={`ppl-mic${micOn ? '' : ' off'}`}
+                          title={micOn ? '마이크 켜짐' : '마이크 꺼짐'}
+                        >
+                          <MicIcon size={13} />
+                          {!micOn && <SlashIcon size={13} />}
+                        </span>
+                      </div>
+                      {peers
+                        .filter((p) => {
+                          const t = pplQ.trim().toLowerCase();
+                          if (!t) return true;
+                          return (
+                            dn(p.username).toLowerCase().includes(t) ||
+                            p.username.toLowerCase().includes(t)
+                          );
+                        })
+                        .map((p) => (
+                          <div key={p.peerId} className="ppl-row">
+                            <Avatar
+                              value={peerAvatars?.[p.username] ?? null}
+                              className="hub-assign-avatar"
+                            />
+                            <span className="ppl-name">{dn(p.username)}</span>
+                            <span
+                              className={`ppl-mic${p.audioMuted ? ' off' : ''}`}
+                              title={p.audioMuted ? '마이크 꺼짐' : '마이크 켜짐'}
+                            >
+                              <MicIcon size={13} />
+                              {p.audioMuted && <SlashIcon size={13} />}
+                            </span>
+                            <button
+                              className="ppl-act"
+                              title="1:1 채팅"
+                              onClick={() => {
+                                setDevMenu(null);
+                                window.dispatchEvent(
+                                  new CustomEvent('exist:call-dm', {
+                                    detail: { username: p.username },
+                                  }),
+                                );
+                              }}
+                            >
+                              <ChatIcon size={13} />
+                            </button>
+                            {isHost && (
+                              <button
+                                className="ppl-act danger"
+                                title="내보내기"
+                                onClick={() =>
+                                  void request(getSocket(), 'room:kick', { peerId: p.peerId })
+                                }
+                              >
+                                <CloseIcon size={12} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </span>
+            {' · '}
+            <span className="meeting-elapsed" title="통화 경과 시간">
+              {fmtElapsed(elapsed)}
+            </span>
+            {!hasScreen && !pinned && totalPages > 1 && (
+              <span className="page-ind-inline" title="페이지 — 좌우로 쓸어 넘기세요">
+                {' · '}
+                {pageNow + 1}/{totalPages}쪽
+              </span>
+            )}
             {locked && (
               <span className="meeting-locked">
                 · <LockIcon size={12} /> 잠김
@@ -1391,18 +1615,28 @@ export default function MeetingView({
                     <i />
                   </span>
                 </button>
-                {pipSupported && (
-                  <button
-                    className="dev-menu-item"
-                    onClick={() => void togglePip()}
-                    title="통화 화면을 OS 플로팅 창으로 — 다른 앱을 보면서 통화"
-                  >
-                    <span className="dev-menu-label">화면 속 화면 (PiP)</span>
-                    <span className={`msched-sw${pipOn ? ' on' : ''}`}>
-                      <i />
-                    </span>
-                  </button>
-                )}
+                <button
+                  className="dev-menu-item"
+                  onClick={() => {
+                    setCtlAlways((v) => {
+                      const next = !v;
+                      localStorage.setItem('call:ctlAlways', next ? '1' : '0');
+                      if (next) {
+                        if (ctlTimer.current) clearTimeout(ctlTimer.current);
+                        setCtlHidden(false);
+                      } else {
+                        bumpControls(); // 다시 자동 숨김 모드 — 타이머 재시작
+                      }
+                      return next;
+                    });
+                  }}
+                  title="켜면 컨트롤 바가 자동으로 숨지 않아요"
+                >
+                  <span className="dev-menu-label">컨트롤 항상 표시</span>
+                  <span className={`msched-sw${ctlAlways ? ' on' : ''}`}>
+                    <i />
+                  </span>
+                </button>
                 {isHost && (
                   <button
                     className="dev-menu-item"
@@ -1416,6 +1650,28 @@ export default function MeetingView({
                     </span>
                     <span className={`msched-sw${locked ? ' on' : ''}`}>
                       <i />
+                    </span>
+                  </button>
+                )}
+                {isHost && peers.length > 0 && (
+                  <button
+                    className="dev-menu-item"
+                    onClick={() => {
+                      setDevMenu(null);
+                      void request(getSocket(), 'room:mute-all', {})
+                        .then(() =>
+                          window.dispatchEvent(
+                            new CustomEvent('app:error', {
+                              detail: '전체 음소거를 실행했어요 — 참가자는 다시 켤 수 있어요',
+                            }),
+                          ),
+                        )
+                        .catch(() => {});
+                    }}
+                    title="나를 제외한 전원의 마이크를 꺼요 (참가자는 다시 켤 수 있음)"
+                  >
+                    <span className="dev-menu-label">
+                      <MicIcon size={12} /> 전체 음소거
                     </span>
                   </button>
                 )}
@@ -1438,19 +1694,12 @@ export default function MeetingView({
         </div>
       </header>
 
-      {/* OS PiP용 숨김 비디오 — display:none이면 일부 브라우저가 PiP를 거부해 1px 오프스크린 */}
-      <video
-        ref={pipVideoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-      />
       <div className="meeting-body">
         <div
           className={`video-area${hasScreen || pinned ? ' with-screen' : ''}`}
           onTouchStart={(e) => {
             areaTouchY.current = e.touches[0].clientY;
+            areaTouchX.current = e.touches[0].clientX;
             // 숨김 상태에선 어떤 터치(탭·스와이프·스크롤)든 일단 컨트롤 표시
             if (ctlHidden) {
               bumpControls();
@@ -1464,9 +1713,29 @@ export default function MeetingView({
           onTouchMove={(e) => {
             // 스와이프가 스크롤로 전환되면 touchend가 안 오는 기기(iOS)가 있어 move에서 즉시 판정
             const y0 = areaTouchY.current;
-            if (y0 == null || ctlJustShown.current || ctlHidden || !isMobileView()) return;
+            const x0 = areaTouchX.current;
+            if (y0 == null || x0 == null || !isMobileView()) return;
             const dy = e.touches[0].clientY - y0;
-            if (dy > 60) {
+            const dx = e.touches[0].clientX - x0;
+            // 좌우 스와이프 = 페이지 넘김 (모바일은 화살표 대신 — 타일 위 오버레이 겹침 방지)
+            if (
+              !hasScreen &&
+              !pinned &&
+              totalPages > 1 &&
+              Math.abs(dx) > 70 &&
+              Math.abs(dx) > Math.abs(dy) * 1.5
+            ) {
+              areaTouchX.current = null; // 제스처당 1회
+              areaTouchY.current = null;
+              setSlideDir(dx < 0 ? 'next' : 'prev');
+              setPage((v) =>
+                dx < 0 ? Math.min(totalPages - 1, v + 1) : Math.max(0, v - 1),
+              );
+              return;
+            }
+            // 아래 스와이프 = 툴바 숨김 (세로 우세 제스처만)
+            if (ctlJustShown.current || ctlHidden) return;
+            if (dy > 60 && Math.abs(dy) > Math.abs(dx)) {
               areaTouchY.current = null; // 제스처당 1회
               if (ctlTimer.current) clearTimeout(ctlTimer.current);
               setCtlHidden(true);
@@ -1474,9 +1743,11 @@ export default function MeetingView({
           }}
           onTouchEnd={() => {
             areaTouchY.current = null;
+            areaTouchX.current = null;
           }}
           onTouchCancel={() => {
             areaTouchY.current = null;
+            areaTouchX.current = null;
           }}
           onClick={(e) => {
             const justShown = ctlJustShown.current;
@@ -1487,9 +1758,9 @@ export default function MeetingView({
               return;
             }
             if (justShown) return; // 방금 터치로 표시됨 — 같은 탭이 도로 숨기지 않게
-            // 빈 영역 탭 = 컨트롤 토글 (모바일)
+            // 빈 영역 탭·클릭 = 컨트롤 토글 (자동 숨김 대상 화면에서만)
             if (ctlHidden) bumpControls();
-            else if (isMobileView()) {
+            else if (shouldAutoHide()) {
               if (ctlTimer.current) clearTimeout(ctlTimer.current);
               setCtlHidden(true);
             }
@@ -1549,29 +1820,62 @@ export default function MeetingView({
                 </div>
               );
             })()}
+          {/* 오디오는 페이지·필름스트립과 무관하게 전원 유지 — 안 보여도 들려야 함 */}
+          {peers.map((p) => (p.audioTrack ? <AudioSink key={p.peerId} track={p.audioTrack} /> : null))}
+          {/* 스트립 접기 — 무대(핀·공유) 모드에서 아래 참가자 줄을 통째로 숨겨 무대에 집중 */}
+          {(hasScreen || pinned) && (
+            <button
+              className="strip-toggle"
+              onClick={(e) => {
+                e.stopPropagation();
+                setStripHidden((v) => !v);
+              }}
+              title={stripHidden ? '참가자 스트립 표시' : '참가자 스트립 숨기기'}
+            >
+              {stripHidden ? <ChevronUpIcon size={14} /> : <ChevronIcon size={14} />}
+            </button>
+          )}
           <div
-            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ''} count-${peers.length + 1}`}
+            ref={gridRefCb}
+            key={`pg-${pageNow}-${stripNow}`}
+            className={`video-grid${
+              hasScreen || pinned
+                ? ' filmstrip'
+                : visibleCount >= 3 // 1~2인은 기존 특수 레이아웃(모바일 PiP 등) 유지
+                  ? ' computed'
+                  : ''
+            }${(hasScreen || pinned) && stripHidden ? ' strip-collapsed' : ''} count-${visibleCount} slide-${slideDir}`}
+            style={
+              hasScreen || pinned || visibleCount < 3
+                ? undefined
+                : (() => {
+                    const s = computeGridShape(gridSize.w, gridSize.h, visibleCount);
+                    return { '--cols': s.cols, '--rows': s.rows } as CSSProperties;
+                  })()
+            }
           >
-            <VideoTile
-              track={localTrack}
-              username={dn(user?.username ?? '나')}
-              avatar={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
-              isLocal
-              paused={!camOn}
-              micMuted={!micOn}
-              speaking={!!speaking[user?.username ?? '']}
-              onPress={
-                hasScreen || peers.length === 0 // 혼자일 땐 핀 무의미 — 전체 화면 탭이 자기 핀으로 새는 것 방지
-                  ? undefined
-                  : () => {
-                      setAutoStage(false); // 수동 핀 = 자동 무대 해제 (줌과 동일)
-                      setPinned((v) =>
-                        v === (user?.username ?? '') ? null : (user?.username ?? ''),
-                      );
-                    }
-              }
-            />
-            {peers.map((p) => (
+            {(hasScreen || pinned ? stripNow === 0 && stripSelfShown : pageNow === 0) && (
+              <VideoTile
+                track={localTrack}
+                username={dn(user?.username ?? '나')}
+                avatar={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
+                isLocal
+                paused={!camOn}
+                micMuted={!micOn}
+                speaking={!!speaking[user?.username ?? '']}
+                onPress={
+                  hasScreen || peers.length === 0 // 혼자일 땐 핀 무의미 — 전체 화면 탭이 자기 핀으로 새는 것 방지
+                    ? undefined
+                    : () => {
+                        setAutoStage(false); // 수동 핀 = 자동 무대 해제 (줌과 동일)
+                        setPinned((v) =>
+                          v === (user?.username ?? '') ? null : (user?.username ?? ''),
+                        );
+                      }
+                }
+              />
+            )}
+            {(hasScreen || pinned ? stripPeers : pagedPeers).map((p) => (
               <div key={p.peerId} className="peer-cell">
                 <VideoTile
                   track={p.videoTrack}
@@ -1594,10 +1898,70 @@ export default function MeetingView({
                       : undefined
                   }
                 />
-                {p.audioTrack && <AudioSink track={p.audioTrack} />}
               </div>
             ))}
+            {/* 필름스트립 페이지 넘김 — 무대 아래에서도 전원 확인 가능 */}
+            {(hasScreen || pinned) && stripTotal > 1 && (
+              <>
+                <button
+                  className="strip-page-btn prev"
+                  disabled={stripNow === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSlideDir('prev');
+                    setStripPage((v) => Math.max(0, v - 1));
+                  }}
+                  title="이전"
+                >
+                  <ChevronLeftIcon size={16} />
+                </button>
+                <button
+                  className="strip-page-btn next"
+                  disabled={stripNow >= stripTotal - 1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSlideDir('next');
+                    setStripPage((v) => Math.min(stripTotal - 1, v + 1));
+                  }}
+                  title="다음"
+                >
+                  <ChevronRightIcon size={16} />
+                </button>
+              </>
+            )}
           </div>
+          {/* 페이지 넘김 — 그리드 모드에서 인원이 페이지 상한을 넘을 때만 */}
+          {!hasScreen && !pinned && totalPages > 1 && (
+            <>
+              <button
+                className="grid-page-btn prev"
+                disabled={pageNow === 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSlideDir('prev');
+                  setPage((v) => Math.max(0, v - 1));
+                }}
+                title="이전 페이지"
+              >
+                <ChevronLeftIcon size={16} />
+              </button>
+              <button
+                className="grid-page-btn next"
+                disabled={pageNow >= totalPages - 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSlideDir('next');
+                  setPage((v) => Math.min(totalPages - 1, v + 1));
+                }}
+                title="다음 페이지"
+              >
+                <ChevronRightIcon size={16} />
+              </button>
+              <span className="grid-page-ind">
+                {pageNow + 1} / {totalPages}
+              </span>
+            </>
+          )}
         </div>
 
         {/* 라이브 자막 — 발화자별로 쌓임(동시 발화 지원, 먼저 말한 순 위→아래, 최대 3명) */}
@@ -1621,7 +1985,7 @@ export default function MeetingView({
               <span className="chat-head-title">
                 <ChatIcon size={16} /> 채팅 <span className="chat-head-channel"># {callChannelName}</span>
               </span>
-              <button onClick={() => setChatOpen(false)}>×</button>
+              <button onClick={() => setChatOpen(false)}><CloseIcon size={14} /></button>
             </div>
             <div className="chat-messages">
               {messages.length === 0 && <div className="chat-empty">아직 메시지가 없어요</div>}

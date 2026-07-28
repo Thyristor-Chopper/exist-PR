@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { api } from '../api';
+import { SparklesIcon, ChartIcon, AlertIcon, BulbIcon, LeafIcon, ChevronIcon, ChevronUpIcon } from './Icons';
 
 /*
  * AI 팀 인사이트 패널 — 조직의 협업 데이터(회의·할 일·통화·채팅)를
@@ -36,6 +37,8 @@ interface Resp {
 export default function InsightsPanel({ orgId }: { orgId: number }) {
   const [data, setData] = useState<Resp | null>(null);
   const [err, setErr] = useState(false);
+  // ESG는 근거가 "통근 대체 가정"의 추정치 — 상시 노출 대신 접이식 (공모전 어필용으론 유지)
+  const [esgOpen, setEsgOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -50,15 +53,25 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
   }, [orgId]);
 
   if (err) return null;
-  if (!data) return <section style={box}>🧠 AI 팀 인사이트 분석 중…</section>;
+  if (!data)
+    return (
+      <section style={box}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <SparklesIcon size={15} /> AI 팀 인사이트 분석 중…
+        </span>
+      </section>
+    );
 
   const { metrics: m, insights: ins, source } = data;
   const activeMembers = m.memberCount - m.quietMembers.length;
+  // 겸손 모드 — 활동 데이터가 얇으면 예측·리스크·추천을 단정하지 않고 보류
+  // (활동 1/14명인 조직에 "번아웃 위험 낮음"을 띄우면 오히려 신뢰를 깎는다)
+  const enoughData = activeMembers >= 2 && m.activity.messages + m.activity.calls * 10 >= 30;
 
   return (
     <section style={box}>
       <div style={head}>
-        <span style={{ fontWeight: 700, fontSize: 15 }}>🧠 AI 팀 인사이트</span>
+        <span style={{ fontWeight: 700, fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}><SparklesIcon size={15} /> AI 팀 인사이트</span>
         <span style={badge}>
           {source === 'ai' ? 'AI 분석' : '규칙 기반'} · 최근 {m.periodDays}일
         </span>
@@ -66,12 +79,23 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
 
       <p style={{ margin: '10px 0 14px', lineHeight: 1.6, color: 'var(--text)' }}>{ins.summary}</p>
 
-      {ins.trend && <div style={trendBox}>📈 {ins.trend}</div>}
+      {ins.trend && (
+        <div style={{ ...trendBox, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <ChartIcon size={14} /> {ins.trend}
+        </div>
+      )}
 
-      <div style={predGrid}>
-        <RiskCard label="번아웃 위험 예측" data={ins.burnoutRisk} />
-        <RiskCard label="일정 지연 위험 예측" data={ins.delayRisk} />
-      </div>
+      {enoughData ? (
+        <div style={predGrid}>
+          <RiskCard label="번아웃 위험 예측" data={ins.burnoutRisk} />
+          <RiskCard label="일정 지연 위험 예측" data={ins.delayRisk} />
+        </div>
+      ) : (
+        <div style={holdBox}>
+          <LeafIcon size={13} /> 아직 활동 데이터가 적어 위험 예측을 보류했어요 — 회의·채팅이 쌓이면 번아웃·일정 지연
+          위험을 분석해 드려요
+        </div>
+      )}
 
       <div style={grid}>
         <Stat
@@ -88,9 +112,9 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
         <Stat label="활동 멤버" value={`${activeMembers}/${m.memberCount}`} sub="명" />
       </div>
 
-      {ins.risks.length > 0 && (
+      {enoughData && ins.risks.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={sectTitle}>⚠️ 리스크</div>
+          <div style={{ ...sectTitle, display: 'flex', alignItems: 'center', gap: 6 }}><AlertIcon size={14} /> 리스크</div>
           {ins.risks.map((r, i) => (
             <div key={i} style={riskItem}>
               {r}
@@ -99,9 +123,9 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
         </div>
       )}
 
-      {ins.recommendations.length > 0 && (
+      {enoughData && ins.recommendations.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={sectTitle}>💡 추천</div>
+          <div style={{ ...sectTitle, display: 'flex', alignItems: 'center', gap: 6 }}><BulbIcon size={14} /> 추천</div>
           {ins.recommendations.map((r, i) => (
             <div key={i} style={recItem}>
               {r}
@@ -110,17 +134,26 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
         </div>
       )}
 
-      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-        <div style={sectTitle}>🌱 ESG · 원격근무 사회적 가치 (추정)</div>
-        <div style={grid}>
-          <Stat value={`${m.esg.savedCo2Kg}kg`} label="CO₂ 절감" />
-          <Stat value={`${m.esg.savedKm}km`} label="통근거리 절감" />
-          <Stat value={`${m.esg.savedHours}h`} label="통근시간 절감" />
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-sub)', marginTop: 8, lineHeight: 1.5 }}>
-          * 원격 회의 참여 {m.esg.replacedCommutes}일(person-day) 기준 추정. 왕복 17.3km·73분(2024
-          통신3사), 승용차 125.2g CO₂/km(환경부·국립환경과학원 2020). 통근 대체 가정에 따른 추정치.
-        </div>
+      {/* ESG — 통근 대체 가정 기반 추정치라 기본 접힘. 궁금한 사람만 펼쳐본다 */}
+      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+        <button style={esgToggle} onClick={() => setEsgOpen((v) => !v)}>
+          <LeafIcon size={13} /> ESG · 원격근무 사회적 가치 {esgOpen ? '접기' : '보기'}{' '}
+          {esgOpen ? <ChevronUpIcon size={11} /> : <ChevronIcon size={11} />}
+        </button>
+        {esgOpen && (
+          <div style={{ marginTop: 10 }}>
+            <div style={grid}>
+              <Stat value={`${m.esg.savedCo2Kg}kg`} label="CO₂ 절감" />
+              <Stat value={`${m.esg.savedKm}km`} label="통근거리 절감" />
+              <Stat value={`${m.esg.savedHours}h`} label="통근시간 절감" />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-sub)', marginTop: 8, lineHeight: 1.5 }}>
+              * 원격 회의 참여 {m.esg.replacedCommutes}일(person-day) 기준 추정. 왕복
+              17.3km·73분(2024 통신3사), 승용차 125.2g CO₂/km(환경부·국립환경과학원 2020). 통근 대체
+              가정에 따른 추정치.
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -195,6 +228,28 @@ const predGrid: CSSProperties = {
   gridTemplateColumns: '1fr 1fr',
   gap: 10,
   marginBottom: 16,
+};
+// 데이터 부족 시 예측 보류 안내 — 단정 대신 겸손
+const holdBox: CSSProperties = {
+  background: 'var(--bg)',
+  borderRadius: 10,
+  padding: '11px 14px',
+  fontSize: 13,
+  color: 'var(--text-sub)',
+  lineHeight: 1.55,
+  marginBottom: 16,
+};
+const esgToggle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 5,
+  border: 'none',
+  background: 'none',
+  padding: 0,
+  fontSize: 13,
+  fontWeight: 700,
+  color: 'var(--text-sub)',
+  cursor: 'pointer',
 };
 const stat: CSSProperties = {
   background: 'var(--bg)',

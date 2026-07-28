@@ -3,6 +3,7 @@ import db from './db.js';
 import { requireAuth, type AuthedRequest } from './auth.js';
 import { invalidateBrief } from './agent.js';
 import { notifyUser } from './notify.js';
+import { canManageMeeting } from './perm.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -12,6 +13,24 @@ router.use((req: AuthedRequest, _res, next) => {
   if (req.method !== 'GET') invalidateBrief(req.userId!);
   next();
 });
+
+/** 할 일 관련자인가 — 개인: 소유자 / 회의: 담당자·작성자·호스트·조직 관리자(부서 중간관리자 포함).
+ *  완료 체크·수정·삭제 전부 이 게이트 — 관련 없는 참가자가 남의 할 일을 함부로 못 건드리게 */
+function canTouchTodo(
+  todo: { id: number; user_id: number; meeting_id: number | null },
+  userId: number,
+): boolean {
+  if (todo.meeting_id == null) return todo.user_id === userId;
+  if (todo.user_id === userId) return true;
+  const assignee = db
+    .prepare('SELECT 1 FROM todo_assignees WHERE todo_id = ? AND user_id = ?')
+    .get(todo.id, userId);
+  if (assignee) return true;
+  const meeting = db
+    .prepare('SELECT host_id, org_id FROM meetings WHERE id = ?')
+    .get(todo.meeting_id) as { host_id: number; org_id: number | null } | undefined;
+  return meeting ? canManageMeeting(meeting, userId) : false;
+}
 
 /** 회의 코드 → meeting id (없으면 null) */
 function meetingIdOf(code: unknown): number | null {
@@ -167,20 +186,50 @@ router.post('/', (req: AuthedRequest, res) => {
 });
 
 router.patch('/:id', (req: AuthedRequest, res) => {
-  const { done, title, assignees } = req.body ?? {};
+  const { done, title, assignees, due_at } = req.body ?? {};
   const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(req.params.id) as
-    | { id: number; user_id: number; meeting_id: number | null; title: string }
+    | { id: number; user_id: number; meeting_id: number | null; title: string; done: number }
     | undefined;
   if (!todo) return res.status(404).json({ error: '없는 투두입니다' });
-  // 개인 할 일은 본인만, 회의 할 일은 공유라 누구나
-  if (todo.meeting_id == null && todo.user_id !== req.userId) {
-    return res.status(403).json({ error: '권한이 없어요' });
+  if (!canTouchTodo(todo, req.userId!)) {
+    return res.status(403).json({ error: '담당자·작성자·관리자만 할 일을 바꿀 수 있어요' });
   }
   if (done !== undefined) {
     db.prepare('UPDATE todos SET done = ? WHERE id = ?').run(done ? 1 : 0, req.params.id);
+    // 완료 = 보고 — 전달→실행→보고 루프의 완결. 지시자(작성자)·호스트에게 알림 (본인 제외)
+    if (done && !todo.done && todo.meeting_id != null) {
+      const meeting = db
+        .prepare('SELECT code, title, host_id FROM meetings WHERE id = ?')
+        .get(todo.meeting_id) as { code: string; title: string; host_id: number } | undefined;
+      const completer = db.prepare('SELECT username FROM users WHERE id = ?').get(req.userId) as
+        | { username: string }
+        | undefined;
+      const recipients = new Set<number>([todo.user_id, meeting?.host_id ?? -1]);
+      recipients.delete(req.userId!);
+      recipients.delete(-1);
+      for (const uid of recipients) {
+        notifyUser(uid, {
+          from: completer?.username ?? '누군가',
+          text: `'${todo.title}' 할 일을 완료했어요${meeting ? ` ('${meeting.title}')` : ''}`,
+          kind: 'todo',
+          meetingCode: meeting?.code,
+        });
+        invalidateBrief(uid);
+      }
+    }
   }
   if (title !== undefined) {
     db.prepare('UPDATE todos SET title = ? WHERE id = ?').run(title, req.params.id);
+  }
+  if (due_at !== undefined) {
+    // 'YYYY-MM-DD' 또는 null(기한 없음). 마감이 바뀌면 리마인드 플래그 리셋 — 새 기한 기준으로 다시 알림
+    const clean = due_at == null || due_at === '' ? null : String(due_at).slice(0, 10);
+    if (clean != null && !/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+      return res.status(400).json({ error: '마감일 형식이 잘못됐어요' });
+    }
+    db.prepare(
+      'UPDATE todos SET due_at = ?, reminded_soon = 0, reminded_overdue = 0 WHERE id = ?',
+    ).run(clean, req.params.id);
   }
   let names: string[] | undefined;
   if (assignees !== undefined && todo.meeting_id != null) {
@@ -196,16 +245,80 @@ router.patch('/:id', (req: AuthedRequest, res) => {
 });
 
 router.delete('/:id', (req: AuthedRequest, res) => {
-  const todo = db.prepare('SELECT user_id, meeting_id FROM todos WHERE id = ?').get(req.params.id) as
-    | { user_id: number; meeting_id: number | null }
-    | undefined;
+  const todo = db
+    .prepare('SELECT id, user_id, meeting_id FROM todos WHERE id = ?')
+    .get(req.params.id) as { id: number; user_id: number; meeting_id: number | null } | undefined;
   if (!todo) return res.json({ ok: true });
-  if (todo.meeting_id == null && todo.user_id !== req.userId) {
-    return res.status(403).json({ error: '권한이 없어요' });
+  if (!canTouchTodo(todo, req.userId!)) {
+    return res.status(403).json({ error: '담당자·작성자·관리자만 지울 수 있어요' });
   }
   db.prepare('DELETE FROM todo_assignees WHERE todo_id = ?').run(req.params.id);
   db.prepare('DELETE FROM todos WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
+
+/** 로컬 날짜 YYYY-MM-DD */
+function localDateStr(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/** 마감 리마인드 — AI 총무가 알아서 조르기 (분산·재택의 "옆에서 챙겨줄 사람 없음" 대체).
+ *  임박(내일·오늘) 1회 + 지남 1회, 회의 할 일은 담당자 전원·개인 할 일은 소유자에게.
+ *  index.ts가 부팅 직후 + 10분 간격으로 호출. 반환 = 보낸 알림 수 */
+export function runTodoReminders(now = new Date()): number {
+  const today = localDateStr(now);
+  const tomorrow = localDateStr(new Date(now.getTime() + 86_400_000));
+  const rows = db
+    .prepare(
+      `SELECT t.id, t.title, t.due_at, t.user_id, t.meeting_id, t.reminded_soon, t.reminded_overdue,
+              m.code AS mcode, m.title AS mtitle
+       FROM todos t LEFT JOIN meetings m ON m.id = t.meeting_id
+       WHERE t.done = 0 AND t.due_at IS NOT NULL`,
+    )
+    .all() as {
+    id: number;
+    title: string;
+    due_at: string;
+    user_id: number;
+    meeting_id: number | null;
+    reminded_soon: number;
+    reminded_overdue: number;
+    mcode: string | null;
+    mtitle: string | null;
+  }[];
+  let sent = 0;
+  for (const t of rows) {
+    const due = String(t.due_at).slice(0, 10);
+    const phase = due < today ? 'overdue' : due === today || due === tomorrow ? 'soon' : null;
+    if (!phase) continue;
+    if (phase === 'soon' && t.reminded_soon) continue;
+    if (phase === 'overdue' && t.reminded_overdue) continue;
+    const targets =
+      t.meeting_id != null
+        ? (
+            db.prepare('SELECT user_id FROM todo_assignees WHERE todo_id = ?').all(t.id) as {
+              user_id: number;
+            }[]
+          ).map((r) => r.user_id)
+        : [t.user_id];
+    const suffix = t.mtitle ? ` ('${t.mtitle}')` : '';
+    const [m, d] = due.slice(5).split('-').map(Number);
+    const text =
+      phase === 'overdue'
+        ? `'${t.title}' 할 일 마감(${m}/${d})이 지났어요 — 확인 부탁해요${suffix}`
+        : `'${t.title}' 할 일 마감이 ${due === today ? '오늘' : '내일'}이에요${suffix}`;
+    for (const uid of new Set(targets)) {
+      notifyUser(uid, { from: 'exist AI', text, kind: 'todo', meetingCode: t.mcode ?? undefined });
+      invalidateBrief(uid);
+      sent++;
+    }
+    db.prepare(
+      `UPDATE todos SET ${phase === 'soon' ? 'reminded_soon' : 'reminded_overdue'} = 1 WHERE id = ?`,
+    ).run(t.id);
+  }
+  return sent;
+}
 
 export default router;

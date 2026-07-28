@@ -7,9 +7,20 @@ import InsightsPanel from './InsightsPanel';
 import MyOrgFocus from './MyOrgFocus';
 import { type Todo, type Meeting } from './NowBar';
 import UnifiedInbox from './UnifiedInbox';
+import { dueBadge } from '../lib/due';
 import ScheduleWidget from './ScheduleWidget';
 import Marquee from './Marquee';
-import { ListIcon, SparklesIcon, CalendarIcon, ChatIcon, UsersIcon, CheckMarkIcon, ChartIcon } from './Icons';
+import { ListIcon, SparklesIcon, CalendarIcon, ChatIcon, UsersIcon, CheckMarkIcon, ChartIcon, CheckIcon, PenIcon, UserIcon, BoltIcon, BuildingIcon, PinIcon, CloseIcon } from './Icons';
+
+/** 확인 대기 결정 — 홈 카드 (P1: 결정은 전달되고, 확인되어야 한다) */
+interface PendingDecision {
+  recapId: number;
+  idx: number;
+  decision: string;
+  code: string;
+  title: string;
+  ts: number;
+}
 
 /*
  * 개인 프로필 대시보드 — '홈' 탭(회의 미선택)에서 작업공간을 꽉 채워 표시.
@@ -25,6 +36,8 @@ interface Overview {
   unreadTotal: number;
   /** 수신확인 대기 결정 수 — 히어로 뱃지 */
   pendingAcks: number;
+  /** 이번 주(최근 7일) 내 그룹에서 나온 결정 수 — 스탯 카드 */
+  weekDecisions: number;
   liveCalls: { title: string; code: string; inCall: number }[];
   recentMeetings: { title: string; code: string; inCall: number }[];
   nextMeeting: { title: string; code: string; startsAt: string | null } | null;
@@ -67,6 +80,22 @@ export default function ProfileDashboard() {
   const [schedule, setSchedule] = useState<Meeting[]>([]);
   const [daily, setDaily] = useState('');
   const [catchup, setCatchup] = useState<Catchup | null>(null);
+  const [pending, setPending] = useState<PendingDecision[] | null>(null);
+
+  /** 홈에서 바로 수신확인 — 회람 사인. 낙관적 제거, 실패 시 원복 */
+  async function confirmDecision(item: PendingDecision) {
+    setPending((prev) => (prev ? prev.filter((p) => !(p.recapId === item.recapId && p.idx === item.idx)) : prev));
+    setOv((prev) => (prev ? { ...prev, pendingAcks: Math.max(0, prev.pendingAcks - 1) } : prev));
+    try {
+      await api(`/api/meetings/${item.code}/decisions/ack`, {
+        method: 'POST',
+        body: { recapId: item.recapId, idx: item.idx },
+      });
+    } catch {
+      setPending((prev) => (prev ? [item, ...prev] : prev));
+      setOv((prev) => (prev ? { ...prev, pendingAcks: prev.pendingAcks + 1 } : prev));
+    }
+  }
 
   /** 홈에서 바로 완료 토글 — 낙관적 갱신, 실패 시 원복 */
   async function toggleTodo(t: Todo) {
@@ -76,6 +105,16 @@ export default function ProfileDashboard() {
       await api(`/api/todos/${t.id}`, { method: 'PATCH', body: { done: !!next } });
     } catch {
       setTodos((prev) => prev.map((x) => (x.id === t.id ? { ...x, done: t.done } : x)));
+    }
+  }
+
+  /** 홈에서 삭제 — 개인 할 일 정리 동선 (서버가 관련자 게이트) */
+  async function removeTodo(t: Todo) {
+    try {
+      await api(`/api/todos/${t.id}`, { method: 'DELETE' });
+      setTodos((prev) => prev.filter((x) => x.id !== t.id));
+    } catch {
+      /* 전역 토스트 */
     }
   }
 
@@ -100,6 +139,11 @@ export default function ProfileDashboard() {
     // P2 — 자리 비운 사이 놓친 것 브리핑
     api<Catchup>(`/api/agent/catchup?${orgQ}`)
       .then((d) => alive && setCatchup(d))
+      .catch(() => {});
+    // P1 — 확인 대기 결정 (홈에서 바로 회람 사인)
+    setPending(null);
+    api<{ items: PendingDecision[] }>(`/api/agent/pending-decisions?${orgQ}`)
+      .then((d) => alive && setPending(d.items))
       .catch(() => {});
     return () => {
       alive = false;
@@ -156,14 +200,60 @@ export default function ProfileDashboard() {
                   </span>
                   <Marquee className="hub-todo-text">{t.title}</Marquee>
                 </label>
+                {t.due_at && dueBadge(t.due_at) && (
+                  <span className={`nb-todo-due ${dueBadge(t.due_at)!.cls}`}>
+                    {dueBadge(t.due_at)!.label}
+                  </span>
+                )}
                 {t.meeting_title && (
                   <span className="hub-todo-meet" title={`"${t.meeting_title}" 회의에서 배정됨`}>
                     {t.meeting_title}
                   </span>
                 )}
+                <button className="hub-todo-del" title="삭제" onClick={() => void removeTodo(t)}>
+                  <CloseIcon size={12} />
+                </button>
               </div>
             ))}
         </div>
+      )}
+    </div>
+  );
+
+  // 확인할 결정 카드 — P1의 홈 얼굴. 결정이 전달되고 "확인"되어야 끝난다 — 홈에서 바로 회람 사인
+  const ackCard = (
+    <div style={cellCard}>
+      <div style={sectionHead}>
+        <span style={headIcon}><CheckIcon size={16} /></span> 확인할 결정
+        {pending && pending.length > 0 && <span className="pd-ack-count">{pending.length}</span>}
+      </div>
+      {!pending || pending.length === 0 ? (
+        <div style={emptyRow}>
+          {pending ? '모두 확인했어요 — 새 결정이 기록되면 여기에 떠요' : '불러오는 중…'}
+        </div>
+      ) : (
+        pending.slice(0, 5).map((p) => (
+          <div key={`${p.recapId}-${p.idx}`} className="pd-ack-row">
+            <div
+              className="pd-ack-main"
+              onClick={() => openMeeting(p.code, p.title)}
+              title={`"${p.title}" 열기`}
+            >
+              <Marquee className="pd-ack-text">{p.decision}</Marquee>
+              <span className="pd-ack-meta">
+                {p.title} ·{' '}
+                {new Date(p.ts).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+              </span>
+            </div>
+            <button
+              className="pd-ack-btn"
+              onClick={() => void confirmDecision(p)}
+              title="수신확인 — 회람 사인"
+            >
+              확인
+            </button>
+          </div>
+        ))
       )}
     </div>
   );
@@ -176,23 +266,27 @@ export default function ProfileDashboard() {
     return (
       <div className="pd-wrap" style={wrap}>
         <div className="pd-hero org">
-          <div className="pd-hero-avatar">👥</div>
+          <div className="pd-hero-avatar"><UsersIcon size={26} /></div>
           <div>
             <div style={heroGreeting}>
-              <span className="pd-ws-tag">🏢 {orgName} · </span>
+              <span className="pd-ws-tag"><BuildingIcon size={12} /> {orgName} · </span>
               {greeting()}
             </div>
             <div className="pd-hero-name">{orgName} 팀</div>
             <div style={heroChips}>
               <span style={heroChip}>
-                {orgManager ? '📊 팀 협업 현황을 아래에서 한눈에' : '📌 지금 챙길 것부터 아래에 모아뒀어요'}
+                {orgManager ? (
+                  <><ChartIcon size={13} /> 팀 협업 현황을 아래에서 한눈에</>
+                ) : (
+                  <><PinIcon size={13} /> 지금 챙길 것부터 아래에 모아뒀어요</>
+                )}
               </span>
             </div>
           </div>
         </div>
 
         <div style={section}>
-          <div style={sectionHead}>⚡ 빠른 시작</div>
+          <div style={sectionHead}><span style={headIcon}><BoltIcon size={16} /></span> 빠른 시작</div>
           <div className="pd-actions" style={actionRow}>
             {/* 조직 그룹 생성은 권한제 — owner/admin 또는 group:create 역할만 */}
             {(orgInfo?.canCreateGroup ?? true) && (
@@ -201,14 +295,15 @@ export default function ProfileDashboard() {
               </button>
             )}
             <button style={actionBtn} onClick={() => navigate(`/org/${org}`)}>
-              <span style={{ fontSize: 18 }}>👥</span> 조직도 보기
+              <UsersIcon size={17} /> 조직도 보기
             </button>
           </div>
         </div>
 
-        {/* 2컬럼: 왼쪽 = (관리자: 인사이트 / 멤버: 내 포커스) + 오늘 브리핑 + 전체 일정, 오른쪽 = 통합 메시지 */}
+        {/* 좌 = AI 큐레이션 존(확인할 결정·인사이트/포커스·브리핑), 우 = 원본 데이터 존(할 일·일정·메시지) */}
         <div className="pd-quad">
           <div className="pd-quad-col">
+            {ackCard}
             {orgManager ? <InsightsPanel orgId={org} /> : <MyOrgFocus orgId={org} />}
 
             <div style={cellCard}>
@@ -221,16 +316,15 @@ export default function ProfileDashboard() {
                 </div>
               )}
             </div>
-
-            <div style={cellCard}>
-              <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
-              <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
-            </div>
           </div>
 
           <div className="pd-quad-col">
             {/* 개인 홈과 동일한 전체 할 일 — 이 조직 스코프의 할 일만 */}
             {todoCard}
+            <div style={cellCard}>
+              <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
+              <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
+            </div>
             <div className="pd-org-inbox" style={{ ...cellCard, minHeight: 420 }}>
               <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>
               <UnifiedInbox scope={org} />
@@ -261,13 +355,13 @@ export default function ProfileDashboard() {
             avatarVal
           )}
           <span className="pd-hero-edit-badge" aria-hidden>
-            ✎
+            <PenIcon size={11} />
           </span>
         </button>
         <div>
           <div style={heroGreeting}>
             {/* 워크스페이스 표기는 모바일에선 숨김 — 상단 조직 바가 이미 보여줌 */}
-            <span className="pd-ws-tag">👤 개인 워크스페이스 · </span>
+            <span className="pd-ws-tag"><UserIcon size={12} /> 개인 워크스페이스 · </span>
             {greeting()}
           </div>
           <div className="pd-hero-name">{user?.name || user?.username || '게스트'}님 👋</div>
@@ -300,8 +394,15 @@ export default function ProfileDashboard() {
       </div>
 
       {live && (
-        <div style={liveBox}>
-          🔴 지금 <b>{live.title}</b>에서 {live.inCall}명 통화 중 — 아래 최근 그룹에서 참여하세요
+        <div
+          style={liveBox}
+          className="pd-live-banner"
+          role="button"
+          tabIndex={0}
+          onClick={() => openMeeting(live.code, live.title)}
+          onKeyDown={(e) => e.key === 'Enter' && openMeeting(live.code, live.title)}
+        >
+          <span className="pd-live-dot" aria-hidden /> 지금 <b>{live.title}</b>에서 {live.inCall}명 통화 중 — 눌러서 바로 참여
         </div>
       )}
 
@@ -318,15 +419,19 @@ export default function ProfileDashboard() {
           <div className="pd-stat">
             <div className="pd-stat-icon"><CheckMarkIcon size={19} /></div>
             <div>
-              <div className="pd-stat-num">{donePct}%</div>
-              <div className="pd-stat-label">할 일 완료율</div>
+              <div className="pd-stat-num">
+                {doneCount}/{todos.length}
+                {todos.length > 0 && <span className="pd-stat-sub"> · {donePct}%</span>}
+              </div>
+              <div className="pd-stat-label">할 일 완료</div>
             </div>
           </div>
+          {/* 이번 주 결정 — "결정이 조직에 남는다"의 홈 지표 (P1) */}
           <div className="pd-stat">
-            <div className="pd-stat-icon"><ListIcon size={19} /></div>
+            <div className="pd-stat-icon"><BoltIcon size={19} /></div>
             <div>
-              <div className="pd-stat-num">{doneCount}/{todos.length}</div>
-              <div className="pd-stat-label">완료한 할 일</div>
+              <div className="pd-stat-num">{ov?.weekDecisions ?? 0}</div>
+              <div className="pd-stat-label">이번 주 결정</div>
             </div>
           </div>
           <div className="pd-stat">
@@ -340,8 +445,10 @@ export default function ProfileDashboard() {
       </div>
 
       <div className="pd-quad">
-        {/* 좌우 컬럼을 분리 — 한쪽 카드가 길어져도 반대쪽 높이에 영향 없음 */}
+        {/* 좌 = AI 큐레이션 존(확인할 결정·브리핑 — 오늘 할 행동), 우 = 원본 데이터 존(할 일·일정·메시지).
+            컬럼 분리로 한쪽 카드가 길어져도 반대쪽 높이에 영향 없음 */}
         <div className="pd-quad-col">
+        {ackCard}
         <div style={cellCard}>
           <div style={sectionHead}><span style={headIcon}><SparklesIcon size={16} /></span> 오늘 브리핑</div>
           {/* AI 총무의 하루 세팅 문단 — 오늘 일정 + 놓친 것 + 급한 할 일 */}
@@ -382,14 +489,15 @@ export default function ProfileDashboard() {
           )}
         </div>
 
-        <div style={cellCard}>
-          <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
-          <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
-        </div>
         </div>
 
         <div className="pd-quad-col">
         {todoCard}
+
+        <div style={cellCard}>
+          <div style={sectionHead}><span style={headIcon}><CalendarIcon size={16} /></span> 전체 일정</div>
+          <ScheduleWidget schedule={schedule} onOpen={openMeeting} />
+        </div>
 
         <div style={cellCard}>
           <div style={sectionHead}><span style={headIcon}><ChatIcon size={16} /></span> 통합 메시지</div>

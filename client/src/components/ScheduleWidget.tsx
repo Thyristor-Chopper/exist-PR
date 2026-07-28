@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { type Meeting } from './NowBar';
 import Marquee from './Marquee';
+import { ChevronLeftIcon, ChevronRightIcon } from './Icons';
 
 /*
  * 홈 대시보드 '전체 일정' 위젯 — 작은 월간 달력 + 선택한 날의 하루 세로 타임라인.
@@ -62,9 +63,9 @@ export default function ScheduleWidget({
       {/* ── 미니 달력 ── */}
       <div style={calSide}>
         <div style={calHead}>
-          <button style={navBtn} onClick={prevMonth} aria-label="이전 달">‹</button>
+          <button style={navBtn} onClick={prevMonth} aria-label="이전 달"><ChevronLeftIcon size={13} /></button>
           <span style={calTitle}>{view.y}. {String(view.m + 1).padStart(2, '0')}</span>
-          <button style={navBtn} onClick={nextMonth} aria-label="다음 달">›</button>
+          <button style={navBtn} onClick={nextMonth} aria-label="다음 달"><ChevronRightIcon size={13} /></button>
         </div>
         <div style={grid7}>
           {WD.map((w, i) => (

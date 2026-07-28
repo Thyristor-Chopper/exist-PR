@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { useAuthStore } from '../store';
-import { PlusIcon, CloseIcon, PlayIcon, CopyIcon } from './Icons';
+import { PlusIcon, CloseIcon, PlayIcon, CopyIcon, ChevronIcon } from './Icons';
 import ColorGrid from './ColorGrid';
 import OverflowToolbar from './OverflowToolbar';
 import { exportPptx } from '../lib/pptx';
@@ -977,7 +977,7 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
                       onClick={() => setColorMenu(colorMenu === 'fill' ? null : 'fill')}
                     >
                       <span className="cbtn-chip" style={{ background: selElData.fill || 'transparent' }} />
-                      채움 ▾
+                      채움 <ChevronIcon size={10} />
                     </button>
                     {colorMenu === 'fill' && (
                       <>
@@ -1002,7 +1002,7 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
                       onClick={() => setColorMenu(colorMenu === 'stroke' ? null : 'stroke')}
                     >
                       <span className="cbtn-chip" style={{ background: selElData.stroke || 'transparent' }} />
-                      선 ▾
+                      선 <ChevronIcon size={10} />
                     </button>
                     {colorMenu === 'stroke' && (
                       <>
@@ -1059,7 +1059,7 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
                   </button>,
                   <div key="font" className="slide-shape-wrap">
                     <button className="sht-btn cbtn" title="글꼴" onClick={() => setFontMenu((v) => !v)}>
-                      {FONTS.find((f) => f.value === (selElData!.font ?? null))?.label ?? '글꼴'} ▾
+                      {FONTS.find((f) => f.value === (selElData!.font ?? null))?.label ?? '글꼴'} <ChevronIcon size={10} />
                     </button>
                     {fontMenu && (
                       <>
@@ -1115,7 +1115,7 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
                       onClick={() => setColorMenu(colorMenu === 'text' ? null : 'text')}
                     >
                       <span className="cbtn-chip" style={{ background: selElData!.color || '#1c2024' }} />
-                      A ▾
+                      A <ChevronIcon size={10} />
                     </button>
                     {colorMenu === 'text' && (
                       <>
@@ -1151,7 +1151,7 @@ export default function SlideEditor({ roomId, fileName, active = true }: { roomI
         <div className="slide-right">
           <div className="slide-shape-wrap">
             <button className="slide-pdf-btn" onClick={() => setExportMenu((v) => !v)} title="내보내기">
-              내보내기 ▾
+              내보내기 <ChevronIcon size={10} />
             </button>
             {exportMenu && (
               <>

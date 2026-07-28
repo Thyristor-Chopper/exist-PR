@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { api } from '../api';
-import { ListIcon, CalendarIcon, ChatIcon } from './Icons';
+import { ListIcon, CalendarIcon, ChatIcon, PinIcon } from './Icons';
 
 /*
  * 내 포커스 — 일반 멤버의 조직 홈. 팀 인사이트(관리자용) 대신
@@ -50,14 +50,21 @@ export default function MyOrgFocus({ orgId }: { orgId: number }) {
     }
   }
 
-  if (!data) return <section style={box}>📌 내 포커스 불러오는 중…</section>;
+  if (!data)
+    return (
+      <section style={box}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <PinIcon size={14} /> 내 포커스 불러오는 중…
+        </span>
+      </section>
+    );
 
   const empty = data.todos.length === 0 && data.events.length === 0 && data.unread.length === 0;
 
   return (
     <section style={box}>
       <div style={head}>
-        <span style={{ fontWeight: 700, fontSize: 15 }}>📌 내 포커스</span>
+        <span style={{ fontWeight: 700, fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}><PinIcon size={14} /> 내 포커스</span>
         <span style={badge}>이 조직에서 지금 챙길 것</span>
       </div>
 
