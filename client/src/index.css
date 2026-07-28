@@ -17520,3 +17520,17 @@ html:not(.dark) .meeting-controls .leave:hover {
 @media (prefers-reduced-motion: reduce) {
   .pd-live-dot { animation: none; }
 }
+
+/* 터치 기기 — hover가 없어 숨은 컨트롤 접근 불가 방지 (cf-actions의 기존 패턴 확장, 7/29 모바일 담당) */
+@media (hover: none) {
+  .hub-todo-editbtn,
+  .hub-todo-due.ghost,
+  .hub-channel-edit,
+  .hub-channel-del {
+    opacity: 0.55;
+  }
+
+  .kick-btn {
+    opacity: 0.9;
+  }
+}
