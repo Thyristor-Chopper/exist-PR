@@ -473,11 +473,14 @@ export function attachSfu(io: Server) {
 
         // ── 채팅 알림 — 채널별 설정(all/mention/off, 기본 mention) 존중 ──
         try {
-          // 채팅 룸에 접속해 있으면(그룹 화면을 보고 있으면) 생략 — DM의 viewing 생략과 같은 취지
+          // 채팅 화면을 실제로 보고 있으면 생략 — chat:viewing presence (DM의 dm:viewing과 같은 취지).
+          // ⚠️ chat:CODE 룸 멤버십으로 판정하면 안 됨 — 통합 메시지함이 실시간 수신용으로
+          // 모든 그룹 룸을 구독해서, 앱만 열어둬도 전 그룹이 "보는 중"으로 오판돼 알림이 전멸함
           const viewingUserIds = new Set<number>();
-          for (const sid of io.sockets.adapter.rooms.get(`chat:${upper}`) ?? []) {
-            const s = io.sockets.sockets.get(sid);
-            if (s?.data.userId) viewingUserIds.add(s.data.userId as number);
+          for (const s of io.sockets.sockets.values()) {
+            if (s.data.userId && s.data.chatViewing === upper) {
+              viewingUserIds.add(s.data.userId as number);
+            }
           }
           const parts = db
             .prepare(

@@ -65,6 +65,12 @@ io.on('connection', (socket) => {
     socket.data.dmPeer = Number.isInteger(id) ? id : null;
   });
 
+  // 그룹 채팅 화면 열람 상태 — 채팅 알림 생략 판정용.
+  // chat:CODE 룸 멤버십은 판정에 못 씀 (통합 메시지함이 전달용으로 전 그룹 룸을 구독함)
+  socket.on('chat:viewing', (p: { code?: string | null } | undefined) => {
+    socket.data.chatViewing = p?.code ? String(p.code).toUpperCase() : null;
+  });
+
   socket.on('disconnect', () => {
     const e = online.get(userId);
     if (!e) return;

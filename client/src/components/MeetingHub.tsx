@@ -486,6 +486,17 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     if (subtab === 'files') setFilesMounted(true);
   }, [subtab]);
 
+  // 채팅 화면 열람 presence — 보고 있는 그룹의 채팅 알림을 서버가 생략하는 근거.
+  // 보는 중일 때만 마킹하고 떠날 때 해제 (숨은 탭이 남의 마킹을 덮지 않게 조건부)
+  useEffect(() => {
+    if (!(visible && subtab === 'chat')) return;
+    const socket = getSocket();
+    socket.emit('chat:viewing', { code });
+    return () => {
+      socket.emit('chat:viewing', { code: null });
+    };
+  }, [visible, subtab, code]);
+
   // 최근회의 버튼 등에서 세부 탭 지정 → 해당 탭으로 이동
   useEffect(() => {
     if (gotoTab?.tab) setSubtab(gotoTab.tab as SubTab);

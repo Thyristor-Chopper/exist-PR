@@ -351,6 +351,16 @@ export default function MeetingView({
   const callChannelRef = useRef<number | null>(null); // 통화 패널이 고정될 통화 전용 채널
   const [callChannelName, setCallChannelName] = useState('통화'); // 표시용 — 허브에서 이름 바꿀 수 있음
 
+  // 통화 채팅 패널 열람 presence — 열려 있는 동안 이 그룹 채팅 알림 생략 (허브 채팅 탭과 동일 규약)
+  useEffect(() => {
+    if (!chatOpen) return;
+    const socket = getSocket();
+    socket.emit('chat:viewing', { code });
+    return () => {
+      socket.emit('chat:viewing', { code: null });
+    };
+  }, [chatOpen, code]);
+
   // 채팅 패널을 열 때마다 채널 이름 재조회 — 통화 중에 허브 채팅 탭에서 이름을 바꿔도 반영
   useEffect(() => {
     if (!chatOpen) return;
