@@ -326,8 +326,6 @@ export default function MeetingView({
     return () => window.removeEventListener('resize', onResize);
   }, []);
   const [page, setPage] = useState(0);
-  /** 페이지당 타일 상한 — 타일이 이름표 읽히는 최소 크기 아래로 안 내려가는 선 */
-  const pageCap = vw < 768 ? 8 : vw < 1024 ? 12 : vw < 1536 ? 16 : 25;
 
   // ── 계산 배치(768px+) — 3사 방식: 인원·컨테이너 크기로 타일 폭을 계산해 잘림 없이 배치 ──
   const [gridSize, setGridSize] = useState({ w: 0, h: 0 });
@@ -350,6 +348,37 @@ export default function MeetingView({
   }, []);
   // 페이지 전환 방향 — 리마운트 시 이 방향으로 슬라이드 인
   const [slideDir, setSlideDir] = useState<'next' | 'prev'>('next');
+
+  /** 미트식 동적 페이지 상한 — 가용 크기에 "최소 타일(160×120)"이 몇 개 들어가는가. 안전핀 49 */
+  const MIN_TILE_W = 160;
+  const MIN_TILE_H = 120;
+  const pageCap = gridSize.w
+    ? Math.max(
+        2,
+        Math.min(
+          49,
+          Math.max(1, Math.floor(gridSize.w / MIN_TILE_W)) *
+            Math.max(1, Math.floor(gridSize.h / MIN_TILE_H)),
+        ),
+      )
+    : 12;
+
+  /** 미트식 채움형 배치 — n명을 꽉 채울 때 타일 비율이 16:9에 가장 가까워지는 열×행 */
+  function computeGridShape(W: number, H: number, n: number): { cols: number; rows: number } {
+    if (!W || !H || n <= 1) return { cols: 1, rows: 1 };
+    let best = { cols: 1, rows: n };
+    let bestScore = Infinity;
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const ratio = W / cols / (H / rows);
+      const score = Math.abs(Math.log(ratio / (16 / 9)));
+      if (score < bestScore) {
+        bestScore = score;
+        best = { cols, rows };
+      }
+    }
+    return best;
+  }
   // 발화자 자동 무대 — 최근 원격 발화자를 자동 핀 (수동 핀하면 꺼짐, 줌 스피커 뷰)
   const [autoStage, setAutoStage] = useState(false);
   const [lastRemoteSpeaker, setLastRemoteSpeaker] = useState<string | null>(null);
@@ -1144,20 +1173,6 @@ export default function MeetingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, expanded]);
 
-  /** 열 수 1..n을 전부 시도해 16:9 타일이 가장 커지는 배치의 타일 폭 */
-  function computeTileWidth(W: number, H: number, n: number, gap = 12): number {
-    if (!W || !H || !n) return 320;
-    let best = 0;
-    for (let cols = 1; cols <= n; cols++) {
-      const rows = Math.ceil(n / cols);
-      const byW = (W - gap * (cols - 1)) / cols;
-      const byH = (((H - gap * (rows - 1)) / rows) * 16) / 9;
-      const w = Math.min(byW, byH);
-      if (w > best) best = w;
-    }
-    return Math.max(120, Math.floor(best));
-  }
-
   // 통화 경과 시간 — 내 입장 시점 기준 (헤더 표시)
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -1635,13 +1650,20 @@ export default function MeetingView({
           <div
             ref={gridRefCb}
             key={`pg-${pageNow}-${stripNow}`}
-            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ' computed'} count-${visibleCount} slide-${slideDir}`}
-            style={
+            className={`video-grid${
               hasScreen || pinned
+                ? ' filmstrip'
+                : visibleCount >= 3 // 1~2인은 기존 특수 레이아웃(모바일 PiP 등) 유지
+                  ? ' computed'
+                  : ''
+            } count-${visibleCount} slide-${slideDir}`}
+            style={
+              hasScreen || pinned || visibleCount < 3
                 ? undefined
-                : ({
-                    '--tile-w': `${computeTileWidth(gridSize.w, gridSize.h, visibleCount)}px`,
-                  } as CSSProperties)
+                : (() => {
+                    const s = computeGridShape(gridSize.w, gridSize.h, visibleCount);
+                    return { '--cols': s.cols, '--rows': s.rows } as CSSProperties;
+                  })()
             }
           >
             {(hasScreen || pinned ? stripNow === 0 : pageNow === 0) && (

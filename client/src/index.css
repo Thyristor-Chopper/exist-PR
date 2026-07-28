@@ -14291,32 +14291,7 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   display: contents;
 }
 
-/* ── 계산 배치(768px+) — 3사 방식: JS가 인원·컨테이너로 타일 폭을 계산 (--tile-w).
-   flex wrap + 가운데 정렬 = 잘림 0, 마지막 행 중앙, 세로 넘침 원천 차단.
-   모바일(≤767)은 실측 검증된 2열 채움형 그대로 ── */
-@media (min-width: 768px) {
-  .video-grid.computed {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-content: center;
-    align-items: center;
-    gap: 12px;
-    overflow: hidden;
-  }
-
-  .video-grid.computed .video-tile {
-    width: var(--tile-w, 320px);
-    /* 높이 명시 — placeholder(아바타) 내용이 타일을 16:9보다 세로로 늘려 계산이 어긋나는 것 방지 */
-    height: calc(var(--tile-w, 320px) * 9 / 16);
-    flex: none;
-  }
-
-  .video-grid.computed .video-placeholder {
-    min-height: 0;
-    height: 100%;
-  }
-}
+/* (계산 배치 규칙은 파일 끝 — 모바일 그리드 규칙과의 우선순위 때문에 뒤에 둠) */
 
 .video-grid.filmstrip {
   flex: 0 0 130px;
@@ -17487,4 +17462,33 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   .video-grid:not(.filmstrip):not(.count-1):not(.count-2) > .peer-cell:last-child:nth-child(odd) > .video-tile {
     grid-column: span 2;
   }
+}
+
+/* ── 미트식 채움형 통화 그리드 (전 뷰포트, 3인+) — 파일 끝 배치: 동순위 모바일 그리드
+   규칙들을 후순위로 이김. JS(computeGridShape)가 --cols/--rows 계산(16:9 근접 배치),
+   flex-grow로 마지막 행이 남는 폭을 나눠 가져 화면을 100% 채움. 영상은 cover 크롭 ── */
+/* 특이도 4급(.computed 3중) — 모바일 그리드 규칙(.video-grid:not()x3, 특이도 4급)을 파일 끝 순서로 이김 */
+.video-grid.computed.computed.computed {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: stretch;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.video-grid.computed.computed.computed .video-tile {
+  flex: 1 1 calc((100% - (var(--cols, 3) - 1) * 8px) / var(--cols, 3));
+  height: calc((100% - (var(--rows, 3) - 1) * 8px) / var(--rows, 3));
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+
+.video-grid.computed.computed.computed .video-tile video {
+  object-fit: cover;
+}
+
+.video-grid.computed.computed.computed .video-placeholder {
+  min-height: 0;
+  height: 100%;
 }
