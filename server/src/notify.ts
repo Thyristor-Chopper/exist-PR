@@ -79,14 +79,17 @@ export function notifyUser(userId: number, payload: NotifyPayload) {
     created_at: new Date().toISOString(),
   };
   let delivered = false;
+  let anyVisible = false;
   for (const s of io.sockets.sockets.values()) {
     if (s.data.userId === userId) {
       s.emit('agent:notify', full);
       delivered = true;
+      if (s.data.visible !== false) anyVisible = true;
     }
   }
-  // 접속 소켓이 하나도 없으면 웹푸시(PWA) — 앱을 안 켜둔 사람에게 OS 알림
-  if (!delivered) {
+  // 접속 소켓이 없거나, 있어도 전부 백그라운드 탭이면 웹푸시(PWA) — 사용자가 화면을
+  // 안 보고 있는데 벨함에만 조용히 쌓이면 "알림이 안 온다"가 됨 (백그라운드 탭 함정)
+  if (!delivered || !anyVisible) {
     sendPushToUser(userId, {
       title: from,
       body: payload.text,
