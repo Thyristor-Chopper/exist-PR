@@ -14119,9 +14119,10 @@ html:not(.dark) .meeting-controls .leave:hover {
   transform: translateY(-50%) scale(0.9);
 }
 
+/* 끝 페이지 — 그 방향 화살표는 아예 숨김 (반투명 잔상·눌림 반응 제거, 줌 방식) */
 .grid-page-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .grid-page-ind {
@@ -14215,8 +14216,8 @@ html:not(.dark) .meeting-controls .leave:hover {
 }
 
 .strip-page-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* 공유 화면 스테이지 — 동시 공유 N개를 그리드로 */
