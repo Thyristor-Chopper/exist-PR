@@ -1,6 +1,6 @@
 import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { getSocket, request } from '../lib/socket';
 import { usePresence } from '../lib/usePresence';
 import { useAuthStore } from '../store';
@@ -448,7 +448,8 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   // 회의 공유 할 일 로드
   useEffect(() => {
     let alive = true;
-    void api<MeetingTodo[]>(`/api/todos?meeting=${code}`)
+    // silent: 삭제된 그룹의 잔존 탭이 마운트 직후 404 토스트를 쏘지 않게
+    void api<MeetingTodo[]>(`/api/todos?meeting=${code}`, { silent: true })
       .then((list) => {
         if (alive) setTodos(list);
       })
@@ -684,7 +685,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     let alive = true;
     async function load() {
       try {
-        const d = await api<MeetingDetail>(`/api/meetings/${code}`);
+        const d = await api<MeetingDetail>(`/api/meetings/${code}`, { silent: true });
         if (alive) {
           setDetail(d);
           // 회의 탭 제목 옆 조직 배지 + 조직별 탭 필터용 (WorkspacePanel 수신)
@@ -694,8 +695,15 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
             }),
           );
         }
-      } catch {
-        /* 전역 토스트 */
+      } catch (err) {
+        // 삭제된 그룹(404)은 10초마다 토스트를 쏘는 대신 탭을 닫게 함 (WorkspacePanel 수신)
+        if (err instanceof ApiError && err.status === 404) {
+          window.dispatchEvent(
+            new CustomEvent('meeting:gone', { detail: { code: code.toUpperCase() } }),
+          );
+        } else if (err instanceof ApiError) {
+          window.dispatchEvent(new CustomEvent('app:error', { detail: err.message }));
+        }
       }
     }
     void load();
@@ -709,7 +717,8 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   // 채널 목록 — 기본 채널("일반")은 서버가 자동 생성
   useEffect(() => {
     let alive = true;
-    void api<ChatChannel[]>(`/api/meetings/${code}/channels`)
+    // silent: 삭제된 그룹의 잔존 탭이 마운트 직후 404 토스트를 쏘지 않게 (탭 닫기는 상세 폴링이 담당)
+    void api<ChatChannel[]>(`/api/meetings/${code}/channels`, { silent: true })
       .then((list) => {
         if (!alive) return;
         setChannels(list);
@@ -901,10 +910,11 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   }
   useEffect(() => {
     let alive = true;
-    void api<LedgerEntry[]>(`/api/meetings/${code}/decisions`)
+    // silent: 삭제된 그룹의 잔존 탭이 마운트 직후 404 토스트를 쏘지 않게
+    void api<LedgerEntry[]>(`/api/meetings/${code}/decisions`, { silent: true })
       .then((d) => alive && setRecentDecisions(d.slice(0, 3)))
       .catch(() => {});
-    void api<{ items: AgendaItem[] }>(`/api/meetings/${code}/agenda`)
+    void api<{ items: AgendaItem[] }>(`/api/meetings/${code}/agenda`, { silent: true })
       .then((a) => alive && setAgenda(a.items))
       .catch(() => alive && setAgenda([]));
     return () => {

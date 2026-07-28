@@ -10,7 +10,7 @@ export class ApiError extends Error {
 
 export async function api<T = unknown>(
   path: string,
-  options: { method?: string; body?: unknown } = {},
+  options: { method?: string; body?: unknown; silent?: boolean } = {},
 ): Promise<T> {
   const token = useAuthStore.getState().token;
   const res = await fetch(path, {
@@ -29,7 +29,7 @@ export async function api<T = unknown>(
       : `요청 실패 (${res.status}) · ${options.method ?? 'GET'} ${path}`;
     if (res.status === 401) {
       useAuthStore.getState().logout();
-    } else if (!path.startsWith('/api/auth/')) {
+    } else if (!options.silent && !path.startsWith('/api/auth/')) {
       // 인증 폼은 인라인으로 표시하므로 제외 — 나머지는 전역 토스트
       window.dispatchEvent(new CustomEvent('app:error', { detail: message }));
     }

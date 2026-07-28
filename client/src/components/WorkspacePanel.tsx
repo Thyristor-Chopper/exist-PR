@@ -3,6 +3,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useOrgStore, type OrgContext } from '../orgStore';
+import { getSocket } from '../lib/socket';
 import { FolderIcon, UsersIcon, CloseIcon, HomeIcon } from './Icons';
 import CanvasBoard from './CanvasBoard';
 import MeetingHub from './MeetingHub';
@@ -268,6 +269,30 @@ function WorkspacePanel({ meetingRequest }: Props) {
     setExpanded((cur) => (cur && !tabVisible(cur) ? null : cur));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgCurrent, tabMeta]);
+
+  // 그룹이 삭제되면(실시간 소켓 or 상세 폴링 404) 열린 탭을 닫고 한 번만 안내
+  useEffect(() => {
+    function onGone(e: Event) {
+      const { code } = (e as CustomEvent<{ code: string }>).detail;
+      const tab = meetingTabs.find((t) => t.code === code);
+      if (!tab) return;
+      closeMeetingTab(code);
+      window.dispatchEvent(
+        new CustomEvent('app:info', { detail: `'${tab.title}' 그룹이 삭제되어 탭을 닫았어요` }),
+      );
+    }
+    const socket = getSocket();
+    const onDeleted = (p: { code: string }) => {
+      window.dispatchEvent(new CustomEvent('meeting:gone', { detail: { code: p.code } }));
+    };
+    window.addEventListener('meeting:gone', onGone);
+    socket.on('meeting:deleted', onDeleted);
+    return () => {
+      window.removeEventListener('meeting:gone', onGone);
+      socket.off('meeting:deleted', onDeleted);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingTabs, workspaces]);
 
   function closeMeetingTab(code: string, message?: string) {
     setMeetingTabs((prev) => prev.filter((t) => t.code !== code));
