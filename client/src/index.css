@@ -14628,6 +14628,14 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   vertical-align: -2px;
 }
 
+/* 화면 공유 타일 이름표 — 이모지 대신 툴바와 같은 모니터 아이콘 */
+.video-name .tile-screen-ic {
+  display: inline-grid;
+  place-items: center;
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+
 .video-name .tile-off-ic svg {
   grid-area: 1 / 1;
 }
@@ -17785,4 +17793,45 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 .video-grid.computed.computed.computed .video-placeholder {
   min-height: 0;
   height: 100%;
+}
+
+/* 텍스트 ✓ → CheckMarkIcon 교체(7/29)에 따른 정렬 보강 — 아이콘이 글자 옆에 붙는 칩들 */
+.hub-decision-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hub-decision-ack.done,
+.hub-followup-done,
+.ledger-ack.done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.org-perm-table td .icon,
+.org-perm-table td svg {
+  vertical-align: -2px;
+}
+
+/* 홈 라이브 표시 — 🔴 이모지 대신 통화 탭과 같은 깜빡이 점 */
+.pd-live-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e5484d;
+  margin-right: 2px;
+  vertical-align: 0;
+  animation: pd-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pd-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.35); }
+  50% { box-shadow: 0 0 0 5px rgba(229, 72, 77, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-live-dot { animation: none; }
 }

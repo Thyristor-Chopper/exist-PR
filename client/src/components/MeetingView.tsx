@@ -8,7 +8,7 @@ import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, CheckMarkIcon, GearIcon, PinIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, CheckMarkIcon, GearIcon, PinIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -198,7 +198,11 @@ function VideoTile({
         </div>
       )}
       <span className="video-name">
-        {isScreen && '🖥️ '}
+        {isScreen && (
+          <span className="tile-screen-ic" title="화면 공유" aria-hidden>
+            <ScreenIcon size={11} />
+          </span>
+        )}
         {username}
         {isLocal && ' (나)'}
         {micMuted && !isScreen && (
@@ -1749,7 +1753,7 @@ export default function MeetingView({
                   }}
                   title="이전"
                 >
-                  ‹
+                  <ChevronLeftIcon size={16} />
                 </button>
                 <button
                   className="strip-page-btn next"
@@ -1761,7 +1765,7 @@ export default function MeetingView({
                   }}
                   title="다음"
                 >
-                  ›
+                  <ChevronRightIcon size={16} />
                 </button>
               </>
             )}
@@ -1779,7 +1783,7 @@ export default function MeetingView({
                 }}
                 title="이전 페이지"
               >
-                ‹
+                <ChevronLeftIcon size={16} />
               </button>
               <button
                 className="grid-page-btn next"
@@ -1791,7 +1795,7 @@ export default function MeetingView({
                 }}
                 title="다음 페이지"
               >
-                ›
+                <ChevronRightIcon size={16} />
               </button>
               <span className="grid-page-ind">
                 {pageNow + 1} / {totalPages}
@@ -1821,7 +1825,7 @@ export default function MeetingView({
               <span className="chat-head-title">
                 <ChatIcon size={16} /> 채팅 <span className="chat-head-channel"># {callChannelName}</span>
               </span>
-              <button onClick={() => setChatOpen(false)}>×</button>
+              <button onClick={() => setChatOpen(false)}><CloseIcon size={14} /></button>
             </div>
             <div className="chat-messages">
               {messages.length === 0 && <div className="chat-empty">아직 메시지가 없어요</div>}

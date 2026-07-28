@@ -289,7 +289,7 @@ export default function DecisionLedger({ code }: { code: string }) {
                     </div>
                     {/* 수신 확인 — 회람 사인. 이미 확인했으면 상태 뱃지 */}
                     {acked ? (
-                      <span className="ledger-ack done">확인함 ✓</span>
+                      <span className="ledger-ack done">확인함 <CheckMarkIcon size={12} /></span>
                     ) : (
                       <button className="ledger-ack" onClick={() => void ack(e)}>
                         확인

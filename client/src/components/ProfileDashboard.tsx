@@ -10,7 +10,7 @@ import UnifiedInbox from './UnifiedInbox';
 import { dueBadge } from '../lib/due';
 import ScheduleWidget from './ScheduleWidget';
 import Marquee from './Marquee';
-import { ListIcon, SparklesIcon, CalendarIcon, ChatIcon, UsersIcon, CheckMarkIcon, ChartIcon, CheckIcon } from './Icons';
+import { ListIcon, SparklesIcon, CalendarIcon, ChatIcon, UsersIcon, CheckMarkIcon, ChartIcon, CheckIcon, PenIcon, UserIcon, BoltIcon, BuildingIcon, PinIcon, CloseIcon } from './Icons';
 
 /** 확인 대기 결정 — 홈 카드 (P1: 결정은 전달되고, 확인되어야 한다) */
 interface PendingDecision {
@@ -209,7 +209,7 @@ export default function ProfileDashboard() {
                   </span>
                 )}
                 <button className="hub-todo-del" title="삭제" onClick={() => void removeTodo(t)}>
-                  ×
+                  <CloseIcon size={12} />
                 </button>
               </div>
             ))}
@@ -264,23 +264,27 @@ export default function ProfileDashboard() {
     return (
       <div className="pd-wrap" style={wrap}>
         <div className="pd-hero org">
-          <div className="pd-hero-avatar">👥</div>
+          <div className="pd-hero-avatar"><UsersIcon size={26} /></div>
           <div>
             <div style={heroGreeting}>
-              <span className="pd-ws-tag">🏢 {orgName} · </span>
+              <span className="pd-ws-tag"><BuildingIcon size={12} /> {orgName} · </span>
               {greeting()}
             </div>
             <div className="pd-hero-name">{orgName} 팀</div>
             <div style={heroChips}>
               <span style={heroChip}>
-                {orgManager ? '📊 팀 협업 현황을 아래에서 한눈에' : '📌 지금 챙길 것부터 아래에 모아뒀어요'}
+                {orgManager ? (
+                  <><ChartIcon size={13} /> 팀 협업 현황을 아래에서 한눈에</>
+                ) : (
+                  <><PinIcon size={13} /> 지금 챙길 것부터 아래에 모아뒀어요</>
+                )}
               </span>
             </div>
           </div>
         </div>
 
         <div style={section}>
-          <div style={sectionHead}>⚡ 빠른 시작</div>
+          <div style={sectionHead}><span style={headIcon}><BoltIcon size={16} /></span> 빠른 시작</div>
           <div className="pd-actions" style={actionRow}>
             {/* 조직 그룹 생성은 권한제 — owner/admin 또는 group:create 역할만 */}
             {(orgInfo?.canCreateGroup ?? true) && (
@@ -289,7 +293,7 @@ export default function ProfileDashboard() {
               </button>
             )}
             <button style={actionBtn} onClick={() => navigate(`/org/${org}`)}>
-              <span style={{ fontSize: 18 }}>👥</span> 조직도 보기
+              <UsersIcon size={17} /> 조직도 보기
             </button>
           </div>
         </div>
@@ -350,13 +354,13 @@ export default function ProfileDashboard() {
             avatarVal
           )}
           <span className="pd-hero-edit-badge" aria-hidden>
-            ✎
+            <PenIcon size={11} />
           </span>
         </button>
         <div>
           <div style={heroGreeting}>
             {/* 워크스페이스 표기는 모바일에선 숨김 — 상단 조직 바가 이미 보여줌 */}
-            <span className="pd-ws-tag">👤 개인 워크스페이스 · </span>
+            <span className="pd-ws-tag"><UserIcon size={12} /> 개인 워크스페이스 · </span>
             {greeting()}
           </div>
           <div className="pd-hero-name">{user?.name || user?.username || '게스트'}님 👋</div>
@@ -390,7 +394,7 @@ export default function ProfileDashboard() {
 
       {live && (
         <div style={liveBox}>
-          🔴 지금 <b>{live.title}</b>에서 {live.inCall}명 통화 중 — 아래 최근 그룹에서 참여하세요
+          <span className="pd-live-dot" aria-hidden /> 지금 <b>{live.title}</b>에서 {live.inCall}명 통화 중 — 아래 최근 그룹에서 참여하세요
         </div>
       )}
 

@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useNameStore } from '../names';
 import Avatar from './Avatar';
-import { SunIcon, MoonIcon } from './Icons';
+import { SunIcon, MoonIcon, CheckMarkIcon } from './Icons';
 
 const AVATARS = ['🐧', '🦊', '🐻', '🐼', '🐯', '🦁', '🐸', '🐰', '🦉', '🐢', '🐳', '🚀'];
 
@@ -71,9 +71,9 @@ export default function SettingsModal({ open, onClose, avatar, onAvatarChange }:
         setCurrent('');
         setNext('');
         setConfirm('');
-        setSaveDone('✓ 저장됐어요 (비밀번호 변경 — 다른 기기 세션은 모두 로그아웃됨)');
+        setSaveDone('저장됐어요 (비밀번호 변경 — 다른 기기 세션은 모두 로그아웃됨)');
       } else {
-        setSaveDone('✓ 저장됐어요');
+        setSaveDone('저장됐어요');
       }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : '저장에 실패했습니다');
@@ -295,7 +295,7 @@ export default function SettingsModal({ open, onClose, avatar, onAvatarChange }:
             <div className="error" style={{ color: '#d33', fontSize: 13 }}>{saveError}</div>
           )}
           {saveDone && (
-            <div style={{ color: 'var(--green)', fontSize: 13, fontWeight: 700 }}>{saveDone}</div>
+            <div style={{ color: 'var(--green)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><CheckMarkIcon size={13} /> {saveDone}</div>
           )}
           <div className="modal-actions">
             <button type="button" className="modal-cancel" onClick={onClose}>

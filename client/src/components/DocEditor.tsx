@@ -19,7 +19,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import { exportDocx } from '../lib/docx';
 import Marquee from './Marquee';
-import { PlusIcon, CloseIcon, DownloadIcon } from './Icons';
+import { PlusIcon, CloseIcon, DownloadIcon, CheckMarkIcon, ChevronIcon } from './Icons';
 import ColorGrid from './ColorGrid';
 import OverflowToolbar from './OverflowToolbar';
 
@@ -944,7 +944,7 @@ export default function DocEditor({
                     : editor?.isActive('heading', { level: 3 })
                       ? '제목 3'
                       : '일반 텍스트'}
-                <span className="doc-style-caret">▾</span>
+                <span className="doc-style-caret"><ChevronIcon size={10} /></span>
               </button>
               {menu === 'style' && (
                 <>
@@ -1000,7 +1000,7 @@ export default function DocEditor({
                 onClick={() => setMenu(menu === 'font' ? null : 'font')}
               >
                 {FONT_FAMILIES.find((f) => f.value && (editor?.getAttributes('textStyle').fontFamily as string | undefined) === f.value)?.label ?? '글꼴'}
-                <span className="doc-style-caret">▾</span>
+                <span className="doc-style-caret"><ChevronIcon size={10} /></span>
               </button>
               {menu === 'font' && (
                 <>
@@ -1453,7 +1453,7 @@ export default function DocEditor({
                       <button onClick={() => addReply(id)}>등록</button>
                     </div>
                     <div className="doc-cthread-btns" onClick={(e) => e.stopPropagation()}>
-                      <button className="primary" onClick={() => resolveComment(id)}>✓ 해결</button>
+                      <button className="primary" onClick={() => resolveComment(id)}><CheckMarkIcon size={12} /> 해결</button>
                       <button className="danger" onClick={() => deleteComment(id)}>삭제</button>
                     </div>
                   </div>

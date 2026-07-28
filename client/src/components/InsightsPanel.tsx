@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { api } from '../api';
+import { SparklesIcon, ChartIcon, AlertIcon, BulbIcon, LeafIcon, ChevronIcon, ChevronUpIcon } from './Icons';
 
 /*
  * AI 팀 인사이트 패널 — 조직의 협업 데이터(회의·할 일·통화·채팅)를
@@ -52,7 +53,14 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
   }, [orgId]);
 
   if (err) return null;
-  if (!data) return <section style={box}>🧠 AI 팀 인사이트 분석 중…</section>;
+  if (!data)
+    return (
+      <section style={box}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <SparklesIcon size={15} /> AI 팀 인사이트 분석 중…
+        </span>
+      </section>
+    );
 
   const { metrics: m, insights: ins, source } = data;
   const activeMembers = m.memberCount - m.quietMembers.length;
@@ -63,7 +71,7 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
   return (
     <section style={box}>
       <div style={head}>
-        <span style={{ fontWeight: 700, fontSize: 15 }}>🧠 AI 팀 인사이트</span>
+        <span style={{ fontWeight: 700, fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}><SparklesIcon size={15} /> AI 팀 인사이트</span>
         <span style={badge}>
           {source === 'ai' ? 'AI 분석' : '규칙 기반'} · 최근 {m.periodDays}일
         </span>
@@ -71,7 +79,11 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
 
       <p style={{ margin: '10px 0 14px', lineHeight: 1.6, color: 'var(--text)' }}>{ins.summary}</p>
 
-      {ins.trend && <div style={trendBox}>📈 {ins.trend}</div>}
+      {ins.trend && (
+        <div style={{ ...trendBox, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <ChartIcon size={14} /> {ins.trend}
+        </div>
+      )}
 
       {enoughData ? (
         <div style={predGrid}>
@@ -80,7 +92,7 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
         </div>
       ) : (
         <div style={holdBox}>
-          🌱 아직 활동 데이터가 적어 위험 예측을 보류했어요 — 회의·채팅이 쌓이면 번아웃·일정 지연
+          <LeafIcon size={13} /> 아직 활동 데이터가 적어 위험 예측을 보류했어요 — 회의·채팅이 쌓이면 번아웃·일정 지연
           위험을 분석해 드려요
         </div>
       )}
@@ -102,7 +114,7 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
 
       {enoughData && ins.risks.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={sectTitle}>⚠️ 리스크</div>
+          <div style={{ ...sectTitle, display: 'flex', alignItems: 'center', gap: 6 }}><AlertIcon size={14} /> 리스크</div>
           {ins.risks.map((r, i) => (
             <div key={i} style={riskItem}>
               {r}
@@ -113,7 +125,7 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
 
       {enoughData && ins.recommendations.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={sectTitle}>💡 추천</div>
+          <div style={{ ...sectTitle, display: 'flex', alignItems: 'center', gap: 6 }}><BulbIcon size={14} /> 추천</div>
           {ins.recommendations.map((r, i) => (
             <div key={i} style={recItem}>
               {r}
@@ -125,7 +137,8 @@ export default function InsightsPanel({ orgId }: { orgId: number }) {
       {/* ESG — 통근 대체 가정 기반 추정치라 기본 접힘. 궁금한 사람만 펼쳐본다 */}
       <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
         <button style={esgToggle} onClick={() => setEsgOpen((v) => !v)}>
-          🌱 ESG · 원격근무 사회적 가치 {esgOpen ? '접기 ▴' : '보기 ▾'}
+          <LeafIcon size={13} /> ESG · 원격근무 사회적 가치 {esgOpen ? '접기' : '보기'}{' '}
+          {esgOpen ? <ChevronUpIcon size={11} /> : <ChevronIcon size={11} />}
         </button>
         {esgOpen && (
           <div style={{ marginTop: 10 }}>
@@ -227,6 +240,9 @@ const holdBox: CSSProperties = {
   marginBottom: 16,
 };
 const esgToggle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 5,
   border: 'none',
   background: 'none',
   padding: 0,

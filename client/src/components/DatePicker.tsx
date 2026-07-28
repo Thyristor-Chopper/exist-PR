@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarIcon } from './Icons';
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -59,13 +59,13 @@ export default function DatePicker({
           <div className="datepick-pop">
             <div className="datepick-head">
               <button type="button" onClick={() => setView(new Date(year, month - 1, 1))}>
-                ‹
+                <ChevronLeftIcon size={14} />
               </button>
               <span>
                 {year}년 {month + 1}월
               </span>
               <button type="button" onClick={() => setView(new Date(year, month + 1, 1))}>
-                ›
+                <ChevronRightIcon size={14} />
               </button>
             </div>
             <div className="datepick-dow">
