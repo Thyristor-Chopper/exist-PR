@@ -47,7 +47,11 @@ function gatherContext(meetingId: number, channelId: number): AgentContext {
   const meeting = db.prepare('SELECT title FROM meetings WHERE id = ?').get(meetingId) as {
     title: string;
   };
-  const decisions = listDecisions(meetingId, 30).map((d) => ({ decision: d.decision, ts: d.ts }));
+  // 배경(why)까지 근거에 포함 — "이 결정 왜 이렇게 됐어?" 역질문에 답할 수 있게
+  const decisions = listDecisions(meetingId, 30).map((d) => ({
+    decision: d.why ? `${d.decision} (배경: ${d.why})` : d.decision,
+    ts: d.ts,
+  }));
   const recaps = listRecaps(meetingId, 5).map((r) => ({ summary: r.summary, ts: r.ts }));
   const todos = db
     .prepare(
@@ -133,6 +137,69 @@ async function aiAnswer(question: string, asker: string, ctx: AgentContext): Pro
   const answer = String(parsed.answer ?? '').trim();
   if (!answer) throw new Error('empty answer');
   return answer.slice(0, 1000);
+}
+
+/* ── DM 1:1 질의 — 통합 메시지에서 exist AI에게 직접 묻기 ──
+ * 근거 = 그 스코프(개인/조직)에서 내가 참가한 그룹들의 결정(+배경)·통화 정리·내 할 일.
+ * 그룹 채팅 @AI가 공개 역질문이라면, 이건 조용히 묻는 1:1 — 심리적 안전의 사적 채널 */
+export async function answerDmQuery(
+  orgId: number | null,
+  userId: number,
+  question: string,
+): Promise<string> {
+  const scopeSql = orgId == null ? 'm.org_id IS NULL' : 'm.org_id = ?';
+  const scopeArgs = orgId == null ? [] : [orgId];
+  const meetings = db
+    .prepare(
+      `SELECT m.id, m.title FROM meetings m
+       JOIN meeting_participants mp ON mp.meeting_id = m.id
+       WHERE ${scopeSql} AND mp.user_id = ? ORDER BY m.id DESC LIMIT 10`,
+    )
+    .all(...scopeArgs, userId) as { id: number; title: string }[];
+
+  const decisions: { decision: string; ts: number }[] = [];
+  const recaps: { summary: string; ts: number }[] = [];
+  for (const m of meetings) {
+    for (const d of listDecisions(m.id, 10)) {
+      decisions.push({
+        decision: `[${m.title}] ${d.decision}${d.why ? ` (배경: ${d.why})` : ''}`,
+        ts: d.ts,
+      });
+    }
+    for (const r of listRecaps(m.id, 2)) recaps.push({ summary: `[${m.title}] ${r.summary}`, ts: r.ts });
+  }
+  decisions.sort((a, b) => b.ts - a.ts);
+  recaps.sort((a, b) => b.ts - a.ts);
+
+  const todos = db
+    .prepare(
+      `SELECT t.title, t.done, u.username AS author FROM todos t
+       JOIN users u ON u.id = t.user_id
+       LEFT JOIN meetings m ON m.id = t.meeting_id
+       WHERE t.user_id = ? AND (${orgId == null ? 'm.id IS NULL OR m.org_id IS NULL' : 'm.org_id = ?'})
+       ORDER BY t.id DESC LIMIT 20`,
+    )
+    .all(userId, ...scopeArgs) as { title: string; done: number; author: string }[];
+
+  const ctx: AgentContext = {
+    meetingTitle: orgId == null ? '개인 워크스페이스' : '조직 워크스페이스',
+    decisions: decisions.slice(0, 30),
+    recaps: recaps.slice(0, 8),
+    todos,
+    chat: [], // 1:1 질의는 그룹 대화를 근거로 안 씀 — 스코프 전체 기록만
+  };
+
+  if (openai) {
+    try {
+      const me = db.prepare('SELECT username, name FROM users WHERE id = ?').get(userId) as
+        | { username: string; name: string | null }
+        | undefined;
+      return await aiAnswer(question, me?.name || me?.username || '사용자', ctx);
+    } catch (err) {
+      console.error('[steward] DM AI 실패, 규칙 폴백:', err);
+    }
+  }
+  return ruleBasedAnswer(question, ctx);
 }
 
 /* ── 다음 회의 아젠다 제안 — 회의 "전"에도 총무가 일한다 ──

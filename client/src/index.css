@@ -14343,6 +14343,15 @@ html:not(.dark) .meeting-controls .leave:hover {
   place-items: center;
 }
 
+/* ── 결정 배경 — "왜 그렇게 됐는지"가 결정과 같이 남는다 ── */
+.hub-recap-why,
+.ledger-why {
+  font-size: 12px;
+  color: var(--text-sub);
+  margin-top: 2px;
+  padding-left: 2px;
+}
+
 /* ── AI 겹침 시간 제안 — recap의 다음 회의 후보 슬롯 ── */
 .hub-recap-next.suggest {
   flex-wrap: wrap;

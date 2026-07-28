@@ -4,6 +4,7 @@ import { requireAuth, type AuthedRequest } from './auth.js';
 import { isMember } from './orgs.js';
 import { emitToUser, notifyUser, isViewingDm } from './notify.js';
 import { invalidateBrief } from './agent.js';
+import { ensureAgentUser, answerDmQuery, AGENT_NAME, AGENT_AVATAR } from './steward.js';
 
 /*
  * 1:1 다이렉트 메시지(DM).
@@ -117,6 +118,15 @@ router.get('/:scope/threads', (req: AuthedRequest, res) => {
           )
           .all(...ids) as typeof base)
       : [];
+  }
+
+  // exist AI 항목 상시 노출 — 통합 메시지에서 총무에게 바로 1:1 질문 (조직·개인 스코프 공통)
+  const agentId = ensureAgentUser();
+  if (!base.some((b) => b.user_id === agentId)) {
+    const au = db
+      .prepare('SELECT id AS user_id, username, avatar FROM users WHERE id = ?')
+      .get(agentId) as { user_id: number; username: string; avatar: string | null } | undefined;
+    if (au) base.unshift({ ...au, position: 'AI 총무', department: null });
   }
 
   const threads = base.map((m) => {
@@ -260,7 +270,11 @@ router.post('/:scope/with/:userId', (req: AuthedRequest, res) => {
   if (!Number.isInteger(peer) || peer === me) {
     return res.status(400).json({ error: '잘못된 상대입니다' });
   }
-  if (!peerOk(orgId, peer)) return res.status(404).json({ error: '상대를 찾을 수 없어요' });
+  // exist AI는 조직 멤버가 아니어도 어느 스코프에서나 대화 가능 (총무 1:1 질의)
+  const agentId = ensureAgentUser();
+  if (peer !== agentId && !peerOk(orgId, peer)) {
+    return res.status(404).json({ error: '상대를 찾을 수 없어요' });
+  }
 
   const text = String(req.body?.text ?? '').trim().slice(0, 2000);
   if (!text) return res.status(400).json({ error: '메시지를 입력하세요' });
@@ -290,7 +304,8 @@ router.post('/:scope/with/:userId', (req: AuthedRequest, res) => {
   invalidateBrief(peer); // 받는 쪽 안읽음이 늘었다 — 브리핑 갱신
 
   // 알림 센터·웹푸시 연결 — 메시지마다 알림, 단 이 DM 창을 보고 있는 중이면 생략 (7/27 버스트 억제 제거, 주호 결정)
-  if (!isViewingDm(peer, me)) {
+  // AI가 상대면 알림 불필요 (사람 아님)
+  if (peer !== agentId && !isViewingDm(peer, me)) {
     notifyUser(peer, {
       from: req.username!,
       text: text.length > 80 ? `${text.slice(0, 80)}…` : text,
@@ -299,6 +314,32 @@ router.post('/:scope/with/:userId', (req: AuthedRequest, res) => {
   }
 
   res.json(payload);
+
+  // ── exist AI 1:1 질의 — 상대가 총무면 스코프 기록 기반으로 답장 (비동기, 응답을 막지 않음) ──
+  if (peer === agentId) {
+    void (async () => {
+      try {
+        const answer = await answerDmQuery(orgId, me, text);
+        const aInfo = db
+          .prepare('INSERT INTO dm_messages (org_id, from_id, to_id, text) VALUES (?, ?, ?, ?)')
+          .run(orgId, agentId, me, answer);
+        const aPayload = {
+          id: aInfo.lastInsertRowid as number,
+          orgId,
+          fromId: agentId,
+          toId: me,
+          from: AGENT_NAME,
+          avatar: AGENT_AVATAR,
+          text: answer,
+          ts: Date.now(),
+        };
+        emitToUser(me, 'dm:message', aPayload);
+        invalidateBrief(me);
+      } catch (err) {
+        console.error('[steward] DM 답변 실패:', err);
+      }
+    })();
+  }
 });
 
 export default router;

@@ -37,6 +37,9 @@ export interface NextMeeting {
 export interface RecapResult {
   summary: string;
   decisions: string[];
+  /** 결정별 배경 한 줄 (decisions와 인덱스 정렬, 로그에 근거 없으면 '') —
+   *  실무자 인터뷰 반영: "결정 내용은 남는데 왜 그렇게 됐는지는 유실된다" */
+  whys: string[];
   actions: RecapAction[];
   nextMeeting: NextMeeting | null;
   source: 'ai' | 'rule';
@@ -75,8 +78,9 @@ export function ruleBasedRecap(msgs: ChatMsg[], participants: string[]): RecapRe
     decisions.length > 0
       ? decisions[0].replace(/^[^:]+: /, '').slice(0, 80)
       : `메시지 ${msgs.length}건 논의 (뚜렷한 결정 없음)`;
-  // 규칙 기반은 날짜 해석이 위험해서(오해석 → 엉뚱한 일정) 다음 회의 제안은 AI 경로에서만
-  return { summary, decisions, actions, nextMeeting: null, source: 'rule' };
+  // 규칙 기반은 날짜 해석이 위험해서(오해석 → 엉뚱한 일정) 다음 회의 제안은 AI 경로에서만.
+  // 배경 추론도 AI 경로에서만 — 규칙으로 "왜"를 짚으면 오염 위험
+  return { summary, decisions, whys: decisions.map(() => ''), actions, nextMeeting: null, source: 'rule' };
 }
 
 /** OpenAI 기반 추출 — 결정·할 일·요약을 JSON으로 */
@@ -84,8 +88,9 @@ async function aiRecap(msgs: ChatMsg[], participants: string[]): Promise<RecapRe
   const system =
     '너는 분산 근무 플랫폼 exist의 AI 운영자다. 회의 채팅 로그에서 팀이 합의한 결정과 할 일을 추출한다. ' +
     '이 결과는 회의에 참석하지 못한 팀원에게 그대로 전달되므로, 로그에 없는 사실·수치를 만들지 않는다.\n' +
-    '응답은 오직 JSON 한 개. 형식: {"summary": string, "decisions": string[], "actions": [{"assignee": string|null, "title": string}], "next_meeting": {"title": string, "date": "YYYY-MM-DD", "time": "HH:MM"|null} | null}.\n' +
+    '응답은 오직 JSON 한 개. 형식: {"summary": string, "decisions": [{"text": string, "why": string}], "actions": [{"assignee": string|null, "title": string}], "next_meeting": {"title": string, "date": "YYYY-MM-DD", "time": "HH:MM"|null} | null}.\n' +
     'summary는 논의 핵심 한 줄(한국어 80자 이내). decisions는 실제로 합의·확정된 것만(최대 5개, 없으면 빈 배열). ' +
+    'decisions[].why는 그 결정의 배경·근거 한 줄(한국어 60자 이내) — 로그에서 언급된 이유·검토된 대안·기각 사유만 담고, 로그에 근거가 없으면 반드시 빈 문자열 "" (추측 금지). ' +
     'actions는 구체적인 할 일(최대 5개). assignee는 반드시 participants 목록의 username 중 하나이거나, 로그로 담당자를 특정할 수 없으면 null.\n' +
     'next_meeting은 다음 회의 시각이 로그에서 명시적으로 제안·합의된 경우에만 채운다. ' +
     '상대 표현(내일, 수요일, 다음 주 금요일)은 요일을 직접 계산하지 말고 반드시 calendar 목록에서 해당 요일의 가장 가까운 날짜를 찾아 쓴다. ' +
@@ -129,10 +134,23 @@ async function aiRecap(msgs: ChatMsg[], participants: string[]): Promise<RecapRe
   const names = new Set(participants);
   const summary = String(parsed.summary ?? '').trim().slice(0, 160);
   if (!summary) throw new Error('empty summary');
-  const decisions = (Array.isArray(parsed.decisions) ? parsed.decisions : [])
-    .map((d) => String(d).trim())
-    .filter(Boolean)
-    .slice(0, 5);
+  // 결정 파싱 — 새 형식({text, why})과 구 형식(string) 모두 수용 (모델이 형식을 놓칠 수 있음)
+  const decisions: string[] = [];
+  const whys: string[] = [];
+  for (const d of (Array.isArray(parsed.decisions) ? parsed.decisions : []).slice(0, 5)) {
+    if (d && typeof d === 'object') {
+      const o = d as { text?: unknown; why?: unknown };
+      const text = String(o.text ?? '').trim();
+      if (!text) continue;
+      decisions.push(text.slice(0, 200));
+      whys.push(String(o.why ?? '').trim().slice(0, 160));
+    } else {
+      const text = String(d).trim();
+      if (!text) continue;
+      decisions.push(text.slice(0, 200));
+      whys.push('');
+    }
+  }
   const actions: RecapAction[] = (Array.isArray(parsed.actions) ? parsed.actions : [])
     .map((a) => {
       const o = a as { assignee?: unknown; title?: unknown };
@@ -157,7 +175,7 @@ async function aiRecap(msgs: ChatMsg[], participants: string[]): Promise<RecapRe
       nextMeeting = { title: String(nm.title ?? '').trim().slice(0, 80) || '다음 회의', date, time };
     }
   }
-  return { summary, decisions, actions, nextMeeting, source: 'ai' };
+  return { summary, decisions, whys, actions, nextMeeting, source: 'ai' };
 }
 
 /** 추출 (AI → 실패 시 규칙 폴백) */
@@ -176,6 +194,8 @@ export interface RecapRow {
   id: number;
   summary: string;
   decisions: string[];
+  /** 결정별 배경 (decisions와 인덱스 정렬, 없으면 '') */
+  whys: string[];
   actions: RecapAction[];
   attendees: string[];
   nextMeeting: NextMeeting | null;
@@ -183,33 +203,49 @@ export interface RecapRow {
   ts: number;
 }
 
+/** whys 컬럼 파싱 — 구 데이터(null)는 decisions 길이만큼 빈 문자열로 */
+function parseWhys(raw: string | null, count: number): string[] {
+  let whys: string[] = [];
+  try {
+    whys = raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    whys = [];
+  }
+  return Array.from({ length: count }, (_, i) => String(whys[i] ?? ''));
+}
+
 /** 회의의 recap 목록 (최신순) — API·클라 표시용 */
 export function listRecaps(meetingId: number, limit = 20): RecapRow[] {
   const rows = db
     .prepare(
-      `SELECT id, summary, decisions, actions, attendees, next_meeting, source, created_at
+      `SELECT id, summary, decisions, whys, actions, attendees, next_meeting, source, created_at
        FROM meeting_recaps WHERE meeting_id = ? ORDER BY id DESC LIMIT ?`,
     )
     .all(meetingId, limit) as {
     id: number;
     summary: string;
     decisions: string;
+    whys: string | null;
     actions: string;
     attendees: string;
     next_meeting: string | null;
     source: string;
     created_at: string;
   }[];
-  return rows.map((r) => ({
-    id: r.id,
-    summary: r.summary,
-    decisions: JSON.parse(r.decisions),
-    actions: JSON.parse(r.actions),
-    attendees: JSON.parse(r.attendees),
-    nextMeeting: r.next_meeting ? (JSON.parse(r.next_meeting) as NextMeeting) : null,
-    source: r.source,
-    ts: new Date(r.created_at + 'Z').getTime(),
-  }));
+  return rows.map((r) => {
+    const decisions = JSON.parse(r.decisions) as string[];
+    return {
+      id: r.id,
+      summary: r.summary,
+      decisions,
+      whys: parseWhys(r.whys, decisions.length),
+      actions: JSON.parse(r.actions),
+      attendees: JSON.parse(r.attendees),
+      nextMeeting: r.next_meeting ? (JSON.parse(r.next_meeting) as NextMeeting) : null,
+      source: r.source,
+      ts: new Date(r.created_at + 'Z').getTime(),
+    };
+  });
 }
 
 /**
@@ -282,13 +318,14 @@ export async function runRecapForMeeting(
 
   const info = db
     .prepare(
-      `INSERT INTO meeting_recaps (meeting_id, summary, decisions, actions, attendees, next_meeting, source)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO meeting_recaps (meeting_id, summary, decisions, whys, actions, attendees, next_meeting, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       meeting.id,
       recap.summary,
       JSON.stringify(recap.decisions),
+      JSON.stringify(recap.whys),
       JSON.stringify(recap.actions),
       JSON.stringify(attendees),
       recap.nextMeeting ? JSON.stringify(recap.nextMeeting) : null,
@@ -346,6 +383,8 @@ export interface LedgerEntry {
   /** recap 안에서의 결정 순번 — 수신 확인의 키 (recapId + idx) */
   idx: number;
   decision: string;
+  /** 결정 배경 한 줄 — 없으면 '' */
+  why: string;
   attendees: string[];
   ts: number;
   /** 수신 확인한 사람들 (회람 사인) */
@@ -357,10 +396,10 @@ export interface LedgerEntry {
 export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
   const rows = db
     .prepare(
-      `SELECT id, decisions, attendees, created_at FROM meeting_recaps
+      `SELECT id, decisions, whys, attendees, created_at FROM meeting_recaps
        WHERE meeting_id = ? ORDER BY id DESC LIMIT 50`,
     )
-    .all(meetingId) as { id: number; decisions: string; attendees: string; created_at: string }[];
+    .all(meetingId) as { id: number; decisions: string; whys: string | null; attendees: string; created_at: string }[];
   const ackStmt = db.prepare(
     `SELECT a.decision_idx, u.username, a.created_at FROM decision_acks a
      JOIN users u ON u.id = a.user_id WHERE a.recap_id = ? ORDER BY a.id`,
@@ -371,11 +410,13 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
     const attendees = JSON.parse(r.attendees) as string[];
     const ackRows = ackStmt.all(r.id) as { decision_idx: number; username: string; created_at: string }[];
     const decisions = JSON.parse(r.decisions) as string[];
+    const whys = parseWhys(r.whys, decisions.length);
     for (let idx = 0; idx < decisions.length; idx++) {
       out.push({
         recapId: r.id,
         idx,
         decision: decisions[idx],
+        why: whys[idx],
         attendees,
         ts,
         acks: ackRows

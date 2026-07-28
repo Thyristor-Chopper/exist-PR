@@ -25,6 +25,8 @@ interface Recap {
   id: number;
   summary: string;
   decisions: string[];
+  /** 결정별 배경 한 줄 (decisions와 인덱스 정렬, 없으면 '') */
+  whys?: string[];
   actions: RecapAction[];
   attendees: string[];
   nextMeeting: NextMeeting | null;
@@ -190,6 +192,8 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
                   {r.decisions.map((d, i) => (
                     <li key={i}>
                       <CheckMarkIcon size={13} /> {d}
+                      {/* 결정 배경 — "왜 그렇게 됐는지"가 같이 남는다 (실무자 인터뷰 반영) */}
+                      {r.whys?.[i] && <div className="hub-recap-why">배경 · {r.whys[i]}</div>}
                     </li>
                   ))}
                 </ul>

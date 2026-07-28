@@ -587,6 +587,14 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: 결정 배경 — decisions와 인덱스로 정렬된 "왜 그렇게 됐는지" 한 줄 (JSON string[])
+// 실무자 인터뷰 반영: 결정 내용은 남는데 배경·검토된 대안은 유실된다는 게 제조 현장의 실제 페인
+try {
+  db.exec(`ALTER TABLE meeting_recaps ADD COLUMN whys TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 마이그레이션: 개인 DM 지원 — 기존 테이블 org_id가 NOT NULL이면 NULL 허용으로 재생성
 try {
   const col = db

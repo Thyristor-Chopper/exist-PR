@@ -15,6 +15,8 @@ interface LedgerEntry {
   recapId: number;
   idx: number;
   decision: string;
+  /** 결정 배경 한 줄 — 없으면 '' (실무자 인터뷰: 배경 유실이 진짜 페인) */
+  why?: string;
   attendees: string[];
   ts: number;
   acks: { username: string; ts: number }[];
@@ -120,6 +122,7 @@ export default function DecisionLedger({ code }: { code: string }) {
                     </span>
                     <div className="ledger-body">
                       <div className="ledger-decision">{e.decision}</div>
+                      {e.why && <div className="ledger-why">배경 · {e.why}</div>}
                       <div className="ledger-meta">
                         참석 {e.attendees.length ? e.attendees.map((a) => dn(a)).join(', ') : '기록 없음'}
                         {e.acks.length > 0 && (
