@@ -4367,17 +4367,32 @@ input:focus {
   }
 }
 
-/* 일/주/월 세그먼트 (애플 캘린더식) */
-.msched-seg {
+/* ── 알약 세그먼트 (공용) — 활성 알약(썸)이 미끄러지는 토글 ── */
+.pillseg {
+  position: relative;
   display: flex;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 999px; /* 알약 — 오늘 버튼과 형태 통일 */
+  border-radius: 999px;
   padding: 3px;
-  margin-left: 8px;
 }
 
-.msched-seg button {
+.pillseg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  background: var(--surface);
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pillseg button {
+  position: relative;
+  z-index: 1;
   border: none;
   background: none;
   font-size: 13px;
@@ -4385,12 +4400,16 @@ input:focus {
   color: var(--text-sub);
   padding: 5px 14px;
   border-radius: 999px;
+  transition: color 0.18s;
 }
 
-.msched-seg button.on {
-  background: var(--surface);
+.pillseg button.on {
   color: var(--text);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* 일/주/월 세그먼트 (애플 캘린더식) — 스타일은 pillseg 공용 */
+.msched-seg {
+  margin-left: 8px;
 }
 
 /* ── 주 뷰 (시간 그리드) ── */
@@ -15139,31 +15158,9 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 }
 
 /* ── 변경 이력 뷰 — 같은 주제 결정의 변천 타임라인 ── */
-/* 목록|변경 이력 토글 — 일정 뷰 스위처와 같은 알약 세그 언어 */
+/* 목록|변경 이력 토글 — pillseg 공용 스타일 사용 */
 .ledger-view-seg {
-  display: inline-flex;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 3px;
   flex-shrink: 0;
-}
-
-.ledger-view-seg button {
-  border: none;
-  background: none;
-  color: var(--text-sub);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 5px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.ledger-view-seg button.on {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .ledger-hist {

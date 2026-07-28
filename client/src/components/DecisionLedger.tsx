@@ -4,6 +4,7 @@ import { useAuthStore } from '../store';
 import { getSocket } from '../lib/socket';
 import { useDisplayName } from '../names';
 import { CheckMarkIcon, SparklesIcon } from './Icons';
+import PillSeg from './PillSeg';
 
 /*
  * 결정 원장 — 이 그룹의 모든 통화 결정이 시간순으로 쌓이는 타임라인.
@@ -156,14 +157,16 @@ export default function DecisionLedger({ code }: { code: string }) {
               placeholder="결정 검색"
             />
           )}
-          <div className="ledger-view-seg">
-            <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>
-              목록
-            </button>
-            <button className={view === 'history' ? 'on' : ''} onClick={() => void openHistory()}>
-              변경 이력
-            </button>
-          </div>
+          <PillSeg
+            className="ledger-view-seg"
+            ariaLabel="결정 보기"
+            options={[
+              { key: 'list', label: '목록' },
+              { key: 'history', label: '변경 이력' },
+            ]}
+            value={view}
+            onChange={(k) => (k === 'list' ? setView('list') : void openHistory())}
+          />
         </div>
       </div>
 
