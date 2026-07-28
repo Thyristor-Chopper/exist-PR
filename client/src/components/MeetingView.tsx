@@ -89,7 +89,9 @@ function VideoTile({
   isScreen,
   paused,
   micMuted,
+  speaking,
   onKick,
+  onPress,
 }: {
   track?: MediaStreamTrack;
   username: string;
@@ -100,7 +102,11 @@ function VideoTile({
   paused?: boolean;
   /** 마이크 음소거 — 이름표 옆 아이콘 */
   micMuted?: boolean;
+  /** 말하는 중 — 초록 링 (자막 신호 기반) */
+  speaking?: boolean;
   onKick?: () => void;
+  /** 타일 탭 — 핀 토글 */
+  onPress?: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const showVideo = !!track && !paused;
@@ -136,7 +142,10 @@ function VideoTile({
     return () => window.removeEventListener('pointerdown', retry, true);
   }, [track, showVideo]);
   return (
-    <div className={`video-tile${isScreen ? ' screen' : ''}`}>
+    <div
+      className={`video-tile${isScreen ? ' screen' : ''}${speaking && !isScreen ? ' speaking' : ''}${onPress ? ' pressable' : ''}`}
+      onClick={onPress}
+    >
       {showVideo ? (
         <>
           {/* 소리는 AudioSink가 담당 — 비디오는 항상 muted (모바일 자동재생 정책: unmuted면 play 거부) */}
@@ -183,7 +192,14 @@ function VideoTile({
         )}
       </span>
       {onKick && (
-        <button className="kick-btn" title="강퇴" onClick={onKick}>
+        <button
+          className="kick-btn"
+          title="강퇴"
+          onClick={(e) => {
+            e.stopPropagation(); // 타일 탭(핀)과 분리
+            onKick();
+          }}
+        >
           내보내기
         </button>
       )}
@@ -271,6 +287,29 @@ export default function MeetingView({
   const [captions, setCaptions] = useState<
     Record<string, { text: string; interim?: boolean; ts: number }>
   >({});
+  // 발화자 하이라이트 — 자막(voice:caption) 신호 재활용, 마지막 발화 후 2.2초 유지
+  const [speaking, setSpeaking] = useState<Record<string, true>>({});
+  const speakingTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const markSpeaking = (username: string) => {
+    if (!username) return;
+    setSpeaking((prev) => (prev[username] ? prev : { ...prev, [username]: true }));
+    const old = speakingTimers.current.get(username);
+    if (old) clearTimeout(old);
+    speakingTimers.current.set(
+      username,
+      setTimeout(
+        () =>
+          setSpeaking((prev) => {
+            const next = { ...prev };
+            delete next[username];
+            return next;
+          }),
+        2200,
+      ),
+    );
+  };
+  // 탭 핀 — 타일을 누르면 그 사람을 무대에 크게 (화면공유 중엔 비활성)
+  const [pinned, setPinned] = useState<string | null>(null);
 
   const producersRef = useRef<{
     audio?: Producer;
@@ -631,6 +670,7 @@ export default function MeetingView({
       socket.on(
         'voice:caption',
         ({ username, text, interim }: { username: string; text: string; interim?: boolean }) => {
+          markSpeaking(username);
           setCaptions((prev) => ({ ...prev, [username]: { text, interim, ts: Date.now() } }));
           const old = captionTimers.current.get(username);
           if (old) clearTimeout(old);
@@ -672,6 +712,8 @@ export default function MeetingView({
       socket.off('voice:caption');
       captionTimers.current.forEach((t) => clearTimeout(t));
       captionTimers.current.clear();
+      speakingTimers.current.forEach((t) => clearTimeout(t));
+      speakingTimers.current.clear();
       socket.off('room:locked');
       socket.off('room:kicked');
       sendTransportRef.current?.close();
@@ -964,6 +1006,16 @@ export default function MeetingView({
     ];
   const hasScreen = screens.length > 0;
 
+  // 핀 정리 — 화면공유가 시작되면 해제, 핀한 사람이 나가도 해제
+  useEffect(() => {
+    if (hasScreen) setPinned(null);
+  }, [hasScreen]);
+  useEffect(() => {
+    if (!pinned) return;
+    if (pinned !== (user?.username ?? '') && !peers.some((p) => p.username === pinned))
+      setPinned(null);
+  }, [peers, pinned, user]);
+
   // 입장 전 디바이스 프리뷰 게이트 (카메라/마이크 미리 확인 후 입장)
   if (phase === 'preview') {
     return (
@@ -1173,7 +1225,7 @@ export default function MeetingView({
       </header>
 
       <div className="meeting-body">
-        <div className={`video-area${hasScreen ? ' with-screen' : ''}`}>
+        <div className={`video-area${hasScreen || pinned ? ' with-screen' : ''}`}>
           {hasScreen && (
             <div className={`screen-stage screens-${screens.length}`}>
               {screens.map((s) => (
@@ -1188,8 +1240,42 @@ export default function MeetingView({
               ))}
             </div>
           )}
+          {/* 탭 핀 무대 — 화면공유가 없을 때만. 무대 탭 = 핀 해제 */}
+          {!hasScreen &&
+            pinned &&
+            (() => {
+              const me = user?.username ?? '';
+              const pp = pinned === me ? null : peers.find((p) => p.username === pinned);
+              if (pinned !== me && !pp) return null;
+              return (
+                <div className="screen-stage pin-stage screens-1">
+                  {pinned === me ? (
+                    <VideoTile
+                      track={localTrack}
+                      username={dn(me)}
+                      avatar={peerAvatars?.[me] ?? user?.avatar ?? null}
+                      isLocal
+                      paused={!camOn}
+                      micMuted={!micOn}
+                      speaking={!!speaking[me]}
+                      onPress={() => setPinned(null)}
+                    />
+                  ) : (
+                    <VideoTile
+                      track={pp!.videoTrack}
+                      username={dn(pp!.username)}
+                      avatar={peerAvatars ? (peerAvatars[pp!.username] ?? null) : null}
+                      paused={pp!.videoPaused}
+                      micMuted={pp!.audioMuted}
+                      speaking={!!speaking[pp!.username]}
+                      onPress={() => setPinned(null)}
+                    />
+                  )}
+                </div>
+              );
+            })()}
           <div
-            className={`video-grid${hasScreen ? ' filmstrip' : ''} count-${peers.length + 1}`}
+            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ''} count-${peers.length + 1}`}
           >
             <VideoTile
               track={localTrack}
@@ -1198,6 +1284,12 @@ export default function MeetingView({
               isLocal
               paused={!camOn}
               micMuted={!micOn}
+              speaking={!!speaking[user?.username ?? '']}
+              onPress={
+                hasScreen
+                  ? undefined
+                  : () => setPinned((v) => (v === (user?.username ?? '') ? null : (user?.username ?? '')))
+              }
             />
             {peers.map((p) => (
               <div key={p.peerId} className="peer-cell">
@@ -1207,6 +1299,12 @@ export default function MeetingView({
                   avatar={peerAvatars ? (peerAvatars[p.username] ?? null) : null}
                   paused={p.videoPaused}
                   micMuted={p.audioMuted}
+                  speaking={!!speaking[p.username]}
+                  onPress={
+                    hasScreen
+                      ? undefined
+                      : () => setPinned((v) => (v === p.username ? null : p.username))
+                  }
                   onKick={
                     isHost
                       ? () => void request(getSocket(), 'room:kick', { peerId: p.peerId })

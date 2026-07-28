@@ -14005,6 +14005,27 @@ html:not(.dark) .meeting-controls .leave:hover {
   flex-shrink: 0;
 }
 
+/* 발화자 하이라이트 — 자막(voice:caption) 신호 기반 초록 링 */
+.video-tile.speaking::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2.5px solid var(--green);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.video-tile.pressable {
+  cursor: pointer;
+}
+
+/* 탭 핀 무대 — 화면공유(contain·검정)와 달리 사람은 cover가 자연스럽다 */
+.pin-stage .video-tile video {
+  object-fit: cover;
+  background: transparent;
+}
+
 .video-tile {
   position: relative;
   background: #1c1f26;
@@ -14738,6 +14759,14 @@ html:not(.dark) .meeting-controls .leave:hover {
 
   .video-grid.filmstrip {
     flex: 0 0 96px;
+    /* 4명+ 시 가운데 정렬은 양끝이 잘림 — 왼쪽 시작 + 가로 스크롤 */
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .video-grid.filmstrip::-webkit-scrollbar {
+    display: none;
   }
 
   /* 3명 이상: 1열 스택은 행 높이가 그리드를 넘쳐 타일이 서로 겹침(5인 실측) —
