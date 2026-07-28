@@ -366,9 +366,46 @@ export default function MeetingSchedule({
   /** 모바일(767px↓)은 하단 상시 폼이 숨어 있어 생성·수정을 전부 팝오버(중앙 시트)로 */
   const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
 
-  // 모바일 하단 리스트 = 고정 높이 바텀시트 — 그립 스와이프/탭으로 확장·축소
+  // 모바일 하단 리스트 = 바텀시트 — 그립을 끌면 손가락을 따라오고 놓으면 가까운 지점에 스냅
   const [panelUp, setPanelUp] = useState(false);
-  const gripY = useRef<number | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const gripDrag = useRef<{ y0: number; h0: number; max: number } | null>(null);
+  const suppressGripClick = useRef(false);
+  const SHEET_MIN = 132; // 접힘 높이(px) — CSS와 일치해야 함
+
+  function gripTouchStart(e: React.TouchEvent) {
+    const el = panelRef.current;
+    if (!el) return;
+    gripDrag.current = {
+      y0: e.touches[0].clientY,
+      h0: el.getBoundingClientRect().height,
+      max: Math.round(window.innerHeight * 0.62),
+    };
+    el.classList.add('dragging');
+  }
+
+  function gripTouchMove(e: React.TouchEvent) {
+    const d = gripDrag.current;
+    const el = panelRef.current;
+    if (!d || !el) return;
+    const h = Math.max(SHEET_MIN, Math.min(d.max, d.h0 + (d.y0 - e.touches[0].clientY)));
+    el.style.height = `${h}px`;
+  }
+
+  function gripTouchEnd(e: React.TouchEvent) {
+    const d = gripDrag.current;
+    const el = panelRef.current;
+    gripDrag.current = null;
+    if (!d || !el) return;
+    const dy = d.y0 - e.changedTouches[0].clientY; // +위로
+    // 40px 이상 움직였으면 그 방향으로, 아니면 원래 상태 유지 (제자리 탭은 click 토글에 맡김)
+    const dragged = Math.abs(dy) > 40;
+    const next = dragged ? dy > 0 : panelUp;
+    el.classList.remove('dragging');
+    el.style.height = ''; // 최종 높이는 CSS(.up 유무)가 결정
+    setPanelUp(next);
+    if (dragged) suppressGripClick.current = true; // 터치 뒤 이어지는 click이 도로 토글하는 것 방지
+  }
 
   // 모바일 보기 형태 드롭다운 (알약의 리스트 아이콘 → 월/이틀/하루)
   const [viewMenu, setViewMenu] = useState(false);
@@ -1781,22 +1818,20 @@ export default function MeetingSchedule({
         )}
       </div>
 
-      <div className={`msched-day-panel${panelUp ? ' up' : ''}`}>
-        {/* 모바일 그립 — 위로 스와이프(또는 탭)하면 리스트 확장 */}
+      <div className={`msched-day-panel${panelUp ? ' up' : ''}`} ref={panelRef}>
+        {/* 모바일 그립 — 끌어서 올리고 내리기 (탭 = 토글) */}
         <div
           className="msched-panel-grip"
-          onClick={() => setPanelUp((v) => !v)}
-          onTouchStart={(e) => {
-            gripY.current = e.touches[0].clientY;
+          onClick={() => {
+            if (suppressGripClick.current) {
+              suppressGripClick.current = false;
+              return;
+            }
+            setPanelUp((v) => !v);
           }}
-          onTouchEnd={(e) => {
-            const y0 = gripY.current;
-            gripY.current = null;
-            if (y0 == null) return;
-            const dy = e.changedTouches[0].clientY - y0;
-            if (dy < -24) setPanelUp(true);
-            else if (dy > 24) setPanelUp(false);
-          }}
+          onTouchStart={gripTouchStart}
+          onTouchMove={gripTouchMove}
+          onTouchEnd={gripTouchEnd}
         >
           <i />
         </div>

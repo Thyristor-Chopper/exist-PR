@@ -5076,39 +5076,39 @@ input:focus {
 
 @media (max-width: 767px) {
   .msched {
-    position: relative; /* 확장 시트의 absolute 기준 */
+    position: relative; /* 시트의 absolute 기준 */
   }
 
-  /* 하단 리스트 = 고정 높이 바텀시트 — 일정 개수와 무관하게 높이 안정 */
+  /* 캘린더가 접힘 시트 높이만큼 하단을 상시 확보 — 드래그 중 리플로우 없음 */
+  .msched-cal {
+    margin-bottom: 132px;
+  }
+
+  /* 하단 리스트 = 상시 오버레이 바텀시트. 그립을 끌면 높이가 손가락을 따라옴 */
   .msched-day-panel {
-    height: 132px;
-    box-sizing: border-box;
-    padding-top: 4px;
-  }
-
-  /* 확장 = 캘린더 위를 덮는 오버레이 — 뒤의 월/주 그리드가 찌그러지지 않음 */
-  .msched-day-panel.up {
     position: absolute;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 62dvh;
+    height: 132px; /* = TSX SHEET_MIN */
+    box-sizing: border-box;
+    padding-top: 4px;
     z-index: 40;
     border-top: 1px solid var(--border);
-    border-radius: 18px 18px 0 0;
-    box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.16);
-    animation: msched-sheet-up 0.22s ease;
+    transition: height 0.2s ease;
   }
 
-  @keyframes msched-sheet-up {
-    from {
-      transform: translateY(28px);
-      opacity: 0.6;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
+  .msched-day-panel.up {
+    height: 62dvh;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.16);
+  }
+
+  /* 드래그 추적 중 — 트랜지션 끄고 손가락에 1:1 */
+  .msched-day-panel.dragging {
+    transition: none;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.16);
   }
 
   .msched-panel-grip {
