@@ -17536,3 +17536,21 @@ html:not(.dark) .meeting-controls .leave:hover {
     opacity: 0.9;
   }
 }
+
+/* 숫자 고정폭(tabular) — 실시간 갱신·정렬되는 숫자의 씰룩거림 제거 (7/29, 폰트 교체 대신 채택) */
+.meeting-elapsed,
+.nowbar-clock,
+.pd-stat-num,
+.hub-todo-pct,
+.hub-todo-count,
+.hub-decision-stat,
+.ledger-count,
+.ledger-exec,
+.nb-cal-day,
+.msched-grid,
+.hub-sched-time,
+.badge,
+.hub-channel-item,
+.notif-time {
+  font-variant-numeric: tabular-nums;
+}
