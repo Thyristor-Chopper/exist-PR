@@ -110,6 +110,25 @@ function VideoTile({
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const showVideo = !!track && !paused;
+  // 화면공유 실비율 — 타일을 콘텐츠 비율에 맞춰 레터박스 없이 (창 리사이즈도 추적)
+  const [mediaRatio, setMediaRatio] = useState<number | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !isScreen || !showVideo) {
+      setMediaRatio(null);
+      return;
+    }
+    const upd = () => {
+      if (el.videoWidth && el.videoHeight) setMediaRatio(el.videoWidth / el.videoHeight);
+    };
+    el.addEventListener('loadedmetadata', upd);
+    el.addEventListener('resize', upd);
+    upd();
+    return () => {
+      el.removeEventListener('loadedmetadata', upd);
+      el.removeEventListener('resize', upd);
+    };
+  }, [track, isScreen, showVideo]);
   // RTP가 끊기면 브라우저는 트랙을 mute시키고 <video>는 마지막 프레임에 얼어붙는다
   // — 얼어 보이는 대신 수신 대기 상태를 표시 (원격 트랙만)
   const [stalled, setStalled] = useState(false);
@@ -144,6 +163,7 @@ function VideoTile({
   return (
     <div
       className={`video-tile${isScreen ? ' screen' : ''}${speaking && !isScreen ? ' speaking' : ''}${onPress ? ' pressable' : ''}`}
+      style={isScreen && mediaRatio ? { aspectRatio: `${mediaRatio}` } : undefined}
       onClick={onPress}
     >
       {showVideo ? (

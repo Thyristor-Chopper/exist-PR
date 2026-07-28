@@ -14493,6 +14493,31 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   }
 }
 
+/* 화면공유 1개 — 타일을 공유 콘텐츠 실비율(인라인 aspect-ratio)에 맞춰 무대 중앙 최대 크기.
+   레터박스 제거: 비율이 정확하면 contain이 곧 꽉 채움. 2개 이상 공유는 기존 그리드 유지 */
+.screen-stage.screens-1:not(.pin-stage) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.screen-stage.screens-1:not(.pin-stage) .video-tile {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 16 / 9; /* 메타데이터 로드 전 임시값 — 실비율은 VideoTile 인라인이 덮음 */
+  min-height: 0;
+  flex: none;
+}
+
+@media (max-width: 767px) {
+  .screen-stage.screens-1:not(.pin-stage) .video-tile {
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+  }
+}
+
 .video-tile {
   position: relative;
   background: #1c1f26;
