@@ -641,6 +641,61 @@ router.get('/catchup', async (req: AuthedRequest, res) => {
   res.json(await getCatchup(req.userId!, scope));
 });
 
+/** 확인 대기 결정 리스트 — 홈 "확인할 결정" 카드용.
+ *  내 그룹의 결정 원장에서 내가 아직 수신확인(ack) 안 한 것, 최신순 20건 (?org= 스코프) */
+router.get('/pending-decisions', (req: AuthedRequest, res) => {
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  const sc = scopeSql(scope);
+  const rows = db
+    .prepare(
+      `SELECT r.id AS recapId, r.decisions, r.created_at, m.code, m.title FROM meeting_recaps r
+       JOIN meetings m ON m.id = r.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id AND mp.user_id = ?${sc.sql}
+       ORDER BY r.id DESC LIMIT 100`,
+    )
+    .all(req.userId, ...sc.args) as {
+    recapId: number;
+    decisions: string;
+    created_at: string;
+    code: string;
+    title: string;
+  }[];
+  const ackStmt = db.prepare(
+    'SELECT decision_idx FROM decision_acks WHERE recap_id = ? AND user_id = ?',
+  );
+  const items: {
+    recapId: number;
+    idx: number;
+    decision: string;
+    code: string;
+    title: string;
+    ts: number;
+  }[] = [];
+  for (const r of rows) {
+    const acked = new Set(
+      (ackStmt.all(r.recapId, req.userId) as { decision_idx: number }[]).map(
+        (a) => a.decision_idx,
+      ),
+    );
+    const ds = JSON.parse(r.decisions) as string[];
+    for (let i = 0; i < ds.length; i++) {
+      if (acked.has(i)) continue;
+      items.push({
+        recapId: r.recapId,
+        idx: i,
+        decision: ds[i],
+        code: r.code,
+        title: r.title,
+        ts: new Date(r.created_at + 'Z').getTime(),
+      });
+      if (items.length >= 20) break;
+    }
+    if (items.length >= 20) break;
+  }
+  res.json({ items });
+});
+
 /** 개인 대시보드 요약 — 참여 회의·미완료 할 일·다음 일정·라이브 통화 (?org= 스코프) */
 router.get('/overview', (req: AuthedRequest, res) => {
   const scope = parseScope(req, res);

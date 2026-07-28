@@ -15151,6 +15151,69 @@ html:not(.dark) .meeting-controls .leave:hover {
   color: var(--text-sub);
 }
 
+/* ── 홈: 확인할 결정 카드 (P1 — 홈에서 바로 회람 사인) ── */
+.pd-ack-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pd-ack-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pd-ack-row:last-child {
+  border-bottom: none;
+}
+
+.pd-ack-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.pd-ack-text {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pd-ack-meta {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.pd-ack-btn {
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
+  background: var(--green-soft);
+  color: var(--green-dark);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pd-ack-btn:hover {
+  background: var(--green);
+  color: #fff;
+}
+
 /* ── 홈: 오늘 브리핑 문단 ── */
 .pd-daily-text {
   font-size: 14.5px;

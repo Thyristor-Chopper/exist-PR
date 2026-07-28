@@ -9,7 +9,17 @@ import { type Todo, type Meeting } from './NowBar';
 import UnifiedInbox from './UnifiedInbox';
 import ScheduleWidget from './ScheduleWidget';
 import Marquee from './Marquee';
-import { ListIcon, SparklesIcon, CalendarIcon, ChatIcon, UsersIcon, CheckMarkIcon, ChartIcon } from './Icons';
+import { ListIcon, SparklesIcon, CalendarIcon, ChatIcon, UsersIcon, CheckMarkIcon, ChartIcon, CheckIcon } from './Icons';
+
+/** 확인 대기 결정 — 홈 카드 (P1: 결정은 전달되고, 확인되어야 한다) */
+interface PendingDecision {
+  recapId: number;
+  idx: number;
+  decision: string;
+  code: string;
+  title: string;
+  ts: number;
+}
 
 /*
  * 개인 프로필 대시보드 — '홈' 탭(회의 미선택)에서 작업공간을 꽉 채워 표시.
@@ -67,6 +77,22 @@ export default function ProfileDashboard() {
   const [schedule, setSchedule] = useState<Meeting[]>([]);
   const [daily, setDaily] = useState('');
   const [catchup, setCatchup] = useState<Catchup | null>(null);
+  const [pending, setPending] = useState<PendingDecision[] | null>(null);
+
+  /** 홈에서 바로 수신확인 — 회람 사인. 낙관적 제거, 실패 시 원복 */
+  async function confirmDecision(item: PendingDecision) {
+    setPending((prev) => (prev ? prev.filter((p) => !(p.recapId === item.recapId && p.idx === item.idx)) : prev));
+    setOv((prev) => (prev ? { ...prev, pendingAcks: Math.max(0, prev.pendingAcks - 1) } : prev));
+    try {
+      await api(`/api/meetings/${item.code}/decisions/ack`, {
+        method: 'POST',
+        body: { recapId: item.recapId, idx: item.idx },
+      });
+    } catch {
+      setPending((prev) => (prev ? [item, ...prev] : prev));
+      setOv((prev) => (prev ? { ...prev, pendingAcks: prev.pendingAcks + 1 } : prev));
+    }
+  }
 
   /** 홈에서 바로 완료 토글 — 낙관적 갱신, 실패 시 원복 */
   async function toggleTodo(t: Todo) {
@@ -100,6 +126,11 @@ export default function ProfileDashboard() {
     // P2 — 자리 비운 사이 놓친 것 브리핑
     api<Catchup>(`/api/agent/catchup?${orgQ}`)
       .then((d) => alive && setCatchup(d))
+      .catch(() => {});
+    // P1 — 확인 대기 결정 (홈에서 바로 회람 사인)
+    setPending(null);
+    api<{ items: PendingDecision[] }>(`/api/agent/pending-decisions?${orgQ}`)
+      .then((d) => alive && setPending(d.items))
       .catch(() => {});
     return () => {
       alive = false;
@@ -168,6 +199,44 @@ export default function ProfileDashboard() {
     </div>
   );
 
+  // 확인할 결정 카드 — P1의 홈 얼굴. 결정이 전달되고 "확인"되어야 끝난다 — 홈에서 바로 회람 사인
+  const ackCard = (
+    <div style={cellCard}>
+      <div style={sectionHead}>
+        <span style={headIcon}><CheckIcon size={16} /></span> 확인할 결정
+        {pending && pending.length > 0 && <span className="pd-ack-count">{pending.length}</span>}
+      </div>
+      {!pending || pending.length === 0 ? (
+        <div style={emptyRow}>
+          {pending ? '모두 확인했어요 — 새 결정이 기록되면 여기에 떠요' : '불러오는 중…'}
+        </div>
+      ) : (
+        pending.slice(0, 5).map((p) => (
+          <div key={`${p.recapId}-${p.idx}`} className="pd-ack-row">
+            <div
+              className="pd-ack-main"
+              onClick={() => openMeeting(p.code, p.title)}
+              title={`"${p.title}" 열기`}
+            >
+              <Marquee className="pd-ack-text">{p.decision}</Marquee>
+              <span className="pd-ack-meta">
+                {p.title} ·{' '}
+                {new Date(p.ts).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+              </span>
+            </div>
+            <button
+              className="pd-ack-btn"
+              onClick={() => void confirmDecision(p)}
+              title="수신확인 — 회람 사인"
+            >
+              확인
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
   // ── 조직 홈 — 관리자는 팀 인사이트, 멤버는 "내 포커스" (내가 지금 챙길 것) ──
   if (org !== 'personal') {
     const orgInfo = orgs.find((o) => o.id === org);
@@ -206,6 +275,7 @@ export default function ProfileDashboard() {
         {/* 2컬럼: 왼쪽 = (관리자: 인사이트 / 멤버: 내 포커스) + 오늘 브리핑 + 전체 일정, 오른쪽 = 통합 메시지 */}
         <div className="pd-quad">
           <div className="pd-quad-col">
+            {ackCard}
             {orgManager ? <InsightsPanel orgId={org} /> : <MyOrgFocus orgId={org} />}
 
             <div style={cellCard}>
@@ -339,6 +409,7 @@ export default function ProfileDashboard() {
       <div className="pd-quad">
         {/* 좌우 컬럼을 분리 — 한쪽 카드가 길어져도 반대쪽 높이에 영향 없음 */}
         <div className="pd-quad-col">
+        {ackCard}
         <div style={cellCard}>
           <div style={sectionHead}><span style={headIcon}><SparklesIcon size={16} /></span> 오늘 브리핑</div>
           {/* AI 총무의 하루 세팅 문단 — 오늘 일정 + 놓친 것 + 급한 할 일 */}
