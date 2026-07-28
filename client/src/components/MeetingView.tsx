@@ -174,7 +174,11 @@ function VideoTile({
         </div>
       )}
       <span className="video-name">
-        {isScreen && '🖥️ '}
+        {isScreen && (
+          <span className="tile-screen-ic" title="화면 공유" aria-hidden>
+            <ScreenIcon size={11} />
+          </span>
+        )}
         {username}
         {isLocal && ' (나)'}
         {micMuted && !isScreen && (

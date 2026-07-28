@@ -14516,6 +14516,14 @@ html:not(.dark) .meeting-controls .leave:hover {
   vertical-align: -2px;
 }
 
+/* 화면 공유 타일 이름표 — 이모지 대신 툴바와 같은 모니터 아이콘 */
+.video-name .tile-screen-ic {
+  display: inline-grid;
+  place-items: center;
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+
 .video-name .tile-off-ic svg {
   grid-area: 1 / 1;
 }
