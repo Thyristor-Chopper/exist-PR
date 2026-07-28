@@ -4249,11 +4249,11 @@ input:focus {
 
 .msched-today-btn {
   margin-left: auto;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 700;
-  padding: 4px 10px !important;
+  padding: 6px 14px !important;
   border: 1px solid var(--border) !important;
-  border-radius: 8px;
+  border-radius: 999px; /* 알약 — 세그와 형태 통일 */
   color: var(--text) !important;
 }
 
@@ -4372,19 +4372,19 @@ input:focus {
   display: flex;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 2px;
+  border-radius: 999px; /* 알약 — 오늘 버튼과 형태 통일 */
+  padding: 3px;
   margin-left: 8px;
 }
 
 .msched-seg button {
   border: none;
   background: none;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-sub);
-  padding: 3px 12px;
-  border-radius: 7px;
+  padding: 5px 14px;
+  border-radius: 999px;
 }
 
 .msched-seg button.on {
