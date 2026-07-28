@@ -20,11 +20,25 @@ import {
   LogOutIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  SearchIcon,
 } from './Icons';
 import { getSocket } from '../lib/socket';
 import { useOrgStore } from '../orgStore';
 import { dueBadge } from '../lib/due';
 import { useDisplayName } from '../names';
+
+/** 전역 검색 버튼 — Ctrl+K 없는 모바일·태블릿의 진입점 (GlobalSearch가 이벤트 수신) */
+function SearchButton() {
+  return (
+    <button
+      className="nowbar-theme"
+      onClick={() => window.dispatchEvent(new Event('exist:open-search'))}
+      title="전역 검색 (Ctrl+K)"
+    >
+      <SearchIcon size={17} />
+    </button>
+  );
+}
 
 function ThemeToggle() {
   const [dark, setDark] = useState(() =>
@@ -755,6 +769,7 @@ function NowBar({
         </div>
         {shadeOpen && <button className="nb-shade-scrim" onClick={() => setShadeOpen(false)} />}
         <NowClock now={now} />
+        <SearchButton />
         <ThemeToggle />
         <NotificationCenter />
         <ProfileMenu avatar={avatar} onOpenSettings={() => setSettingsOpen(true)} />
@@ -1110,6 +1125,7 @@ function NowBar({
 
       <NowClock now={now} />
 
+      <SearchButton />
       <ThemeToggle />
       <NotificationCenter />
       <ProfileMenu avatar={avatar} onOpenSettings={() => setSettingsOpen(true)} />

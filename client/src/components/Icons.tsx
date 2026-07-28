@@ -308,6 +308,15 @@ export function UsersIcon({ size }: IconProps) {
   );
 }
 
+export function SearchIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+      <path d="M16.5 16.5L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function MailIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

@@ -2447,6 +2447,7 @@ input:focus {
   position: fixed;
   right: 24px;
   bottom: 24px;
+  z-index: 4200; /* 통화 오버레이(meeting-tab-host 4000) 위 — 통화 참가자 패널에서 연 DM */
   width: 340px;
   height: 460px;
   max-height: calc(100vh - 100px);
@@ -2457,7 +2458,6 @@ input:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  z-index: 60;
 }
 
 .dm-window-head {
@@ -3832,6 +3832,120 @@ input:focus {
 
 .mv-peers-hover:hover .hub-assign-tip {
   display: block;
+}
+
+/* ── 통화 참가자 패널 — 헤더 "참가자 N명" 클릭 (명단·마이크 상태·DM·강퇴) ── */
+.ppl-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.mv-peers-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted rgba(255, 255, 255, 0.35);
+  text-underline-offset: 3px;
+}
+
+.mv-peers-btn:hover {
+  color: #fff;
+}
+
+/* .dev-menu 기본(파일 뒤쪽, 위로 열림)보다 특이도를 높여 헤더 아래로 연다 */
+.dev-menu.ppl-menu {
+  position: absolute;
+  bottom: auto;
+  top: calc(100% + 8px);
+  left: 0;
+  right: auto;
+  transform: none;
+  min-width: 260px;
+  max-width: min(320px, 92vw);
+  max-height: min(420px, 60vh);
+  z-index: 40;
+}
+
+.ppl-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 2px 0 6px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 13px;
+}
+
+.ppl-search::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ppl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+}
+
+.ppl-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ppl-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 마이크 상태 — 꺼짐이면 붉게 + 슬래시 겹침 (타일 이름표와 같은 문법) */
+.ppl-mic {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+}
+
+.ppl-mic.off {
+  color: #ff7a7f;
+}
+
+.ppl-mic.off svg:last-child {
+  position: absolute;
+  left: 0;
+}
+
+.ppl-act {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ppl-act:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.ppl-act.danger:hover {
+  background: rgba(229, 72, 77, 0.35);
+  color: #fff;
 }
 
 .hub-assign-tip.down {
@@ -17873,4 +17987,136 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 
 @media (prefers-reduced-motion: reduce) {
   .pd-live-dot { animation: none; }
+}
+
+/* ── 전역 검색 (Ctrl+K) — 명령 팔레트식 중앙 모달 ── */
+.gs-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4300; /* DM 창(4200)보다 위 */
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: clamp(40px, 12vh, 120px) 16px 16px;
+}
+
+.gs-box {
+  width: min(560px, 100%);
+  max-height: min(560px, 78vh);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gs-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-sub);
+}
+
+.gs-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.gs-close {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.gs-body {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.gs-empty {
+  padding: 32px 12px;
+  text-align: center;
+  color: var(--text-sub);
+  font-size: 13.5px;
+}
+
+.gs-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 8px 4px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--text-sub);
+}
+
+.gs-hit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gs-hit:hover {
+  background: var(--surface-2);
+}
+
+.gs-hit-text {
+  font-size: 13.5px;
+  color: var(--text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-hit-sub {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-hint {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+
+.gs-hint b {
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-weight: 700;
 }

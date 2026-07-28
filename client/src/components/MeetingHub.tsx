@@ -313,6 +313,19 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     });
   }
 
+  // 통화 참가자 패널의 "1:1 채팅" — 통화 UI엔 참가자 원본이 없어 이름으로 넘어온 걸 여기서 해석
+  useEffect(() => {
+    function onCallDm(e: Event) {
+      const uname = (e as CustomEvent<{ username: string }>).detail?.username;
+      if (!uname) return;
+      const p = detail?.participants.find((x) => x.username === uname);
+      if (p) openDm(p);
+    }
+    window.addEventListener('exist:call-dm', onCallDm);
+    return () => window.removeEventListener('exist:call-dm', onCallDm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail]);
+
   // 모바일 — 서브 화면이 대시보드 위 오버레이로 뜨고, 드래그하면 아래 대시보드가 보인다
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
   useEffect(() => {

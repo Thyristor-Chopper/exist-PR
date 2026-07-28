@@ -368,6 +368,22 @@ export function attachSfu(io: Server) {
       ack?.({ ok: true });
     });
 
+    /** 전체 음소거 — 잠금과 같은 권한 게이트. 요청형(각 클라가 자기 마이크를 끔) — 하드뮤트가
+     *  아니라 다시 켤 수 있는 3사 문법. 서버는 방송만 하고 상태는 producer pause가 진실 */
+    socket.on('room:mute-all', (_payload, ack) => {
+      if (!room || !peer) return ack?.({ error: '방에 입장하지 않았습니다' });
+      const ref = db
+        .prepare('SELECT host_id, org_id, title FROM meetings WHERE code = ?')
+        .get(room.code) as { host_id: number; org_id: number | null; title: string } | undefined;
+      if (!ref || !canManageMeeting(ref, peer.userId, 'group:lock')) {
+        return ack?.({ error: '전체 음소거 권한이 없습니다' });
+      }
+      if (ref.org_id)
+        orgAudit(ref.org_id, peer.userId, 'group.mute-all', null, `그룹 "${ref.title}" 통화 전체 음소거`);
+      socket.to(`room:${room.code}`).emit('room:muted-by-host', { by: peer.username });
+      ack?.({ ok: true });
+    });
+
     /** 통화 음성 전사 — 각자 브라우저 STT 결과를 저장 + 방에 자막 브로드캐스트.
      *  recap·결정 원장·AI 총무가 채팅과 함께 근거로 쓴다. */
     socket.on('voice:transcript', ({ text }: { text: string }) => {

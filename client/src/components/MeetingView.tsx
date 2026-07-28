@@ -301,7 +301,8 @@ export default function MeetingView({
   const [cams, setCams] = useState<MediaDeviceInfo[]>([]);
   const [micId, setMicId] = useState(() => localStorage.getItem('exist:mic-device') ?? '');
   const [camId, setCamId] = useState(() => localStorage.getItem('exist:cam-device') ?? '');
-  const [devMenu, setDevMenu] = useState<'mic' | 'cam' | 'opts' | null>(null); // 장치 선택 메뉴 + 통화 설정(opts)
+  const [devMenu, setDevMenu] = useState<'mic' | 'cam' | 'opts' | 'people' | null>(null); // 장치 선택 + 통화 설정 + 참가자 패널
+  const [pplQ, setPplQ] = useState(''); // 참가자 패널 검색 (인원 많을 때)
   useEffect(() => {
     devMenuOpenRef.current = devMenu != null;
   }, [devMenu]);
@@ -832,6 +833,18 @@ export default function MeetingView({
       socket.on('room:kicked', () => {
         onLeaveRef.current('호스트가 회의에서 내보냈습니다');
       });
+      // 호스트 전체 음소거 — 내 마이크를 끄기만 함 (다시 켜는 건 자유, 3사 문법)
+      socket.on('room:muted-by-host', ({ by }: { by: string }) => {
+        const p = producersRef.current.audio;
+        if (p && !p.paused) {
+          p.pause();
+          void request(socket, 'producer:pause', { producerId: p.id }).catch(() => {});
+        }
+        setMicOn(false);
+        window.dispatchEvent(
+          new CustomEvent('app:error', { detail: `호스트가 전체 음소거를 실행했어요 (${by})` }),
+        );
+      });
 
       setStatus('');
     }
@@ -855,6 +868,7 @@ export default function MeetingView({
       speakingTimers.current.clear();
       socket.off('room:locked');
       socket.off('room:kicked');
+      socket.off('room:muted-by-host');
       sendTransportRef.current?.close();
       recvTransport?.close();
       localStream?.getTracks().forEach((t) => t.stop());
@@ -1410,24 +1424,104 @@ export default function MeetingView({
           <span className="meeting-title">{title || '회의'}</span>
           <span className="meeting-code">
             코드 <b>{code}</b> ·{' '}
-            <span className="mv-peers-hover">
-              참가자 {peers.length + 1}명
-              {/* hover 시 참여 중 유저 프로필 리스트 — 담당자·접속자 팝업과 동일 톤, 헤더라 아래로 */}
-              <span className="hub-assign-tip down" aria-hidden>
-                <span className="hub-assign-tip-row">
-                  <Avatar
-                    value={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
-                    className="hub-assign-avatar"
+            <span className="ppl-wrap">
+              {/* 클릭 = 참가자 패널 — 명단·마이크 상태·1:1 채팅·강퇴 (100명 페이지네이션에서 명단 확인 경로) */}
+              <button
+                className="mv-peers-btn"
+                onClick={() => {
+                  setPplQ('');
+                  setDevMenu((v) => (v === 'people' ? null : 'people'));
+                }}
+                title="참가자 목록 열기"
+              >
+                참가자 {peers.length + 1}명
+              </button>
+              {devMenu === 'people' && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 39 }}
+                    onClick={() => setDevMenu(null)}
                   />
-                  <span>{dn(user?.username ?? '나')} (나)</span>
-                </span>
-                {peers.map((p) => (
-                  <span key={p.peerId} className="hub-assign-tip-row">
-                    <Avatar value={peerAvatars?.[p.username] ?? null} className="hub-assign-avatar" />
-                    <span>{dn(p.username)}</span>
-                  </span>
-                ))}
-              </span>
+                  <div className="dev-menu ppl-menu">
+                    <div className="dev-menu-title">참가자 {peers.length + 1}명</div>
+                    {peers.length >= 8 && (
+                      <input
+                        className="ppl-search"
+                        value={pplQ}
+                        onChange={(e) => setPplQ(e.target.value)}
+                        placeholder="이름 검색"
+                        autoFocus
+                      />
+                    )}
+                    <div className="ppl-list">
+                      <div className="ppl-row">
+                        <Avatar
+                          value={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
+                          className="hub-assign-avatar"
+                        />
+                        <span className="ppl-name">{dn(user?.username ?? '나')} (나)</span>
+                        <span
+                          className={`ppl-mic${micOn ? '' : ' off'}`}
+                          title={micOn ? '마이크 켜짐' : '마이크 꺼짐'}
+                        >
+                          <MicIcon size={13} />
+                          {!micOn && <SlashIcon size={13} />}
+                        </span>
+                      </div>
+                      {peers
+                        .filter((p) => {
+                          const t = pplQ.trim().toLowerCase();
+                          if (!t) return true;
+                          return (
+                            dn(p.username).toLowerCase().includes(t) ||
+                            p.username.toLowerCase().includes(t)
+                          );
+                        })
+                        .map((p) => (
+                          <div key={p.peerId} className="ppl-row">
+                            <Avatar
+                              value={peerAvatars?.[p.username] ?? null}
+                              className="hub-assign-avatar"
+                            />
+                            <span className="ppl-name">{dn(p.username)}</span>
+                            <span
+                              className={`ppl-mic${p.audioMuted ? ' off' : ''}`}
+                              title={p.audioMuted ? '마이크 꺼짐' : '마이크 켜짐'}
+                            >
+                              <MicIcon size={13} />
+                              {p.audioMuted && <SlashIcon size={13} />}
+                            </span>
+                            <button
+                              className="ppl-act"
+                              title="1:1 채팅"
+                              onClick={() => {
+                                setDevMenu(null);
+                                window.dispatchEvent(
+                                  new CustomEvent('exist:call-dm', {
+                                    detail: { username: p.username },
+                                  }),
+                                );
+                              }}
+                            >
+                              <ChatIcon size={13} />
+                            </button>
+                            {isHost && (
+                              <button
+                                className="ppl-act danger"
+                                title="내보내기"
+                                onClick={() =>
+                                  void request(getSocket(), 'room:kick', { peerId: p.peerId })
+                                }
+                              >
+                                <CloseIcon size={12} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </span>
             {' · '}
             <span className="meeting-elapsed" title="통화 경과 시간">
@@ -1525,6 +1619,28 @@ export default function MeetingView({
                     </span>
                     <span className={`msched-sw${locked ? ' on' : ''}`}>
                       <i />
+                    </span>
+                  </button>
+                )}
+                {isHost && peers.length > 0 && (
+                  <button
+                    className="dev-menu-item"
+                    onClick={() => {
+                      setDevMenu(null);
+                      void request(getSocket(), 'room:mute-all', {})
+                        .then(() =>
+                          window.dispatchEvent(
+                            new CustomEvent('app:error', {
+                              detail: '전체 음소거를 실행했어요 — 참가자는 다시 켤 수 있어요',
+                            }),
+                          ),
+                        )
+                        .catch(() => {});
+                    }}
+                    title="나를 제외한 전원의 마이크를 꺼요 (참가자는 다시 켤 수 있음)"
+                  >
+                    <span className="dev-menu-label">
+                      <MicIcon size={12} /> 전체 음소거
                     </span>
                   </button>
                 )}

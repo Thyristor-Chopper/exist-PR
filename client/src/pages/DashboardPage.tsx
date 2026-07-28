@@ -9,6 +9,7 @@ import CreateMeetingModal from '../components/CreateMeetingModal';
 import MeetingSettingsModal from '../components/MeetingSettingsModal';
 import MeetingThumb from '../components/MeetingThumb';
 import OrgSwitcher from '../components/OrgSwitcher';
+import GlobalSearch from '../components/GlobalSearch';
 import { useOrgStore } from '../orgStore';
 import { readPins, PINS_EVENT } from '../lib/pins';
 import { initPush } from '../lib/push';
@@ -527,6 +528,9 @@ export default function DashboardPage() {
         onClose={() => setSettingsMeeting(null)}
         onChanged={() => void refresh()}
       />
+
+      {/* 전역 검색 — Ctrl+K / 헤더 돋보기. 결과 클릭이 exist:open-meeting으로 탭을 연다 */}
+      <GlobalSearch />
     </>
   );
 }
