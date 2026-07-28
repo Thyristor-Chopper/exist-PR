@@ -14081,8 +14081,8 @@ html:not(.dark) .meeting-controls .leave:hover {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: none;
+  background: var(--surface-2);
   color: var(--text);
   font-size: 22px;
   line-height: 1;
@@ -14108,9 +14108,25 @@ html:not(.dark) .meeting-controls .leave:hover {
     transform 0.1s ease;
 }
 
+/* hover·눌림 배경 — 하단 툴바 버튼과 동일 문법 */
 .grid-page-btn:hover:not(:disabled),
-.strip-page-btn:hover:not(:disabled) {
-  background: var(--hover);
+.strip-page-btn:hover:not(:disabled),
+.grid-page-btn:active:not(:disabled),
+.strip-page-btn:active:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 12%, var(--surface-2));
+}
+
+html:not(.dark) .grid-page-btn,
+html:not(.dark) .strip-page-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+html:not(.dark) .grid-page-btn:hover:not(:disabled),
+html:not(.dark) .strip-page-btn:hover:not(:disabled),
+html:not(.dark) .grid-page-btn:active:not(:disabled),
+html:not(.dark) .strip-page-btn:active:not(:disabled) {
+  background: var(--surface-3);
 }
 
 /* 눌림 = 살짝 가라앉는 스케일만 (translateY 유지) */
@@ -14196,8 +14212,8 @@ html:not(.dark) .meeting-controls .leave:hover {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: none;
+  background: var(--surface-2);
   color: var(--text);
   font-size: 16px;
   line-height: 1;
