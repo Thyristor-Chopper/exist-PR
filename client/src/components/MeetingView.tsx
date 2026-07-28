@@ -317,6 +317,9 @@ export default function MeetingView({
   const [previewTrack, setPreviewTrack] = useState<MediaStreamTrack>();
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // @AI 답변 준비 중 표시 (통화 채팅) — AI 메시지 도착·타임아웃 시 해제
+  const [aiThinking, setAiThinking] = useState(false);
+  const aiThinkingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [unread, setUnread] = useState(0);
   const [isHost, setIsHost] = useState(false);
@@ -492,7 +495,7 @@ export default function MeetingView({
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, chatOpen]);
+  }, [messages, chatOpen, aiThinking]);
 
   // 장치 목록 — 권한 허용 후에야 label이 채워지므로 프리뷰 스트림을 잡은 뒤 다시 조회
   const refreshDevices = useCallback(() => {
@@ -804,8 +807,19 @@ export default function MeetingView({
         if (msg.code && msg.code !== code.toUpperCase()) return; // 다른 회의 채팅 무시
         // 통화 패널은 통화 채널("화상회의") 고정 — 다른 채널 메시지는 허브 채팅 탭에서
         if (callChannelRef.current == null || msg.channelId !== callChannelRef.current) return;
+        if (msg.from === 'exist AI') {
+          setAiThinking(false);
+          if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
+        }
         setMessages((prev) => [...prev, msg]);
         if (!chatOpenRef.current) setUnread((n) => n + 1);
+      });
+      socket.on('chat:ai-thinking', (p: { code?: string; channelId?: number | null } | undefined) => {
+        if (p?.code && p.code !== code.toUpperCase()) return;
+        if (callChannelRef.current == null || p?.channelId !== callChannelRef.current) return;
+        setAiThinking(true);
+        if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
+        aiThinkingTimer.current = setTimeout(() => setAiThinking(false), 45_000);
       });
       // 라이브 자막 — 발화자별로 쌓아서 동시 발화도 전부 표시. 만료 타이머는 발화자 단위
       socket.on(
@@ -864,6 +878,8 @@ export default function MeetingView({
       socket.off('producer:paused');
       socket.off('producer:resumed');
       socket.off('chat:message');
+      socket.off('chat:ai-thinking');
+      if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
       socket.off('voice:caption');
       captionTimers.current.forEach((t) => clearTimeout(t));
       captionTimers.current.clear();
@@ -2014,6 +2030,16 @@ export default function MeetingView({
                   <div className="chat-bubble">{m.text}</div>
                 </div>
               ))}
+              {aiThinking && (
+                <div className="chat-msg">
+                  <span className="chat-from">exist AI</span>
+                  <div className="chat-bubble chat-typing">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+              )}
               <div ref={chatEndRef} />
             </div>
             <form className="chat-input" onSubmit={sendChat}>

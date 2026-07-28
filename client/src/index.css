@@ -4043,6 +4043,79 @@ input:focus {
   bottom: calc(100% + 4px);
 }
 
+/* ── 할 일 속성 팝오버 (body 포털) — 스크롤 컨테이너에 잘리는 문제 원천 차단 ── */
+.todo-pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4300;
+}
+
+.todo-pop {
+  position: fixed;
+  z-index: 4310;
+  width: 224px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  margin-top: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.todo-pop.up {
+  margin-top: 0;
+  transform: translateY(calc(-100% - 6px));
+}
+
+.todo-pop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.todo-pop-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.todo-pop-item:hover {
+  background: var(--surface-2);
+}
+
+.todo-pop-item.danger {
+  color: var(--red, #e5484d);
+}
+
+.todo-pop-date {
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+
+.todo-pop .hub-todo-due-input {
+  width: 100%;
+}
+
+/* 값 없는 상태의 기한·담당은 아이콘 전용 미니 버튼 — 행 소음 최소화 */
+.hub-todo-due.ghost.icon,
+.hub-todo-assign.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 6px;
+}
+
 .hub-assign-opt {
   display: flex;
   align-items: center;
@@ -11901,6 +11974,44 @@ input:focus {
   background: var(--surface-3);
   padding: 3px 12px;
   border-radius: 10px;
+}
+
+/* AI 답변 준비 중 — 말풍선 안 점 3개 물결 (질문 직후 침묵 방지) */
+.chat-bubble.chat-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 20px;
+}
+
+.chat-bubble.chat-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-sub);
+  opacity: 0.5;
+  animation: chat-typing-bounce 1.2s infinite ease-in-out;
+}
+
+.chat-bubble.chat-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-bubble.chat-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes chat-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 0.9;
+  }
 }
 
 /* "여기까지 읽었어요" 안읽음 구분선 — 열었을 때의 읽음 경계, 창 닫을 때까지 고정 */

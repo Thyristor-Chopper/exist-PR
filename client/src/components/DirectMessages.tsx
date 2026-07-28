@@ -106,6 +106,10 @@ export function DmWindow({
   const endRef = useRef<HTMLDivElement>(null);
   const markRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
+  // exist AI에게 보낸 뒤 답변 준비 중 표시 — 상대 메시지 도착·타임아웃 시 해제
+  const isAgent = peer.username === 'exist AI';
+  const [aiThinking, setAiThinking] = useState(false);
+  const aiThinkingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 이 상대의 DM 창을 보고 있음을 서버에 알림 — 보는 동안은 서버가 알림(notifyUser) 생략
   useEffect(() => {
@@ -148,6 +152,8 @@ export function DmWindow({
       // 상대가 보낸 메시지면 창이 열려 있으니 바로 읽음 처리 (배지 재출현 방지)
       if (m.fromId === peer.userId) {
         void api(`/api/dm/${scope}/with/${peer.userId}/read`, { method: 'POST' }).catch(() => {});
+        setAiThinking(false); // AI 답변 도착 — 준비 중 표시 해제
+        if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
       }
       setMessages((prev) => {
         if (prev.some((x) => x.id === m.id)) return prev;
@@ -182,7 +188,7 @@ export function DmWindow({
       }
     }
     endRef.current?.scrollIntoView({ block: 'end' });
-  }, [messages]);
+  }, [messages, aiThinking]);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -190,6 +196,13 @@ export function DmWindow({
     if (!text || sending) return;
     setSending(true);
     setInput('');
+    // AI 상대면 전송 "전"에 준비 중 표시 — 답변 소켓이 POST 응답보다 먼저 와도
+    // 해제(onDm)가 켜기보다 늦지 않게 (늦으면 45초 유령 표시)
+    if (isAgent) {
+      setAiThinking(true);
+      if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
+      aiThinkingTimer.current = setTimeout(() => setAiThinking(false), 45_000);
+    }
     try {
       const m = await api<IncomingDm>(`/api/dm/${scope}/with/${peer.userId}`, {
         method: 'POST',
@@ -215,6 +228,8 @@ export function DmWindow({
       onActivity();
     } catch {
       setInput(text); // 실패 시 입력 복원
+      setAiThinking(false); // 전송 실패 — 답이 올 리 없으니 표시 해제
+      if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
     } finally {
       setSending(false);
     }
@@ -281,6 +296,20 @@ export function DmWindow({
             </Fragment>
           );
         })}
+        {aiThinking && (
+          <div className="chat-row">
+            <Avatar value={peer.avatar} className="chat-avatar" />
+            <div className="chat-content">
+              <div className="chat-line">
+                <div className="chat-bubble chat-typing">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={endRef} />
       </div>
 
