@@ -3848,6 +3848,9 @@ input:focus {
 @media (max-width: 767px) {
   .msched {
     grid-template-columns: 1fr;
+    /* 남는 세로 공간은 캘린더(흰 배경)가 먹고, 하단 리스트 패널은 내용만큼만 —
+       월뷰에서 회색 공백이 길게 남던 문제 */
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 }
 
