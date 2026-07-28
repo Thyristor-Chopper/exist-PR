@@ -4555,8 +4555,27 @@ input:focus {
   }
 
   .msched-pop .msched-call-sw {
-    font-size: 14px;
-    padding: 9px 13px;
+    font-size: 15.5px;
+    padding: 12px 16px;
+    gap: 9px;
+    border-radius: 11px;
+  }
+
+  /* 토글 스위치 알약도 같이 확대 */
+  .msched-pop .msched-sw {
+    width: 40px;
+    height: 23px;
+  }
+
+  .msched-pop .msched-sw i {
+    top: 2.5px;
+    left: 2.5px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .msched-pop .msched-sw.on i {
+    transform: translateX(17px);
   }
 
   .msched-pop .msched-add-times,
