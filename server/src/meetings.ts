@@ -793,6 +793,10 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   ).run(meeting.id);
   db.prepare('DELETE FROM meeting_recaps WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM chat_reads WHERE meeting_id = ?').run(meeting.id);
+  // 채널 알림 설정이 채널을 FK로 물고 있음 — 채널보다 먼저
+  db.prepare(
+    'DELETE FROM channel_notify_prefs WHERE channel_id IN (SELECT id FROM chat_channels WHERE meeting_id = ?)',
+  ).run(meeting.id);
   db.prepare('DELETE FROM chat_channels WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM call_transcripts WHERE meeting_id = ?').run(meeting.id);
   deleteMeetingFiles(meeting.id, String(req.params.code).toUpperCase());
@@ -1555,6 +1559,7 @@ router.delete('/:code/channels/:channelId', (req: AuthedRequest, res) => {
   // 통화 채널을 지우면 진행 중인 통화 채팅이 유실됨 — 삭제 불가
   if (ch.kind === 'call') return res.status(400).json({ error: '통화 채널은 삭제할 수 없어요' });
   db.prepare('DELETE FROM messages WHERE channel_id = ?').run(id);
+  db.prepare('DELETE FROM channel_notify_prefs WHERE channel_id = ?').run(id);
   db.prepare('DELETE FROM chat_channels WHERE id = ?').run(id);
   res.json({ ok: true });
 });
