@@ -70,7 +70,8 @@ export const ORG_ACTIONS = [
   'member:edit-position',
   'member:edit-department',
   'member:remove',
-  // 그룹 — 스코프: 자기 부서원이 호스트인 조직 그룹
+  // 그룹 — 스코프: 자기 부서원이 호스트인 조직 그룹 (create만 예외 — 본인이 새로 만드는 권한)
+  'group:create',
   'group:lock',
   'group:settings',
   'group:edit-info',
@@ -92,6 +93,7 @@ const ACTION_LABEL_KO: Record<string, string> = {
   'member:edit-position': '직급 수정',
   'member:edit-department': '부서 수정',
   'member:remove': '멤버 내보내기',
+  'group:create': '그룹 생성',
   'group:lock': '그룹 입장 잠금',
   'group:settings': '그룹 설정',
   'group:edit-info': '그룹 정보 수정',
@@ -169,6 +171,12 @@ function myPerms(orgId: number, userId: number): { perms: OrgAction[]; dept: str
   return { perms: rolePerms(m.role_id), dept: m.department };
 }
 
+/** 조직에 그룹을 만들 수 있는가 — owner/admin 또는 group:create 권한 보유자 (meetings 라우터가 사용) */
+export function canCreateOrgGroup(orgId: number, userId: number): boolean {
+  if (isManager(orgId, userId)) return true;
+  return myPerms(orgId, userId).perms.includes('group:create');
+}
+
 /** 대상 멤버에게 액션을 행사할 수 있는가 — owner/admin은 전체, 중간관리자는 자기 부서의 일반 멤버만 */
 function canActOnMember(
   orgId: number,
@@ -188,7 +196,7 @@ function canActOnMember(
 router.get('/', (req: AuthedRequest, res) => {
   const rows = db
     .prepare(
-      `SELECT o.id, o.name, o.join_code, o.owner_id, om.role,
+      `SELECT o.id, o.name, o.join_code, o.owner_id, om.role, om.role_id,
               (SELECT COUNT(*) FROM organization_members m2
                WHERE m2.org_id = o.id AND m2.status = 'active') AS member_count,
               (SELECT COUNT(*) FROM organization_members m3
@@ -204,21 +212,27 @@ router.get('/', (req: AuthedRequest, res) => {
     join_code: string;
     owner_id: number;
     role: string;
+    role_id: number | null;
     member_count: number;
     pending_count: number;
   }[];
 
   res.json(
-    rows.map((o) => ({
-      id: o.id,
-      name: o.name,
-      joinCode: o.join_code,
-      role: o.role,
-      isManager: o.role === 'owner' || o.role === 'admin',
-      memberCount: o.member_count,
-      // 관리자에게만 대기 신청 수 노출
-      pendingCount: o.role === 'owner' || o.role === 'admin' ? o.pending_count : 0,
-    })),
+    rows.map((o) => {
+      const managing = o.role === 'owner' || o.role === 'admin';
+      return {
+        id: o.id,
+        name: o.name,
+        joinCode: o.join_code,
+        role: o.role,
+        isManager: managing,
+        // 클라가 "새 그룹 만들기" 버튼을 숨길 근거 — 서버 POST /meetings에서도 같은 규칙으로 거른다
+        canCreateGroup: managing || rolePerms(o.role_id).includes('group:create'),
+        memberCount: o.member_count,
+        // 관리자에게만 대기 신청 수 노출
+        pendingCount: managing ? o.pending_count : 0,
+      };
+    }),
   );
 });
 
@@ -510,6 +524,51 @@ router.get('/:id/audit', (req: AuthedRequest, res) => {
     )
     .all(orgId) as { id: number; action: string; text: string; created_at: string; actor: string }[];
   res.json(rows.map((r) => ({ id: r.id, action: r.action, text: r.text, actor: r.actor, at: r.created_at })));
+});
+
+/** 조직 전체 그룹 목록 — 관리자(owner/admin) 전용 조회.
+ *  내가 참가 안 한 그룹도 전부 보인다 (운영 감독용 — 참가·개입은 별개 문제) */
+router.get('/:id/groups', (req: AuthedRequest, res) => {
+  const orgId = Number(req.params.id);
+  if (!isManager(orgId, req.userId!)) {
+    return res.status(403).json({ error: '전체 그룹은 관리자만 볼 수 있어요' });
+  }
+  const rows = db
+    .prepare(
+      `SELECT m.id, m.code, m.title, m.thumbnail, m.created_at,
+              u.username AS host, om.department AS host_dept,
+              (SELECT COUNT(*) FROM meeting_participants mp WHERE mp.meeting_id = m.id) AS participant_count,
+              EXISTS(SELECT 1 FROM meeting_participants me WHERE me.meeting_id = m.id AND me.user_id = ?) AS joined
+       FROM meetings m
+       JOIN users u ON u.id = m.host_id
+       LEFT JOIN organization_members om ON om.org_id = m.org_id AND om.user_id = m.host_id
+       WHERE m.org_id = ?
+       ORDER BY m.created_at DESC`,
+    )
+    .all(req.userId, orgId) as {
+    id: number;
+    code: string;
+    title: string;
+    thumbnail: string | null;
+    created_at: string;
+    host: string;
+    host_dept: string | null;
+    participant_count: number;
+    joined: number;
+  }[];
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      title: r.title,
+      thumbnail: r.thumbnail,
+      host: r.host,
+      hostDept: r.host_dept,
+      participantCount: r.participant_count,
+      joined: !!r.joined,
+      createdAt: r.created_at,
+    })),
+  );
 });
 
 /** 내 포커스 — 일반 멤버의 조직 홈용: 이 조직에서 내가 지금 챙길 것들

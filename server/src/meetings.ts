@@ -8,7 +8,7 @@ import { requireAuth, type AuthedRequest } from './auth.js';
 import { invalidateBrief } from './agent.js';
 import { emitToUser, notifyUser } from './notify.js';
 import { getRoomSize, getRoomPeers } from './sfu.js';
-import { isMember, audit as orgAudit } from './orgs.js';
+import { isMember, canCreateOrgGroup, audit as orgAudit } from './orgs.js';
 import { canManageMeeting } from './perm.js';
 import { byPositionDesc } from './positions.js';
 import {
@@ -140,6 +140,10 @@ router.post('/', (req: AuthedRequest, res) => {
     if (!Number.isInteger(orgId)) return res.status(400).json({ error: '잘못된 조직입니다' });
     if (!isMember(orgId, req.userId!)) {
       return res.status(403).json({ error: '이 조직의 멤버만 회의를 만들 수 있어요' });
+    }
+    // 조직 그룹 생성은 권한제 — owner/admin 또는 group:create 역할 보유자만
+    if (!canCreateOrgGroup(orgId, req.userId!)) {
+      return res.status(403).json({ error: '조직에 그룹을 만들 권한이 없어요 — 관리자에게 요청하세요' });
     }
   }
 

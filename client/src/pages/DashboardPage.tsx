@@ -22,6 +22,10 @@ export default function DashboardPage() {
     orgCurrent === 'personal' ? null : orgs.find((o) => o.id === orgCurrent)?.name ?? null;
   // 가입 승인 대기 총합 — 레일의 전환 버튼을 없애서 배지를 상단 바가 대신 보여줌
   const totalPending = orgs.reduce((s, o) => s + o.pendingCount, 0);
+  // 조직 컨텍스트에선 그룹 생성이 권한제 (owner/admin 또는 group:create 역할) — 개인은 항상 가능.
+  // 목록 로드 전(undefined)엔 일단 보여주고 서버 403이 최종 방어
+  const canCreateGroup =
+    orgCurrent === 'personal' || (orgs.find((o) => o.id === orgCurrent)?.canCreateGroup ?? true);
   const [sidebarOpen, setSidebarOpen] = useState(
     () => localStorage.getItem('exist:sidebar') !== 'closed',
   );
@@ -93,6 +97,10 @@ export default function DashboardPage() {
 
   // 아래 핸들러들은 memo(NowBar)에 props로 내려가므로 참조가 안정해야 함 (setter만 캡처)
   const openCreate = useCallback((schedMode = false) => {
+    // 조직 컨텍스트 그룹 생성은 권한제 — 버튼은 숨기지만 이벤트(exist:new-meeting 등) 경유 호출도 방어
+    const { current, orgs: list } = useOrgStore.getState();
+    const ok = current === 'personal' || (list.find((o) => o.id === current)?.canCreateGroup ?? true);
+    if (!ok) return;
     setCreateSchedMode(schedMode);
     setShowCreate(true);
   }, []);
@@ -350,9 +358,11 @@ export default function DashboardPage() {
           <div className="join-card">
             <div className="head">
               <h2>그룹 입장</h2>
-              <button className="new-btn" onClick={() => openCreate(false)} title="새 그룹 만들기">
-                +
-              </button>
+              {canCreateGroup && (
+                <button className="new-btn" onClick={() => openCreate(false)} title="새 그룹 만들기">
+                  +
+                </button>
+              )}
             </div>
             <form onSubmit={joinMeeting}>
               <input
@@ -402,7 +412,11 @@ export default function DashboardPage() {
             ))}
             {sortedGroups.length === 0 && (
               <div className="recent-card recent-empty">
-                <div>아직 그룹이 없어요. + 버튼으로 만들어보세요.</div>
+                <div>
+                  {canCreateGroup
+                    ? '아직 그룹이 없어요. + 버튼으로 만들어보세요.'
+                    : '아직 그룹이 없어요. 코드를 받아 참여하거나 관리자에게 요청하세요.'}
+                </div>
               </div>
             )}
           </div>
@@ -419,19 +433,21 @@ export default function DashboardPage() {
           <div className="modal-overlay" onClick={() => setAddOpen(false)}>
             <div className="modal-card" onClick={(e) => e.stopPropagation()}>
               <div className="modal-head">그룹 추가</div>
-              <button
-                className="add-choice"
-                onClick={() => {
-                  setAddOpen(false);
-                  openCreate(false);
-                }}
-              >
-                <span className="add-choice-icon">+</span>
-                <span>
-                  <b>새 그룹 만들기</b>
-                  <small>팀·프로젝트 그룹을 새로 시작해요</small>
-                </span>
-              </button>
+              {canCreateGroup && (
+                <button
+                  className="add-choice"
+                  onClick={() => {
+                    setAddOpen(false);
+                    openCreate(false);
+                  }}
+                >
+                  <span className="add-choice-icon">+</span>
+                  <span>
+                    <b>새 그룹 만들기</b>
+                    <small>팀·프로젝트 그룹을 새로 시작해요</small>
+                  </span>
+                </button>
+              )}
               <button
                 className="add-choice"
                 onClick={() => {

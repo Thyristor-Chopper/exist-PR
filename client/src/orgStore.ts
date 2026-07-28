@@ -8,6 +8,8 @@ export interface Org {
   joinCode: string;
   role: 'owner' | 'admin' | 'member';
   isManager: boolean;
+  /** 이 조직에 그룹을 만들 수 있나 (owner/admin 또는 group:create 역할) — 생성 버튼 노출 근거 */
+  canCreateGroup: boolean;
   memberCount: number;
   pendingCount: number;
 }
