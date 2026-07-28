@@ -976,6 +976,16 @@ export default function MeetingSchedule({
   // 일정 추가/수정 폼 — 평소엔 패널 하단, 팝오버(edit/create)에선 팝오버 안에 렌더
   const formEl = (
         <form className="msched-add" onSubmit={addEvent}>
+          {/* 모바일 풀스크린 시트 상단 바 (iOS식) — 데스크톱에선 CSS로 숨김 */}
+          {pop && pop.mode !== 'view' && (
+            <div className="msched-sheet-head">
+              <button type="button" onClick={closePop}>
+                취소
+              </button>
+              <b>{editingId ? '일정 수정' : '새로운 일정'}</b>
+              <span />
+            </div>
+          )}
           <input
             className="msched-add-title"
             value={title}

@@ -4449,16 +4449,57 @@ input:focus {
   box-sizing: border-box;
 }
 
-/* 모바일: 생성·수정 폼 팝오버는 클릭 좌표 무시하고 중앙 시트로 (좁은 화면 잘림 방지) */
+/* 모바일 시트 상단 바 (iOS 새로운 이벤트식) — 데스크톱·패널 폼에선 숨김 */
+.msched-sheet-head {
+  display: none;
+}
+
+/* 모바일: 생성·수정 폼은 클릭 좌표 무시하고 풀스크린 시트로 (iOS 새로운 이벤트식) */
 @media (max-width: 767px) {
   .msched-pop.create,
   .msched-pop.edit {
-    left: 12px !important;
-    right: 12px;
+    inset: 0 !important;
     width: auto;
-    top: 50% !important;
-    transform: translateY(-50%);
-    max-height: min(84dvh, 560px);
+    max-width: none;
+    max-height: none;
+    transform: none;
+    border: none;
+    border-radius: 0;
+    padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .msched-pop.create .msched-sheet-head,
+  .msched-pop.edit .msched-sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 2;
+    margin: 0 -16px 10px;
+    padding: 12px 16px calc(10px + env(safe-area-inset-top) * 0);
+    padding-top: max(12px, env(safe-area-inset-top));
+    border-bottom: 1px solid var(--border);
+  }
+
+  .msched-sheet-head button {
+    border: none;
+    background: none;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--green-dark);
+    padding: 2px 0;
+  }
+
+  .msched-sheet-head b {
+    font-size: 15.5px;
+    font-weight: 800;
+  }
+
+  /* 좌우 균형용 더미 — 취소와 같은 폭 느낌 */
+  .msched-sheet-head span {
+    width: 34px;
   }
 }
 
