@@ -340,6 +340,16 @@ export function ChevronRightIcon({ size }: IconProps) {
   );
 }
 
+/** 편지봉투 — 가입 대기·신청 */
+export function MailIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 /** 경고 삼각형 — 인사이트 리스크 등 */
 export function AlertIcon({ size }: IconProps) {
   return (

@@ -5,7 +5,7 @@ import { useOrgStore } from '../orgStore';
 import { useDisplayName } from '../names';
 import Logo from '../components/Logo';
 import Avatar from '../components/Avatar';
-import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon, PenIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon } from '../components/Icons';
+import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon, PenIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon, MailIcon } from '../components/Icons';
 import { POSITIONS } from '../lib/positions';
 import InsightsPanel from '../components/InsightsPanel';
 
@@ -421,7 +421,7 @@ export default function OrgChartPage() {
           {(canApprove || canReject) && detail.pending.length > 0 && (
             <section className="orgchart-pending">
               <div className="orgchart-pending-head">
-                ✉️ 가입 대기 <b>{detail.pending.length}</b>
+                <MailIcon size={14} /> 가입 대기 <b>{detail.pending.length}</b>
               </div>
               {detail.pending.map((p) => (
                 <div key={p.userId} className="orgchart-pending-row">

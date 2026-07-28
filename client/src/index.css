@@ -11272,9 +11272,11 @@ input:focus {
   }
 }
 
-/* 터치 기기 — hover가 없으므로 이름변경/삭제 버튼 항상 노출 */
+/* 터치 기기 — hover가 없으므로 이름변경/삭제 버튼 항상 노출.
+   ⚠️ 베이스 .cf-actions{display:none}이 이 블록보다 뒤에 있어 소스 순서로 이김 —
+   .cf-item 스코프로 특이도를 올려야 실제로 노출됨 (7/29 모바일 QA에서 실측) */
 @media (hover: none) {
-  .cf-actions {
+  .cf-item .cf-actions {
     display: inline-flex;
   }
 
