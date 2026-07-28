@@ -1409,7 +1409,8 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                       <div className="hub-section-empty">기록을 보고 안건을 정리하는 중…</div>
                     ) : agenda.length === 0 ? (
                       <div className="hub-section-empty">
-                        아직 제안할 안건이 없어요 — 통화·할 일이 쌓이면 여기에 초안이 떠요
+                        기록이 쌓이면 AI가 다음 회의 안건 초안을 여기에 제안해요 — 우선 아래
+                        <b> 일정 잡기</b>로 첫 회의부터 정해보세요.
                       </div>
                     ) : (
                       <div className="hub-agenda-list">
@@ -1621,7 +1622,10 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             </div>
                           ))}
                         {todos.length === 0 && (
-                          <div className="hub-section-empty">함께 할 일을 추가해보세요</div>
+                          <div className="hub-section-empty">
+                            결정은 할 일이 되어야 움직여요 — 아래에서 첫 할 일을 추가해보세요.
+                            회의 정리에서 뽑힌 할 일도 자동으로 여기에 쌓여요.
+                          </div>
                         )}
                       </div>
                       {/* 추가는 가볍게 [입력][추가]만 — 마감·담당은 추가된 행의 아이콘에서 지정 */}

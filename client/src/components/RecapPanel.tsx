@@ -261,8 +261,8 @@ export default function RecapPanel({
 
       {recaps.length === 0 ? (
         <div className="hub-section-empty">
-          통화가 끝나면 AI가 채팅에서 결정과 할 일을 정리해 여기에 둬요 — 참석하지 못한
-          팀원에게도 자동으로 전달됩니다.
+          아직 지난 회의 기록이 없어요. <b>통화하거나 채팅을 나눈 뒤 '지금 정리하기'</b>를 누르면
+          AI가 결정·할 일을 정리해 여기에 둬요 — 참석하지 못한 팀원에게도 자동으로 전달됩니다.
         </div>
       ) : (
         <div className="hub-recap-list">
