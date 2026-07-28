@@ -308,6 +308,17 @@ export function UsersIcon({ size }: IconProps) {
   );
 }
 
+/** 사람 내보내기 — ×만 쓰면 "닫기"로 오독되어 사람 실루엣과 결합 */
+export function UserXIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="10" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
+      <path d="M3 20c0-3.3 3-5.5 7-5.5 1.2 0 2.3.2 3.2.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M16.5 15.5l5 5M21.5 15.5l-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function SearchIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

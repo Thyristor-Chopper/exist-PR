@@ -3845,14 +3845,10 @@ input:focus {
   background: none;
   padding: 0;
   font: inherit;
-  color: inherit;
+  color: inherit; /* hover에도 색 변화 없음 (주호 지시) — 열림 어포던스는 점선 밑줄이 담당 */
   cursor: pointer;
   text-decoration: underline dotted rgba(255, 255, 255, 0.35);
   text-underline-offset: 3px;
-}
-
-.mv-peers-btn:hover {
-  color: #fff;
 }
 
 /* .dev-menu 기본(파일 뒤쪽, 위로 열림)보다 특이도를 높여 헤더 아래로 연다.
@@ -3871,6 +3867,25 @@ input:focus {
   background: var(--surface);
   border-color: var(--border);
   box-shadow: var(--shadow-md);
+  transform-origin: top left;
+  animation: ppl-menu-in 0.16s ease-out;
+}
+
+@keyframes ppl-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dev-menu.ppl-menu {
+    animation: none;
+  }
 }
 
 .dev-menu.ppl-menu .dev-menu-title {
@@ -3933,12 +3948,30 @@ input:focus {
   left: 0;
 }
 
-.ppl-act {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  border: none;
+/* 액션 알약 — [채팅|내보내기] 캡슐, 헤더 hdr-pill과 같은 문법 */
+.ppl-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
   background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+.ppl-pill-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.ppl-act {
+  width: 30px;
+  height: 24px;
+  border: none;
+  border-radius: 0;
+  background: none;
   color: var(--text-sub);
   display: inline-flex;
   align-items: center;
@@ -3948,12 +3981,12 @@ input:focus {
 }
 
 .ppl-act:hover {
-  background: var(--surface-3, var(--surface-2));
+  background: var(--surface-3, var(--border));
   color: var(--text);
 }
 
 .ppl-act.danger:hover {
-  background: rgba(229, 72, 77, 0.18);
+  background: rgba(229, 72, 77, 0.15);
   color: #e5484d;
 }
 

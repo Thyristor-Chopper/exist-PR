@@ -8,7 +8,7 @@ import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, CheckMarkIcon, GearIcon, PinIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, CheckMarkIcon, GearIcon, PinIcon, UserXIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -1535,31 +1535,37 @@ export default function MeetingView({
                               <CamIcon size={13} />
                               {p.videoPaused && <SlashIcon size={13} />}
                             </span>
-                            <button
-                              className="ppl-act"
-                              title="1:1 채팅"
-                              onClick={() => {
-                                setDevMenu(null);
-                                window.dispatchEvent(
-                                  new CustomEvent('exist:call-dm', {
-                                    detail: { username: p.username },
-                                  }),
-                                );
-                              }}
-                            >
-                              <ChatIcon size={13} />
-                            </button>
-                            {isHost && (
+                            {/* 액션 알약 — [채팅|내보내기] 캡슐 (헤더 hdr-pill과 같은 문법) */}
+                            <span className="ppl-pill">
                               <button
-                                className="ppl-act danger"
-                                title="내보내기"
-                                onClick={() =>
-                                  void request(getSocket(), 'room:kick', { peerId: p.peerId })
-                                }
+                                className="ppl-act"
+                                title="1:1 채팅"
+                                onClick={() => {
+                                  setDevMenu(null);
+                                  window.dispatchEvent(
+                                    new CustomEvent('exist:call-dm', {
+                                      detail: { username: p.username },
+                                    }),
+                                  );
+                                }}
                               >
-                                <CloseIcon size={12} />
+                                <ChatIcon size={13} />
                               </button>
-                            )}
+                              {isHost && (
+                                <>
+                                  <i className="ppl-pill-sep" />
+                                  <button
+                                    className="ppl-act danger"
+                                    title="내보내기"
+                                    onClick={() =>
+                                      void request(getSocket(), 'room:kick', { peerId: p.peerId })
+                                    }
+                                  >
+                                    <UserXIcon size={13} />
+                                  </button>
+                                </>
+                              )}
+                            </span>
                           </div>
                         ))}
                     </div>
