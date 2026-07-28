@@ -834,6 +834,11 @@ router.get('/:code/events', (req: AuthedRequest, res) => {
     .all(meeting.id) as { people: string | null; [k: string]: unknown }[];
   // people(JSON id 배열)을 이름으로 풀어서 내려줌 — 못 찾는 id(탈퇴 등)는 제외
   const pickUser = db.prepare('SELECT id, username, name FROM users WHERE id = ?');
+  // 일정 수신확인 명단 — 회람 사인의 일정판
+  const pickAcks = db.prepare(
+    `SELECT u.username FROM event_acks a JOIN users u ON u.id = a.user_id
+     WHERE a.event_id = ? ORDER BY a.created_at`,
+  );
   res.json(
     rows.map((r) => {
       let ids: number[] = [];
@@ -845,9 +850,25 @@ router.get('/:code/events', (req: AuthedRequest, res) => {
       const people = ids
         .map((id) => pickUser.get(id) as { id: number; username: string; name: string | null } | undefined)
         .filter((u): u is { id: number; username: string; name: string | null } => !!u);
-      return { ...r, people };
+      const acks = (pickAcks.all(r.id) as { username: string }[]).map((a) => a.username);
+      return { ...r, people, acks };
     }),
   );
+});
+
+/** 일정 수신확인 — "일정 잡힌 것 봤음" 서명 (참가자만, 멱등) */
+router.post('/:code/events/:eventId/ack', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const ev = db
+    .prepare('SELECT id FROM meeting_events WHERE id = ? AND meeting_id = ?')
+    .get(req.params.eventId, r.meeting.id) as { id: number } | undefined;
+  if (!ev) return res.status(404).json({ error: '존재하지 않는 일정이에요' });
+  db.prepare('INSERT OR IGNORE INTO event_acks (event_id, user_id) VALUES (?, ?)').run(
+    ev.id,
+    req.userId,
+  );
+  res.json({ ok: true });
 });
 
 /** body.people을 회의 참가자 id만 남긴 중복 없는 배열로 정리 */
@@ -917,6 +938,117 @@ export function eventOccurrenceOnOrAfter(
   }
   return null;
 }
+
+/** AI 겹침 시간 제안 — 참가자 전원의 일정을 보고 다음 7일 중 모두 비는 회의 시간 후보를 찾는다.
+ *  규칙 기반(P1 ⑥ 업그레이드): 평일 10~17시 1시간 슬롯, 종일·여러 날 일정은 그 날 전체 차단.
+ *  AI는 후보 제시까지 — 등록은 사람이 원클릭 확정 */
+router.get('/:code/schedule/suggest', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const aiId = ensureAgentUser();
+  const parts = (
+    db
+      .prepare(
+        `SELECT u.id, u.username FROM meeting_participants mp
+         JOIN users u ON u.id = mp.user_id WHERE mp.meeting_id = ?`,
+      )
+      .all(r.meeting.id) as { id: number; username: string }[]
+  ).filter((p) => p.id !== aiId);
+  if (parts.length === 0) return res.json({ total: 0, slots: [] });
+
+  // 후보 창: 내일부터 7일, 평일만
+  const days: string[] = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const wd = d.getDay();
+    if (wd === 0 || wd === 6) continue;
+    days.push(ymdOf(d));
+  }
+  const windowStart = days[0];
+  const windowEnd = days[days.length - 1];
+  if (!windowStart) return res.json({ total: parts.length, slots: [] });
+
+  const toMin = (hhmm: string | null): number | null => {
+    if (!hhmm) return null;
+    const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+
+  // 참가자별 바쁜 구간 — 그 사람이 참가한 모든 그룹의 일정 이벤트에서 수집.
+  // 관련자(people)가 지정된 일정은 그 사람들만, 비어 있으면 그 그룹 참가자 전원이 바쁜 것으로 본다
+  const busy = new Map<number, Map<string, { s: number; e: number }[]>>();
+  const dayBlock = (uid: number, date: string) => addBusy(uid, date, 0, 24 * 60);
+  const addBusy = (uid: number, date: string, s: number, e: number) => {
+    if (!busy.has(uid)) busy.set(uid, new Map());
+    const byDay = busy.get(uid)!;
+    if (!byDay.has(date)) byDay.set(date, []);
+    byDay.get(date)!.push({ s, e });
+  };
+
+  const evStmt = db.prepare(
+    `SELECT DISTINCT e.id, e.date, e.time, e.end_time, e.end_date, e.recur, e.recur_until, e.people
+     FROM meeting_events e
+     JOIN meeting_participants mp ON mp.meeting_id = e.meeting_id
+     WHERE mp.user_id = ? AND (e.recur IS NOT NULL OR COALESCE(e.end_date, e.date) >= ?) AND e.date <= ?`,
+  );
+  for (const p of parts) {
+    const rows = evStmt.all(p.id, windowStart, windowEnd) as {
+      date: string;
+      time: string | null;
+      end_time: string | null;
+      end_date: string | null;
+      recur: string | null;
+      recur_until: string | null;
+      people: string | null;
+    }[];
+    for (const ev of rows) {
+      // 관련자 지정 일정이면 이 참가자가 목록에 있을 때만 바쁨
+      try {
+        const ids = JSON.parse(ev.people ?? '[]') as number[];
+        if (Array.isArray(ids) && ids.length > 0 && !ids.includes(p.id)) continue;
+      } catch {
+        /* 손상된 people은 전원 공유로 취급 */
+      }
+      const sMin = toMin(ev.time);
+      const eMin = ev.end_time ? (toMin(ev.end_time) ?? (sMin ?? 0) + 60) : (sMin ?? 0) + 60;
+      const mark = (date: string) => {
+        if (date < windowStart || date > windowEnd) return;
+        if (sMin == null) dayBlock(p.id, date); // 종일 일정 = 그 날 차단 (휴가 등)
+        else addBusy(p.id, date, sMin, Math.max(eMin, sMin + 30));
+      };
+      if (ev.recur) {
+        // 반복 일정 — 창 안의 occurrence들 전개
+        let occ = eventOccurrenceOnOrAfter(ev.date, ev.recur, ev.recur_until, windowStart);
+        while (occ && occ <= windowEnd) {
+          mark(occ);
+          occ = eventOccurrenceOnOrAfter(occ, ev.recur, ev.recur_until, ymdOf(stepEventDate(new Date(occ + 'T00:00:00'), ev.recur)));
+        }
+      } else if (ev.end_date && ev.end_date > ev.date) {
+        // 여러 날 일정 — 걸친 날 전부 차단
+        for (const d of days) if (d >= ev.date && d <= ev.end_date) dayBlock(p.id, d);
+      } else {
+        mark(ev.date);
+      }
+    }
+  }
+
+  // 슬롯 채점 — 평일 10~17시, 1시간 단위
+  const slots: { date: string; time: string; free: number; busy: string[] }[] = [];
+  for (const date of days) {
+    for (let h = 10; h <= 16; h++) {
+      const s = h * 60;
+      const e = s + 60;
+      const busyNames = parts
+        .filter((p) => (busy.get(p.id)?.get(date) ?? []).some((b) => b.s < e && s < b.e))
+        .map((p) => p.username);
+      slots.push({ date, time: `${String(h).padStart(2, '0')}:00`, free: parts.length - busyNames.length, busy: busyNames });
+    }
+  }
+  // 전원 가능 우선, 그다음 빈 사람 많은 순 — 같은 점수면 빠른 시간
+  slots.sort((a, b) => b.free - a.free || a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  res.json({ total: parts.length, slots: slots.slice(0, 3) });
+});
 
 /** 회의 일정 이벤트 추가 */
 router.post('/:code/events', (req: AuthedRequest, res) => {
@@ -1008,6 +1140,7 @@ router.delete('/:code/events/:eventId', (req: AuthedRequest, res) => {
   if (ev.created_by !== req.userId && !canManageMeeting(meeting, req.userId!, 'group:schedule')) {
     return res.status(403).json({ error: '작성자·호스트·조직 관리자만 삭제할 수 있어요' });
   }
+  db.prepare('DELETE FROM event_acks WHERE event_id = ?').run(req.params.eventId);
   db.prepare('DELETE FROM meeting_events WHERE id = ?').run(req.params.eventId);
   res.json({ ok: true });
 });

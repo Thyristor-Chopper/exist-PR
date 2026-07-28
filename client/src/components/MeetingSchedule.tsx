@@ -34,6 +34,8 @@ interface MEvent {
   people: { id: number; username: string; name: string | null }[]; // 관련자
   author: string;
   created_by: number;
+  /** 일정 수신확인한 사용자 아이디들 — 회람 사인의 일정판 */
+  acks?: string[];
 }
 
 interface Props {
@@ -236,6 +238,7 @@ export default function MeetingSchedule({
   participants = [],
 }: Props) {
   const userId = useAuthStore((s) => s.user?.id);
+  const myName = useAuthStore((s) => s.user?.username);
   const dn = useDisplayName();
   const [events, setEvents] = useState<MEvent[]>([]);
   const [view, setView] = useState<ViewMode>('month');
@@ -592,6 +595,19 @@ export default function MeetingSchedule({
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** 일정 수신확인 — "봤음" 서명 (낙관적 갱신, 실패 시 재조회) */
+  async function ackEvent(ev: MEvent) {
+    if (!myName) return;
+    setEvents((prev) =>
+      prev.map((x) => (x.id === ev.id ? { ...x, acks: [...(x.acks ?? []), myName] } : x)),
+    );
+    try {
+      await api(`/api/meetings/${code}/events/${ev.id}/ack`, { method: 'POST' });
+    } catch {
+      void load();
+    }
+  }
 
   // 회의 메인 일정 날짜들 — 반복이면 occurrence 전부 펼쳐 표시 (nowbar와 일치시키기 위함)
   const meetingDays = useMemo(() => {
@@ -988,6 +1004,11 @@ export default function MeetingSchedule({
         ) : null}
         {ev.title}
       </Marquee>
+      {(ev.acks?.length ?? 0) > 0 && (
+        <span className="msched-ack-count" title={`확인 ${ev.acks!.length}명 — ${ev.acks!.map((a) => dn(a)).join(', ')}`}>
+          <CheckMarkIcon size={10} /> {ev.acks!.length}
+        </span>
+      )}
       <span className="msched-event-author">{dn(ev.author)}</span>
       {(ev.created_by === userId || isHost) && (
         <>
@@ -1936,6 +1957,25 @@ export default function MeetingSchedule({
                   </div>
                 )}
                 {popEv.memo && <div className="msched-pop-memo">{popEv.memo}</div>}
+                {/* 일정 수신확인 — 결정 원장 회람 사인의 일정판. popBase 기준(반복 조각도 원본에 서명) */}
+                {popBase && (
+                  <div className="msched-pop-acks">
+                    {(popBase.acks ?? []).includes(myName ?? '') ? (
+                      <span className="msched-ack-done">
+                        <CheckMarkIcon size={12} /> 확인함
+                      </span>
+                    ) : (
+                      <button type="button" className="msched-ack-btn" onClick={() => void ackEvent(popBase)}>
+                        <CheckMarkIcon size={12} /> 일정 확인
+                      </button>
+                    )}
+                    <span className="msched-ack-names">
+                      {(popBase.acks ?? []).length > 0
+                        ? `확인 ${(popBase.acks ?? []).length}명 — ${(popBase.acks ?? []).map((a) => dn(a)).join(', ')}`
+                        : '아직 아무도 확인 안 했어요'}
+                    </span>
+                  </div>
+                )}
                 <div className="msched-pop-foot">
                   <span className="msched-pop-author">작성 {dn(popEv.author)}</span>
                   {popCanEdit && (

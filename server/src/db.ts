@@ -113,6 +113,14 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_mevents_meeting ON meeting_events(meeting_id, date);
+
+  -- 일정 수신확인 — 결정 원장 회람 사인의 일정판 ("일정 잡힌 것 봤음" 서명)
+  CREATE TABLE IF NOT EXISTS event_acks (
+    event_id   INTEGER NOT NULL REFERENCES meeting_events(id),
+    user_id    INTEGER NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (event_id, user_id)
+  );
 `);
 
 // 마이그레이션: 복구 코드 컬럼 (기존 DB에 없으면 추가)

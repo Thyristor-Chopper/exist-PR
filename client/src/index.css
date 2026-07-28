@@ -1039,6 +1039,10 @@ input:focus {
   flex-direction: column;
   gap: 4px;
   font-size: 14px;
+  /* nb-next-list와 동일 처방 — 없으면 min-width:auto가 내용 폭 밑 수축을 거부해
+   * 카드(overflow hidden) 밖으로 삐져나가 잘리고, 마퀴는 넘침을 못 봐 슬라이딩이 안 됨 */
+  min-width: 0;
+  flex: 1;
 }
 
 .nowbar-todo {
@@ -1076,6 +1080,9 @@ input:focus {
 .nowbar-todo-text {
   overflow: hidden;
   text-overflow: ellipsis;
+  /* 행의 남는 폭을 정확히 차지해야 마퀴가 넘침을 감지 */
+  flex: 1;
+  min-width: 0;
 }
 
 .nowbar-todo.done .nowbar-todo-text {
@@ -14411,6 +14418,98 @@ html:not(.dark) .meeting-controls .leave:hover {
   inset: 0;
   display: grid;
   place-items: center;
+}
+
+/* ── AI 겹침 시간 제안 — recap의 다음 회의 후보 슬롯 ── */
+.hub-recap-next.suggest {
+  flex-wrap: wrap;
+}
+
+.hub-recap-slots {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hub-recap-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.hub-recap-slot b {
+  color: var(--green);
+  font-size: 11.5px;
+}
+
+.hub-recap-slot:hover {
+  background: var(--green-soft);
+}
+
+.hub-recap-slot-empty {
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+/* ── 일정 수신확인 — 결정 원장 회람 사인의 일정판 ── */
+.msched-pop-acks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.msched-ack-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.msched-ack-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--green);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.msched-ack-names {
+  color: var(--text-sub);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 리스트 행의 확인 수 뱃지 */
+.msched-ack-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
 }
 
 /* 통화 채팅이 물린 채널 표시 — 기본 채널이 아니라 화상회의 채널임을 알림 */
