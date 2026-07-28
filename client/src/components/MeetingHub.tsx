@@ -849,6 +849,8 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     attendees: string[];
     ts: number;
     acks: { username: string; ts: number }[];
+    /** 이 recap에서 파생된 할 일 (실행 추적) */
+    todos?: { title: string; done: number }[];
   }
   interface AgendaItem {
     title: string;
@@ -869,6 +871,31 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }).catch(() => {});
   }
   const [agenda, setAgenda] = useState<AgendaItem[] | null>(null); // null = 로딩 중
+  const [agendaOpen, setAgendaOpen] = useState(false); // 회의 직전에만 가치 — 기본 접힘
+  const [rosterOpen, setRosterOpen] = useState(false); // 참가자 명함 — 기본 접힘(아바타 스택만)
+  const [remindSent, setRemindSent] = useState(false);
+  /** 미확인 팔로업 — 최신 결정 중 미확인자가 있는 첫 항목 (관리자에게만 노출) */
+  const unackedFollowup = (() => {
+    if (!detail) return null;
+    for (const d of recentDecisions) {
+      const ackedNames = new Set(d.acks.map((a) => a.username));
+      const missing = detail.participants.filter((p) => !ackedNames.has(p.username)).length;
+      if (missing > 0) return { d, missing };
+    }
+    return null;
+  })();
+  async function remindDecision(d: LedgerEntry) {
+    try {
+      await api<{ reminded: number }>(`/api/meetings/${code}/decisions/remind`, {
+        method: 'POST',
+        body: { recapId: d.recapId, idx: d.idx },
+      });
+      setRemindSent(true);
+    } catch (err) {
+      // 쿨다운(이미 최근에 보냄)도 사용자에겐 "보냄" 상태가 맞음 — 나머지는 전역 토스트
+      if (String((err as Error)?.message ?? '').includes('이미')) setRemindSent(true);
+    }
+  }
   useEffect(() => {
     let alive = true;
     void api<LedgerEntry[]>(`/api/meetings/${code}/decisions`)
@@ -1160,6 +1187,21 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                   ✓
                                 </span>
                                 <Marquee className="hub-decision-text">{d.decision}</Marquee>
+                                {/* 도달·실행 상태 — "도착했음을 증명한다"를 첫 화면 숫자로 */}
+                                <span
+                                  className={`hub-decision-stat${d.acks.length >= detail.participants.length ? ' full' : ''}`}
+                                  title={`확인 ${d.acks.length}/${detail.participants.length}명`}
+                                >
+                                  확인 {d.acks.length}/{detail.participants.length}
+                                </span>
+                                {(d.todos ?? []).length > 0 && (
+                                  <span
+                                    className={`hub-decision-stat${d.todos!.every((t) => t.done) ? ' full' : ''}`}
+                                    title={d.todos!.map((t) => `${t.done ? '✓' : '·'} ${t.title}`).join('\n')}
+                                  >
+                                    실행 {d.todos!.filter((t) => t.done).length}/{d.todos!.length}
+                                  </span>
+                                )}
                                 <span className="hub-decision-when">
                                   {new Date(d.ts).toLocaleDateString('ko-KR', {
                                     month: 'numeric',
@@ -1168,9 +1210,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 </span>
                                 {/* 수신 확인 (회람 사인) */}
                                 {acked ? (
-                                  <span className="hub-decision-ack done">
-                                    ✓ {d.acks.length}
-                                  </span>
+                                  <span className="hub-decision-ack done">확인함 ✓</span>
                                 ) : (
                                   <button
                                     className="hub-decision-ack"
@@ -1185,33 +1225,64 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           })}
                         </div>
                       )}
-                    </section>
-
-                    {/* 다음 회의 아젠다 — 총무가 미결 기록에서 미리 뽑은 안건 초안 */}
-                    <section className="hub-section">
-                      <div className="hub-section-title">
-                        <ListIcon size={15} /> 다음 회의 아젠다
-                        <span className="hub-agenda-badge">AI 제안</span>
-                      </div>
-                      {agenda === null ? (
-                        <div className="hub-section-empty">기록을 보고 안건을 정리하는 중…</div>
-                      ) : agenda.length === 0 ? (
-                        <div className="hub-section-empty">
-                          아직 제안할 안건이 없어요 — 통화·할 일이 쌓이면 여기에 초안이 떠요
-                        </div>
-                      ) : (
-                        <div className="hub-agenda-list">
-                          {agenda.map((a, i) => (
-                            <div key={i} className="hub-agenda-row">
-                              <span className="hub-agenda-num">{i + 1}</span>
-                              <div className="hub-agenda-body">
-                                <Marquee className="hub-agenda-title">{a.title}</Marquee>
-                                {a.why && <span className="hub-agenda-why">{a.why}</span>}
-                              </div>
-                            </div>
-                          ))}
+                      {/* 미확인 팔로업 — 전달의 마지막 1미터. 관리자에게만, AI 총무가 대신 조름 */}
+                      {(detail.isHost || detail.canManage) && unackedFollowup && (
+                        <div className="hub-followup">
+                          <span className="hub-followup-text">
+                            '{unackedFollowup.d.decision.slice(0, 24)}
+                            {unackedFollowup.d.decision.length > 24 ? '…' : ''}' 아직{' '}
+                            <b>{unackedFollowup.missing}명 미확인</b>
+                          </span>
+                          {remindSent ? (
+                            <span className="hub-followup-done">리마인드 보냄 ✓</span>
+                          ) : (
+                            <button
+                              className="hub-followup-btn"
+                              title="미확인자에게 AI 총무가 확인을 요청해요"
+                              onClick={() => void remindDecision(unackedFollowup.d)}
+                            >
+                              리마인드
+                            </button>
+                          )}
                         </div>
                       )}
+                    </section>
+
+                    {/* 다음 회의 아젠다 — 회의 직전에만 가치 있는 정보라 기본 접힘 */}
+                    <section className="hub-section">
+                      <div
+                        className="hub-section-title clickable"
+                        onClick={() => setAgendaOpen((v) => !v)}
+                      >
+                        <ListIcon size={15} /> 다음 회의 아젠다
+                        <span className="hub-agenda-badge">AI 제안</span>
+                        <span className="hub-fold-meta">
+                          {agenda === null ? '정리 중…' : `안건 ${agenda.length}건`}
+                        </span>
+                        <span className={`hub-fold-chev${agendaOpen ? ' open' : ''}`} aria-hidden>
+                          <ChevronIcon size={14} />
+                        </span>
+                      </div>
+                      {agendaOpen &&
+                        (agenda === null ? (
+                          <div className="hub-section-empty">기록을 보고 안건을 정리하는 중…</div>
+                        ) : agenda.length === 0 ? (
+                          <div className="hub-section-empty">
+                            아직 제안할 안건이 없어요 — 통화·할 일이 쌓이면 여기에 초안이 떠요
+                          </div>
+                        ) : (
+                          <div className="hub-agenda-list">
+                            {agenda.map((a, i) => (
+                              <div key={i} className="hub-agenda-row">
+                                <span className="hub-agenda-num">{i + 1}</span>
+                                <div className="hub-agenda-body">
+                                  <Marquee className="hub-agenda-title">{a.title}</Marquee>
+                                  {a.why && <span className="hub-agenda-why">{a.why}</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
                     </section>
 
                 {/* 일정 (메인으로 이동) */}
@@ -1237,30 +1308,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   </div>
 
                   <aside className="hub-dash-side">
-                    {/* 최근 채팅 (사이드로 이동) */}
-                    <section className="hub-section">
-                      <div className="hub-section-title">
-                        <ChatIcon size={15} /> 최근 채팅
-                        {messages.length > 0 && (
-                          <button className="hub-preview-more" onClick={() => setSubtab('chat')}>
-                            더 보기 ›
-                          </button>
-                        )}
-                      </div>
-                      {messages.length > 0 ? (
-                        <div className="hub-preview">
-                          {messages.slice(-3).map((m, i) => (
-                            <div key={i} className="hub-preview-msg">
-                              <b>{dn(m.from)}</b>
-                              <Marquee className="hub-preview-text">{m.text}</Marquee>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="hub-section-empty">아직 대화가 없어요</div>
-                      )}
-                    </section>
-
+                    {/* 최근 채팅 카드 제거 — 채팅 탭이 1클릭인데 자리만 먹음 (7/28 주호·효헌 합의) */}
                     {/* 할 일 (사이드로 이동) */}
                     <section className="hub-section">
                       <div className="hub-section-title">
@@ -1497,12 +1545,35 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                       </form>
                     </section>
 
-                    {/* 참가자 — 조직 회의면 부서별 명함 */}
+                    {/* 참가자 — 기본은 아바타 스택만(조직 그룹은 조직도와 중복), 펼치면 부서별 명함 */}
                     <section className="hub-section">
-                      <div className="hub-section-title">
+                      <div
+                        className="hub-section-title clickable"
+                        onClick={() => setRosterOpen((v) => !v)}
+                      >
                         <UsersIcon size={15} /> 참가자 <b>{detail.participants.length}</b>
                         {detail.orgName && <span className="hub-roster-org">· {detail.orgName}</span>}
+                        {!rosterOpen && (
+                          <span className="hub-roster-stack">
+                            {detail.participants.slice(0, 5).map((p) => (
+                              <Avatar
+                                key={p.username}
+                                value={p.avatar}
+                                className="hub-roster-face"
+                              />
+                            ))}
+                            {detail.participants.length > 5 && (
+                              <span className="hub-assign-more">
+                                +{detail.participants.length - 5}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        <span className={`hub-fold-chev${rosterOpen ? ' open' : ''}`} aria-hidden>
+                          <ChevronIcon size={14} />
+                        </span>
                       </div>
+                      {rosterOpen && (
                       <div className="hub-roster">
                         {groupByDept(detail.participants).map((group) => (
                           <div key={group.dept ?? '__none'} className="hub-dept">
@@ -1553,6 +1624,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           </div>
                         ))}
                       </div>
+                      )}
                     </section>
                   </aside>
                 </div>

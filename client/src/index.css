@@ -15223,6 +15223,120 @@ html:not(.dark) .meeting-controls .leave:hover {
   color: var(--green-dark);
 }
 
+/* ── 그룹 대시보드 재구성 (7/28): 접이식 헤더·결정 도달/실행 칩·미확인 팔로업 ── */
+.hub-section-title.clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.hub-fold-meta {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.hub-fold-chev {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--text-sub);
+  transition: transform 0.15s ease;
+}
+
+.hub-fold-chev.open {
+  transform: rotate(180deg);
+}
+
+.hub-decision-stat {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-sub);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.hub-decision-stat.full {
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.hub-followup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--green-soft);
+  font-size: 12.5px;
+}
+
+.hub-followup-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.hub-followup-text b {
+  color: var(--green-dark);
+}
+
+.hub-followup-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: none;
+  background: var(--green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 7px;
+}
+
+.hub-followup-btn:hover {
+  background: var(--green-dark);
+}
+
+.hub-followup-done {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green-dark);
+}
+
+/* 참가자 접힘 상태의 아바타 스택 */
+.hub-roster-stack {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.hub-roster-stack .hub-roster-face {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  font-size: 13px;
+  border: 1.5px solid var(--surface);
+}
+
+.hub-roster-stack .hub-roster-face:not(:first-child) {
+  margin-left: -6px;
+}
+
+.hub-roster-stack .hub-roster-face .avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 /* 결정 → 파생 할 일 실행 추적 배지 (hover title로 할 일 목록) */
 .ledger-exec {
   color: var(--text-sub);
