@@ -3995,6 +3995,16 @@ input:focus {
     display: inline-flex;
   }
 
+  /* 오늘 버튼도 알약과 같은 높이·캡슐형으로 통일 */
+  .msched-today-btn {
+    height: 34px;
+    box-sizing: border-box;
+    border-radius: 999px;
+    font-size: 13.5px !important;
+    padding: 0 14px !important;
+    background: var(--surface);
+  }
+
   /* 세그는 알약 드롭다운으로 대체 */
   .msched-cal-head .msched-seg {
     display: none;
