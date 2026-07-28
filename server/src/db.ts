@@ -349,9 +349,12 @@ if (!db.prepare("SELECT 1 FROM meta WHERE key = 'todo_assignees_v1'").get()) {
   db.prepare("INSERT INTO meta (key, value) VALUES ('todo_assignees_v1', '1')").run();
 }
 
-// 마이그레이션: 할 일 출처 recap — 결정 원장에서 "이 결정이 실행됐나" 역추적용
+// 마이그레이션: 할 일 출처 recap — 결정 원장에서 "이 결정이 실행됐나" 역추적용.
+// better-sqlite3는 FK 강제가 기본 ON — SET NULL 없으면 recap 삭제(그룹 삭제)가 막힘
 try {
-  db.exec(`ALTER TABLE todos ADD COLUMN recap_id INTEGER REFERENCES meeting_recaps(id)`);
+  db.exec(
+    `ALTER TABLE todos ADD COLUMN recap_id INTEGER REFERENCES meeting_recaps(id) ON DELETE SET NULL`,
+  );
 } catch {
   /* 이미 존재 */
 }

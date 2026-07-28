@@ -1453,11 +1453,12 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                         ) : (
                           <button
                             type="button"
-                            className={`hub-todo-due ghost${newDue ? ' set' : ''}`}
-                            title="마감일 지정"
+                            className={`hub-todo-due ghost icon${newDue ? ' set' : ''}`}
+                            title={newDue ? `마감 ${newDue}` : '마감일 지정'}
                             onClick={() => setNewDueOpen(true)}
                           >
-                            {newDue ? (dueBadge(newDue)?.label ?? '기한') : '기한'}
+                            <CalendarIcon size={14} />
+                            {newDue ? dueBadge(newDue)?.label : null}
                           </button>
                         )}
                         <button

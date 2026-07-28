@@ -778,11 +778,7 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   db.prepare('DELETE FROM messages WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM meeting_participants WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM meeting_events WHERE meeting_id = ?').run(meeting.id);
-  db.prepare('DELETE FROM meeting_recaps WHERE meeting_id = ?').run(meeting.id);
-  db.prepare('DELETE FROM chat_reads WHERE meeting_id = ?').run(meeting.id);
-  db.prepare('DELETE FROM chat_channels WHERE meeting_id = ?').run(meeting.id);
-  db.prepare('DELETE FROM call_transcripts WHERE meeting_id = ?').run(meeting.id);
-  deleteMeetingFiles(meeting.id, String(req.params.code).toUpperCase());
+  // todos.recap_id(SET NULL)보다 먼저 지워도 되지만, 순서를 todos 뒤로 두면 FK 정책과 무관하게 안전
   try {
     db.prepare(
       'DELETE FROM todo_assignees WHERE todo_id IN (SELECT id FROM todos WHERE meeting_id = ?)',
@@ -791,6 +787,11 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   } catch {
     /* todos에 meeting_id 컬럼이 없으면 무시 */
   }
+  db.prepare('DELETE FROM meeting_recaps WHERE meeting_id = ?').run(meeting.id);
+  db.prepare('DELETE FROM chat_reads WHERE meeting_id = ?').run(meeting.id);
+  db.prepare('DELETE FROM chat_channels WHERE meeting_id = ?').run(meeting.id);
+  db.prepare('DELETE FROM call_transcripts WHERE meeting_id = ?').run(meeting.id);
+  deleteMeetingFiles(meeting.id, String(req.params.code).toUpperCase());
   db.prepare('DELETE FROM meetings WHERE id = ?').run(meeting.id);
   res.json({ ok: true });
 });

@@ -3529,6 +3529,132 @@ input:focus {
   position: relative;
 }
 
+/* 제목이 칩(마감·담당·삭제)에 짜부되지 않게 최소폭 보장 — 넘치면 Marquee가 흘려보냄 */
+.hub-todo .hub-todo-label {
+  flex: 1;
+  min-width: 96px;
+}
+
+/* 할 일 제목 인라인 수정 — 연필은 hover 노출 */
+.hub-todo-editbtn {
+  opacity: 0;
+  font-size: 12px;
+  padding: 0 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.hub-todo:hover .hub-todo-editbtn {
+  opacity: 0.5;
+}
+
+.hub-todo-editbtn:hover {
+  opacity: 1 !important;
+  color: var(--green-dark);
+}
+
+.hub-todo-rename {
+  flex: 1;
+  min-width: 0;
+}
+
+.hub-todo-rename input {
+  width: 100%;
+  border: 1px solid var(--green);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+/* 할 일 마감 칩 — 지남 빨강 / 오늘·내일 강조 / 그 외 회색. '기한' 고스트는 hover 노출 */
+.hub-todo-due {
+  border: none;
+  background: var(--surface-2);
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.hub-todo-due.over {
+  background: #fdecec;
+  color: #e5484d;
+}
+
+.hub-todo-due.today {
+  background: var(--green);
+  color: #fff;
+}
+
+.hub-todo-due.soon {
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.hub-todo-due.ghost {
+  opacity: 0;
+  background: none;
+  border: 1px dashed var(--border);
+}
+
+.hub-todo:hover .hub-todo-due.ghost,
+.hub-todo-add .hub-todo-due.ghost {
+  opacity: 0.7;
+}
+
+.hub-todo-due.ghost.set {
+  opacity: 1;
+  border-style: solid;
+}
+
+/* 추가 폼의 달력 아이콘형 기한 버튼 — 입력창 안 밀게 컴팩트 */
+.hub-todo-due.icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  color: var(--text-sub);
+}
+
+.hub-todo-due-input {
+  border: 1px solid var(--green);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  flex-shrink: 0;
+  outline: none;
+}
+
+/* nowbar 할 일 마감 칩 (읽기 전용, 축소판) */
+.nb-todo-due {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text-sub);
+}
+
+.nb-todo-due.over {
+  background: #fdecec;
+  color: #e5484d;
+}
+
+.nb-todo-due.today {
+  background: var(--green);
+  color: #fff;
+}
+
+.nb-todo-due.soon {
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
 /* nowbar 할 일 — 미니 담당자 스택 + hover 프로필 리스트 (위로 열림, 바가 하단이라) */
 .nb-todo-assign {
   position: relative;
@@ -15094,6 +15220,17 @@ html:not(.dark) .meeting-controls .leave:hover {
 }
 
 .ledger-ack-list {
+  color: var(--green-dark);
+}
+
+/* 결정 → 파생 할 일 실행 추적 배지 (hover title로 할 일 목록) */
+.ledger-exec {
+  color: var(--text-sub);
+  font-weight: 700;
+  cursor: default;
+}
+
+.ledger-exec.all-done {
   color: var(--green-dark);
 }
 
