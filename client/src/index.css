@@ -14100,6 +14100,25 @@ html:not(.dark) .meeting-controls .leave:hover {
   right: 8px;
 }
 
+.grid-page-btn,
+.strip-page-btn {
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.12s ease,
+    transform 0.1s ease;
+}
+
+.grid-page-btn:hover:not(:disabled),
+.strip-page-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+/* 눌림 = 살짝 가라앉는 스케일만 (translateY 유지) */
+.grid-page-btn:active:not(:disabled),
+.strip-page-btn:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.9);
+}
+
 .grid-page-btn:disabled {
   opacity: 0.3;
   cursor: default;
