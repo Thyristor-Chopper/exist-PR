@@ -387,8 +387,8 @@ export interface LedgerEntry {
   why: string;
   attendees: string[];
   ts: number;
-  /** 수신 확인한 사람들 (회람 사인) */
-  acks: { username: string; ts: number }[];
+  /** 수신 확인한 사람들 (회람 사인) — note = 현장 피드백 한 줄(선택) */
+  acks: { username: string; ts: number; note: string | null }[];
 }
 
 /** 결정 원장 — 이 그룹의 모든 recap 결정을 시간순(최신 먼저)으로 편다.
@@ -401,14 +401,19 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
     )
     .all(meetingId) as { id: number; decisions: string; whys: string | null; attendees: string; created_at: string }[];
   const ackStmt = db.prepare(
-    `SELECT a.decision_idx, u.username, a.created_at FROM decision_acks a
+    `SELECT a.decision_idx, u.username, a.created_at, a.note FROM decision_acks a
      JOIN users u ON u.id = a.user_id WHERE a.recap_id = ? ORDER BY a.id`,
   );
   const out: LedgerEntry[] = [];
   for (const r of rows) {
     const ts = new Date(r.created_at + 'Z').getTime();
     const attendees = JSON.parse(r.attendees) as string[];
-    const ackRows = ackStmt.all(r.id) as { decision_idx: number; username: string; created_at: string }[];
+    const ackRows = ackStmt.all(r.id) as {
+      decision_idx: number;
+      username: string;
+      created_at: string;
+      note: string | null;
+    }[];
     const decisions = JSON.parse(r.decisions) as string[];
     const whys = parseWhys(r.whys, decisions.length);
     for (let idx = 0; idx < decisions.length; idx++) {
@@ -421,7 +426,11 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
         ts,
         acks: ackRows
           .filter((a) => a.decision_idx === idx)
-          .map((a) => ({ username: a.username, ts: new Date(a.created_at + 'Z').getTime() })),
+          .map((a) => ({
+            username: a.username,
+            ts: new Date(a.created_at + 'Z').getTime(),
+            note: a.note ?? null,
+          })),
       });
       if (out.length >= limit) return out;
     }
@@ -445,8 +454,14 @@ export function markNextMeetingRegistered(recapId: number, meetingId: number): b
   return true;
 }
 
-/** 결정 수신 확인 — 참가자 검증은 라우트에서. 중복 확인은 무시(idempotent) */
-export function ackDecision(recapId: number, decisionIdx: number, userId: number): boolean {
+/** 결정 수신 확인 — 참가자 검증은 라우트에서. 중복 확인은 무시(idempotent).
+ *  note = 현장 피드백 한 줄(선택) — 이미 확인한 뒤에도 노트만 추가/갱신 가능 */
+export function ackDecision(
+  recapId: number,
+  decisionIdx: number,
+  userId: number,
+  note?: string | null,
+): boolean {
   const recap = db.prepare('SELECT decisions FROM meeting_recaps WHERE id = ?').get(recapId) as
     | { decisions: string }
     | undefined;
@@ -456,7 +471,71 @@ export function ackDecision(recapId: number, decisionIdx: number, userId: number
   db.prepare(
     'INSERT OR IGNORE INTO decision_acks (recap_id, decision_idx, user_id) VALUES (?, ?, ?)',
   ).run(recapId, decisionIdx, userId);
+  if (note != null && note.trim()) {
+    db.prepare(
+      'UPDATE decision_acks SET note = ? WHERE recap_id = ? AND decision_idx = ? AND user_id = ?',
+    ).run(note.trim().slice(0, 120), recapId, decisionIdx, userId);
+  }
   return true;
+}
+
+/* ── 미확인자 자동 리마인드 — 현장 요구 반영 ("미확인자 알림"·"누가 봤는지 불명확") ──
+ * recap 생성 후 DECISION_REMIND_MS(기본 24시간) 지나도 원장에 서명이 하나도 없는 참가자에게
+ * 1회만 보챈다. 하나라도 확인한 사람은 원장을 본 것이므로 제외. */
+const DECISION_REMIND_MS = Number(process.env.DECISION_REMIND_MS ?? 24 * 3600_000);
+
+export function runDecisionReminders(): number {
+  const now = Date.now();
+  const fmt = (t: number) => new Date(t).toISOString().replace('T', ' ').slice(0, 19);
+  const rows = db
+    .prepare(
+      `SELECT r.id, r.meeting_id, r.decisions, m.title, m.code FROM meeting_recaps r
+       JOIN meetings m ON m.id = r.meeting_id
+       WHERE r.created_at <= ? AND r.created_at >= ? AND r.decisions != '[]'`,
+    )
+    .all(fmt(now - DECISION_REMIND_MS), fmt(now - 7 * 24 * 3600_000)) as {
+    id: number;
+    meeting_id: number;
+    decisions: string;
+    title: string;
+    code: string;
+  }[];
+  const agentId = ensureAgentUser();
+  let sent = 0;
+  for (const r of rows) {
+    const count = (JSON.parse(r.decisions) as string[]).length;
+    if (!count) continue;
+    const participants = db
+      .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+      .all(r.meeting_id) as { user_id: number }[];
+    const acked = new Set(
+      (
+        db.prepare('SELECT DISTINCT user_id FROM decision_acks WHERE recap_id = ?').all(r.id) as {
+          user_id: number;
+        }[]
+      ).map((a) => a.user_id),
+    );
+    for (const p of participants) {
+      if (p.user_id === agentId || acked.has(p.user_id)) continue;
+      const dup = db
+        .prepare('SELECT 1 FROM decision_remind_sent WHERE recap_id = ? AND user_id = ?')
+        .get(r.id, p.user_id);
+      if (dup) continue;
+      db.prepare('INSERT INTO decision_remind_sent (recap_id, user_id) VALUES (?, ?)').run(
+        r.id,
+        p.user_id,
+      );
+      notifyUser(p.user_id, {
+        from: 'exist AI',
+        text: `"${r.title}"의 결정 ${count}건이 아직 확인을 기다려요 — 결정 탭에서 서명해 주세요`,
+        kind: 'recap',
+        meetingCode: r.code,
+      });
+      sent++;
+    }
+  }
+  if (sent) console.log(`[recap] 미확인 리마인드 ${sent}건 발송`);
+  return sent;
 }
 
 // ── 통화 종료 유예 스케줄러 — 방이 비워지면 GRACE_MS 후 실행, 재입장 시 취소 ──

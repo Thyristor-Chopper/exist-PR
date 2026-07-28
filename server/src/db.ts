@@ -595,6 +595,23 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: 수신확인의 현장 피드백 한 줄 — "봤음"에 더해 "현장 상황 한 줄" (LIG 현직자 제안)
+try {
+  db.exec(`ALTER TABLE decision_acks ADD COLUMN note TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
+// 미확인 리마인드 발송 기록 — recap×사용자당 1회만 보챈다 (중복 알림 방지)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS decision_remind_sent (
+    recap_id  INTEGER NOT NULL REFERENCES meeting_recaps(id),
+    user_id   INTEGER NOT NULL REFERENCES users(id),
+    sent_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (recap_id, user_id)
+  );
+`);
+
 // 마이그레이션: 개인 DM 지원 — 기존 테이블 org_id가 NOT NULL이면 NULL 허용으로 재생성
 try {
   const col = db

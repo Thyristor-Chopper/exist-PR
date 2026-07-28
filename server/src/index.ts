@@ -8,6 +8,7 @@ import { getUserContext } from './agent.js';
 import { attachYjs } from './ydoc.js';
 import { initNotifier, notifyUser } from './notify.js';
 import { ensureAgentUser } from './steward.js';
+import { runDecisionReminders } from './recap.js';
 import { createApp } from './app.js';
 
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
@@ -216,6 +217,15 @@ setInterval(() => {
     }
   }
 }, 60_000);
+
+// 미확인자 리마인드 — 원장에 서명이 없는 참가자를 recap당 1회 보챈다 (현장 요구: "미확인자 알림")
+setInterval(() => {
+  try {
+    runDecisionReminders();
+  } catch (err) {
+    console.error('[recap] 리마인드 실패:', err);
+  }
+}, 10 * 60_000);
 
 const PORT = Number(process.env.PORT ?? 4000);
 startMediasoup().then(() => {

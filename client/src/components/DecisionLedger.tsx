@@ -19,7 +19,7 @@ interface LedgerEntry {
   why?: string;
   attendees: string[];
   ts: number;
-  acks: { username: string; ts: number }[];
+  acks: { username: string; ts: number; note?: string | null }[];
 }
 
 function dateLabel(ts: number): string {
@@ -32,6 +32,9 @@ export default function DecisionLedger({ code }: { code: string }) {
   const dn = useDisplayName();
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [query, setQuery] = useState('');
+  // 확인 직후 뜨는 "현장 한 줄(선택)" 입력 — 현직자 제안(확인 + 현장 피드백) 반영
+  const [noteFor, setNoteFor] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState('');
 
   const load = useCallback(() => {
     void api<LedgerEntry[]>(`/api/meetings/${code}/decisions`)
@@ -48,9 +51,32 @@ export default function DecisionLedger({ code }: { code: string }) {
           : x,
       ),
     );
+    setNoteFor(`${e.recapId}-${e.idx}`);
+    setNoteText('');
     await api(`/api/meetings/${code}/decisions/ack`, {
       method: 'POST',
       body: { recapId: e.recapId, idx: e.idx },
+    }).catch(() => load());
+  }
+
+  /** 현장 피드백 한 줄 저장 — 같은 ack 엔드포인트 재호출 (멱등 + 노트 갱신) */
+  async function saveNote(e: LedgerEntry) {
+    const note = noteText.trim();
+    setNoteFor(null);
+    if (!note) return;
+    setEntries((prev) =>
+      prev.map((x) =>
+        x.recapId === e.recapId && x.idx === e.idx
+          ? {
+              ...x,
+              acks: x.acks.map((a) => (a.username === user?.username ? { ...a, note } : a)),
+            }
+          : x,
+      ),
+    );
+    await api(`/api/meetings/${code}/decisions/ack`, {
+      method: 'POST',
+      body: { recapId: e.recapId, idx: e.idx, note },
     }).catch(() => load());
   }
 
@@ -135,6 +161,36 @@ export default function DecisionLedger({ code }: { code: string }) {
                           </span>
                         )}
                       </div>
+                      {/* 현장 피드백 — 확인에 딸린 한 줄 ("반영 완료"/"라인에선 어려움" 등) */}
+                      {e.acks.some((a) => a.note) && (
+                        <div className="ledger-feedback">
+                          {e.acks
+                            .filter((a) => a.note)
+                            .map((a) => (
+                              <div key={a.username} className="ledger-feedback-row">
+                                <b>{dn(a.username)}</b> {a.note}
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                      {noteFor === `${e.recapId}-${e.idx}` && (
+                        <form
+                          className="ledger-note-form"
+                          onSubmit={(ev) => {
+                            ev.preventDefault();
+                            void saveNote(e);
+                          }}
+                        >
+                          <input
+                            autoFocus
+                            value={noteText}
+                            onChange={(ev) => setNoteText(ev.target.value)}
+                            placeholder="현장 한 줄 남기기 (선택) — 예: 라인에 반영 완료"
+                            maxLength={120}
+                          />
+                          <button type="submit">{noteText.trim() ? '남기기' : '건너뛰기'}</button>
+                        </form>
+                      )}
                     </div>
                     {/* 수신 확인 — 회람 사인. 이미 확인했으면 상태 뱃지 */}
                     {acked ? (
