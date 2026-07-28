@@ -22,10 +22,6 @@ import { resolveChannel, notifyModeOf } from './channels.js';
 import { notifyUser } from './notify.js';
 import { AGENT_MENTION, handleAgentQuery, maybeSuggestDecision } from './steward.js';
 
-/* 채팅 알림 버스트 억제 — 'all' 모드는 같은 채널에서 2분에 1건만 (멘션은 항상). 키 = `${userId}:${channelId}` */
-const chatNotifyLast = new Map<string, number>();
-const CHAT_NOTIFY_COOLDOWN_MS = 2 * 60 * 1000;
-
 /*
  * exist SFU — mediasoup 기반 직접 구현.
  * Room(회의 코드) 단위로 Router를 만들고, Peer(소켓)별 transport/producer/consumer를 관리한다.
@@ -502,19 +498,14 @@ export function attachSfu(io: Server) {
               | undefined
           )?.title;
           const preview = trimmed ? trimmed.slice(0, 80) : '파일을 보냈어요';
-          const now = Date.now();
+          // 'all'은 카톡처럼 메시지마다 알림 (쿨다운 없음 — 사용자가 채널 단위로 명시적으로 켠 것).
+          // 스팸 방어는 보고 있으면 생략(chat:viewing) + OS 푸시 tag 병합이 담당
           for (const p of parts) {
             if (p.id === socket.data.userId || viewingUserIds.has(p.id)) continue;
             const mode = notifyModeOf(p.id, channel);
             if (mode === 'off') continue;
             const mentioned = trimmed.includes('@' + p.username);
             if (mode === 'mention' && !mentioned) continue;
-            if (!mentioned) {
-              const key = `${p.id}:${channel}`;
-              const last = chatNotifyLast.get(key) ?? 0;
-              if (now - last < CHAT_NOTIFY_COOLDOWN_MS) continue;
-              chatNotifyLast.set(key, now);
-            }
             notifyUser(p.id, {
               from: sender?.name || sender?.username || '누군가',
               text: `${mTitle ? `'${mTitle}' ` : ''}#${chName ?? '일반'}${mentioned ? '에서 나를 멘션했어요' : ''}: ${preview}`,

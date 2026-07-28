@@ -71,6 +71,13 @@ io.on('connection', (socket) => {
     socket.data.chatViewing = p?.code ? String(p.code).toUpperCase() : null;
   });
 
+  // 탭 가시성 — 접속 소켓이 있어도 전부 백그라운드면 웹푸시(OS 알림)를 쏘기 위한 신호.
+  // 구버전 클라(신호 안 보냄)는 true로 남아 기존 동작(접속 중이면 푸시 생략) 유지
+  socket.data.visible = true;
+  socket.on('presence:visible', (p: { visible?: boolean } | undefined) => {
+    socket.data.visible = p?.visible !== false;
+  });
+
   socket.on('disconnect', () => {
     const e = online.get(userId);
     if (!e) return;
