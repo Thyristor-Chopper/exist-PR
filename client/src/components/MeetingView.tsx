@@ -322,6 +322,7 @@ export default function MeetingView({
   const isMobileView = () => window.matchMedia('(max-width: 767px)').matches;
   const devMenuOpenRef = useRef(false); // 메뉴 열림 중엔 자동 숨김 보류
   const ctlJustShown = useRef(false); // 터치로 방금 표시됨 — 이어지는 click이 도로 숨기지 않게
+  const areaTouchY = useRef<number | null>(null); // 아래 스와이프 = 툴바 숨김 감지용
   const bumpControls = () => {
     setCtlHidden(false);
     if (ctlTimer.current) clearTimeout(ctlTimer.current);
@@ -1324,11 +1325,27 @@ export default function MeetingView({
       <div className="meeting-body">
         <div
           className={`video-area${hasScreen || pinned ? ' with-screen' : ''}`}
-          onTouchStart={() => {
+          onTouchStart={(e) => {
+            areaTouchY.current = e.touches[0].clientY;
             // 숨김 상태에선 어떤 터치(탭·스와이프·스크롤)든 일단 컨트롤 표시
             if (ctlHidden) {
               bumpControls();
               ctlJustShown.current = true;
+              // 탭이면 click 핸들러가 정리하지만, 스와이프면 click이 없으니 자동 해제
+              setTimeout(() => {
+                ctlJustShown.current = false;
+              }, 500);
+            }
+          }}
+          onTouchEnd={(e) => {
+            const y0 = areaTouchY.current;
+            areaTouchY.current = null;
+            if (y0 == null || ctlJustShown.current) return; // 표시 제스처엔 숨김 판정 안 함
+            const dy = e.changedTouches[0].clientY - y0;
+            // 아래로 60px+ 스와이프 = 툴바 숨김
+            if (dy > 60 && !ctlHidden && isMobileView()) {
+              if (ctlTimer.current) clearTimeout(ctlTimer.current);
+              setCtlHidden(true);
             }
           }}
           onClick={(e) => {

@@ -14879,6 +14879,11 @@ html:not(.dark) .meeting-controls .leave:hover {
     pointer-events: auto;
   }
 
+  /* 툴바가 숨어도 하단에 살짝 여백 — 타일이 화면 끝에 붙지 않게 */
+  .meeting-room.ctl-hidden .meeting-body {
+    padding-bottom: 14px;
+  }
+
   /* 자막은 컨트롤 위 전용 밴드 — 컨트롤이 숨으면 아래로 따라 내려옴 */
   .call-captions {
     bottom: 88px;
