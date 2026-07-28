@@ -14069,6 +14069,67 @@ html:not(.dark) .meeting-controls .leave:hover {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  position: relative; /* 페이지 넘김 버튼·인디케이터 기준 */
+}
+
+/* ── 그리드 페이지네이션 (줌 방식) — 인원이 페이지 상한 초과 시 ── */
+.grid-page-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 9;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
+
+.grid-page-btn.prev {
+  left: 8px;
+}
+
+.grid-page-btn.next {
+  right: 8px;
+}
+
+.grid-page-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.grid-page-ind {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 9;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 필름스트립 초과 인원 집계 타일 */
+.video-tile.strip-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  background: #26292f;
 }
 
 /* 공유 화면 스테이지 — 동시 공유 N개를 그리드로 */
@@ -14326,11 +14387,7 @@ html:not(.dark) .meeting-controls .leave:hover {
   cursor: pointer;
 }
 
-/* 탭 핀 무대 — 화면공유(contain·검정)와 달리 사람은 cover가 자연스럽다 */
-.pin-stage .video-tile video {
-  object-fit: cover;
-  background: transparent;
-}
+/* 탭 핀 무대 — 비율 유지(contain·레터박스). cover는 크롭돼서 화면이 잘려 보임 (주호 실기기 확인) */
 
 .video-tile {
   position: relative;

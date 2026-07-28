@@ -318,6 +318,16 @@ export default function MeetingView({
   };
   // 탭 핀 — 타일을 누르면 그 사람을 무대에 크게 (화면공유 중엔 비활성)
   const [pinned, setPinned] = useState<string | null>(null);
+  // ── 페이지네이션(줌 방식) — 1000명이어도 화면엔 한 페이지만 렌더, 오디오는 전원 유지 ──
+  const [vw, setVw] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const [page, setPage] = useState(0);
+  /** 페이지당 타일 상한 — 타일이 이름표 읽히는 최소 크기 아래로 안 내려가는 선 */
+  const pageCap = vw < 768 ? 8 : vw < 1024 ? 12 : vw < 1536 ? 16 : 25;
   // 발화자 자동 무대 — 최근 원격 발화자를 자동 핀 (수동 핀하면 꺼짐, 줌 스피커 뷰)
   const [autoStage, setAutoStage] = useState(false);
   const [lastRemoteSpeaker, setLastRemoteSpeaker] = useState<string | null>(null);
@@ -1055,6 +1065,18 @@ export default function MeetingView({
     ];
   const hasScreen = screens.length > 0;
 
+  // 페이지 슬라이스 — 0페이지 = 나 + (cap-1)명, 이후 페이지 = cap명씩
+  const totalPages = Math.max(1, Math.ceil((peers.length + 1) / pageCap));
+  const pageNow = Math.min(page, totalPages - 1);
+  const pagedPeers =
+    pageNow === 0
+      ? peers.slice(0, pageCap - 1)
+      : peers.slice(pageCap - 1 + (pageNow - 1) * pageCap, pageCap - 1 + pageNow * pageCap);
+  const visibleCount = (pageNow === 0 ? 1 : 0) + pagedPeers.length;
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(totalPages - 1);
+  }, [page, totalPages]);
+
   // 핀 정리 — 화면공유가 시작되면 해제, 핀한 사람이 나가도 해제
   useEffect(() => {
     if (hasScreen) setPinned(null);
@@ -1559,37 +1581,41 @@ export default function MeetingView({
                 </div>
               );
             })()}
+          {/* 오디오는 페이지·필름스트립과 무관하게 전원 유지 — 안 보여도 들려야 함 */}
+          {peers.map((p) => (p.audioTrack ? <AudioSink key={p.peerId} track={p.audioTrack} /> : null))}
           <div
             ref={gridRef}
-            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ' computed'} count-${peers.length + 1}`}
+            className={`video-grid${hasScreen || pinned ? ' filmstrip' : ' computed'} count-${visibleCount}`}
             style={
               hasScreen || pinned
                 ? undefined
                 : ({
-                    '--tile-w': `${computeTileWidth(gridSize.w, gridSize.h, peers.length + 1)}px`,
+                    '--tile-w': `${computeTileWidth(gridSize.w, gridSize.h, visibleCount)}px`,
                   } as CSSProperties)
             }
           >
-            <VideoTile
-              track={localTrack}
-              username={dn(user?.username ?? '나')}
-              avatar={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
-              isLocal
-              paused={!camOn}
-              micMuted={!micOn}
-              speaking={!!speaking[user?.username ?? '']}
-              onPress={
-                hasScreen || peers.length === 0 // 혼자일 땐 핀 무의미 — 전체 화면 탭이 자기 핀으로 새는 것 방지
-                  ? undefined
-                  : () => {
-                      setAutoStage(false); // 수동 핀 = 자동 무대 해제 (줌과 동일)
-                      setPinned((v) =>
-                        v === (user?.username ?? '') ? null : (user?.username ?? ''),
-                      );
-                    }
-              }
-            />
-            {peers.map((p) => (
+            {(pageNow === 0 || hasScreen || pinned) && (
+              <VideoTile
+                track={localTrack}
+                username={dn(user?.username ?? '나')}
+                avatar={peerAvatars?.[user?.username ?? ''] ?? user?.avatar ?? null}
+                isLocal
+                paused={!camOn}
+                micMuted={!micOn}
+                speaking={!!speaking[user?.username ?? '']}
+                onPress={
+                  hasScreen || peers.length === 0 // 혼자일 땐 핀 무의미 — 전체 화면 탭이 자기 핀으로 새는 것 방지
+                    ? undefined
+                    : () => {
+                        setAutoStage(false); // 수동 핀 = 자동 무대 해제 (줌과 동일)
+                        setPinned((v) =>
+                          v === (user?.username ?? '') ? null : (user?.username ?? ''),
+                        );
+                      }
+                }
+              />
+            )}
+            {(hasScreen || pinned ? peers.slice(0, 11) : pagedPeers).map((p) => (
               <div key={p.peerId} className="peer-cell">
                 <VideoTile
                   track={p.videoTrack}
@@ -1612,10 +1638,43 @@ export default function MeetingView({
                       : undefined
                   }
                 />
-                {p.audioTrack && <AudioSink track={p.audioTrack} />}
               </div>
             ))}
+            {/* 필름스트립 초과 인원 집계 타일 */}
+            {(hasScreen || pinned) && peers.length > 11 && (
+              <div className="video-tile strip-more">+{peers.length - 11}</div>
+            )}
           </div>
+          {/* 페이지 넘김 — 그리드 모드에서 인원이 페이지 상한을 넘을 때만 */}
+          {!hasScreen && !pinned && totalPages > 1 && (
+            <>
+              <button
+                className="grid-page-btn prev"
+                disabled={pageNow === 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPage((v) => Math.max(0, v - 1));
+                }}
+                title="이전 페이지"
+              >
+                ‹
+              </button>
+              <button
+                className="grid-page-btn next"
+                disabled={pageNow >= totalPages - 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPage((v) => Math.min(totalPages - 1, v + 1));
+                }}
+                title="다음 페이지"
+              >
+                ›
+              </button>
+              <span className="grid-page-ind">
+                {pageNow + 1} / {totalPages}
+              </span>
+            </>
+          )}
         </div>
 
         {/* 라이브 자막 — 발화자별로 쌓임(동시 발화 지원, 먼저 말한 순 위→아래, 최대 3명) */}
