@@ -8,7 +8,7 @@ import { useDisplayName, displayNameOf } from '../names';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import MentionInput, { type MentionCandidate } from './MentionInput';
-import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, CheckMarkIcon, GearIcon, PinIcon } from './Icons';
+import { MicIcon, CamIcon, ScreenIcon, ChatIcon, SlashIcon, ExpandIcon, ShrinkIcon, LockIcon, UnlockIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, CheckMarkIcon, GearIcon, PinIcon } from './Icons';
 
 interface RemotePeer {
   peerId: string;
@@ -1171,19 +1171,34 @@ export default function MeetingView({
     if (page > totalPages - 1) setPage(totalPages - 1);
   }, [page, totalPages]);
 
-  // 필름스트립(핀·공유 무대) 페이지 — 스트립 폭에 들어가는 만큼씩 넘겨서 전원 확인 가능
+  // 필름스트립(핀·공유 무대) 페이지 — 스트립 폭에 들어가는 만큼씩 넘겨서 전원 확인 가능.
+  // 핀 대상은 무대에 이미 크게 있으니 스트립에서 제외 (내가 핀이면 내 타일도 빠짐 — 3사 문법)
+  const stripSelfShown = !pinned || pinned !== (user?.username ?? '');
+  const stripPool = pinned ? peers.filter((p) => p.username !== pinned) : peers;
   const stripTileW = vw < 768 ? 160 : 220;
   const stripCap = Math.max(2, Math.floor((gridSize.w - 90) / (stripTileW + 10)));
-  const stripTotal = Math.max(1, Math.ceil((peers.length + 1) / stripCap));
+  const stripTotal = Math.max(
+    1,
+    Math.ceil((stripPool.length + (stripSelfShown ? 1 : 0)) / stripCap),
+  );
   const [stripPage, setStripPage] = useState(0);
   const stripNow = Math.min(stripPage, stripTotal - 1);
+  const stripOff = stripSelfShown ? 1 : 0;
   const stripPeers =
     stripNow === 0
-      ? peers.slice(0, stripCap - 1)
-      : peers.slice(stripCap - 1 + (stripNow - 1) * stripCap, stripCap - 1 + stripNow * stripCap);
+      ? stripPool.slice(0, stripCap - stripOff)
+      : stripPool.slice(
+          stripCap - stripOff + (stripNow - 1) * stripCap,
+          stripCap - stripOff + stripNow * stripCap,
+        );
   useEffect(() => {
     if (stripPage > stripTotal - 1) setStripPage(stripTotal - 1);
   }, [stripPage, stripTotal]);
+  // 스트립 접기 — 무대에만 집중. 무대 모드를 벗어나면 원복
+  const [stripHidden, setStripHidden] = useState(false);
+  useEffect(() => {
+    if (!hasScreen && !pinned) setStripHidden(false);
+  }, [hasScreen, pinned]);
 
   // 핀 정리 — 화면공유가 시작되면 해제, 핀한 사람이 나가도 해제
   useEffect(() => {
@@ -1791,6 +1806,19 @@ export default function MeetingView({
             })()}
           {/* 오디오는 페이지·필름스트립과 무관하게 전원 유지 — 안 보여도 들려야 함 */}
           {peers.map((p) => (p.audioTrack ? <AudioSink key={p.peerId} track={p.audioTrack} /> : null))}
+          {/* 스트립 접기 — 무대(핀·공유) 모드에서 아래 참가자 줄을 통째로 숨겨 무대에 집중 */}
+          {(hasScreen || pinned) && (
+            <button
+              className="strip-toggle"
+              onClick={(e) => {
+                e.stopPropagation();
+                setStripHidden((v) => !v);
+              }}
+              title={stripHidden ? '참가자 스트립 표시' : '참가자 스트립 숨기기'}
+            >
+              {stripHidden ? <ChevronUpIcon size={14} /> : <ChevronIcon size={14} />}
+            </button>
+          )}
           <div
             ref={gridRefCb}
             key={`pg-${pageNow}-${stripNow}`}
@@ -1800,7 +1828,7 @@ export default function MeetingView({
                 : visibleCount >= 3 // 1~2인은 기존 특수 레이아웃(모바일 PiP 등) 유지
                   ? ' computed'
                   : ''
-            } count-${visibleCount} slide-${slideDir}`}
+            }${(hasScreen || pinned) && stripHidden ? ' strip-collapsed' : ''} count-${visibleCount} slide-${slideDir}`}
             style={
               hasScreen || pinned || visibleCount < 3
                 ? undefined
@@ -1810,7 +1838,7 @@ export default function MeetingView({
                   })()
             }
           >
-            {(hasScreen || pinned ? stripNow === 0 : pageNow === 0) && (
+            {(hasScreen || pinned ? stripNow === 0 && stripSelfShown : pageNow === 0) && (
               <VideoTile
                 track={localTrack}
                 username={dn(user?.username ?? '나')}

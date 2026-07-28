@@ -14524,6 +14524,34 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   gap: 10px;
 }
 
+/* 스트립 접힘 — 무대가 남은 높이를 다 가져감 */
+.video-grid.filmstrip.strip-collapsed {
+  display: none;
+}
+
+/* 스트립 접기 토글 — 무대와 스트립 사이 중앙의 얇은 알약 (테마 변수 — 임베드 라이트에서도 보이게) */
+.strip-toggle {
+  align-self: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 18px;
+  margin: -4px 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.strip-toggle:hover {
+  background: var(--surface-3, var(--surface-2));
+  color: var(--text);
+}
+
 .video-grid.filmstrip .video-tile {
   width: 220px;
   flex-shrink: 0;
