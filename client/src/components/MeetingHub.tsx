@@ -1,4 +1,5 @@
 import { Fragment, memo, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { getSocket, request } from '../lib/socket';
@@ -454,15 +455,18 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   const onlineRef = useRef<number>(1); // 통화 인원 — 리사이즈 캡(다 들어가면 그만)용
   const [todos, setTodos] = useState<MeetingTodo[]>([]);
   const [todoInput, setTodoInput] = useState('');
-  // 할 일 마감·제목 인라인 편집
-  const [newDue, setNewDue] = useState('');
-  const [newDueOpen, setNewDueOpen] = useState(false);
-  const [dueEditId, setDueEditId] = useState<number | null>(null);
   const [editTodoId, setEditTodoId] = useState<number | null>(null);
   const [editTodoTitle, setEditTodoTitle] = useState('');
-  // 담당자 피커 — 열려있는 대상(할 일 id 또는 추가 폼 'new')과 추가 폼의 선택 상태
-  const [assignPick, setAssignPick] = useState<number | 'new' | null>(null);
-  const [newAssign, setNewAssign] = useState<string[]>([]);
+  // 할 일 속성 팝오버 (마감 프리셋·담당) — 추가 폼은 [입력][추가]만 두고 속성은 행에서 지정.
+  // 스크롤 컨테이너에 잘리지 않게 body 포털 + 버튼 좌표 고정
+  const [todoPop, setTodoPop] = useState<{
+    kind: 'due' | 'assign';
+    todoId: number;
+    left: number;
+    top: number;
+    up: boolean;
+  } | null>(null);
+  const [dueCustom, setDueCustom] = useState(false); // 마감 팝오버 "직접 선택" 모드
   const [confirmDelMeeting, setConfirmDelMeeting] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   // 맨 위 고정 토글은 PinToggle(파일 하단)로 분리 — 허브 전체 리렌더 없이 스위치만 갱신
@@ -494,19 +498,37 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     if (!todoInput.trim()) return;
     await api('/api/todos', {
       method: 'POST',
-      body: { title: todoInput, meeting: code, assignees: newAssign, due_at: newDue || null },
+      body: { title: todoInput, meeting: code },
     });
     setTodoInput('');
-    setNewAssign([]);
-    setAssignPick(null);
-    setNewDue('');
-    setNewDueOpen(false);
     void reloadTodos();
   }
   async function saveDue(t: MeetingTodo, value: string) {
     await api(`/api/todos/${t.id}`, { method: 'PATCH', body: { due_at: value || null } });
-    setDueEditId(null);
     void reloadTodos();
+  }
+  /** 속성 팝오버 열기/토글 — 버튼 좌표 기준 body 포털 (아래 공간 부족하면 위로) */
+  function openTodoPop(kind: 'due' | 'assign', todoId: number, e: React.MouseEvent) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const up = window.innerHeight - r.bottom < 300;
+    setDueCustom(false);
+    setTodoPop((cur) =>
+      cur && cur.kind === kind && cur.todoId === todoId
+        ? null
+        : {
+            kind,
+            todoId,
+            left: Math.max(8, Math.min(r.right - 224, window.innerWidth - 232)),
+            top: up ? r.top : r.bottom,
+            up,
+          },
+    );
+  }
+  /** 오늘 기준 n일 뒤 YYYY-MM-DD */
+  function ymdPlus(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   async function renameTodo(e: React.FormEvent) {
     e.preventDefault();
@@ -1440,41 +1462,29 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                   <PenIcon size={11} />
                                 </span>
                               )}
-                              {dueEditId === t.id ? (
-                                <input
-                                  type="date"
-                                  className="hub-todo-due-input"
-                                  autoFocus
-                                  defaultValue={t.due_at?.slice(0, 10) ?? ''}
-                                  onChange={(e) => void saveDue(t, e.target.value)}
-                                  onBlur={() => setDueEditId(null)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Escape') setDueEditId(null);
-                                  }}
-                                />
-                              ) : t.due_at && dueBadge(t.due_at) ? (
+                              {t.due_at && dueBadge(t.due_at) ? (
                                 <button
                                   type="button"
                                   className={`hub-todo-due ${dueBadge(t.due_at)!.cls}`}
-                                  title="마감일 변경 (지우려면 선택 후 비우기)"
-                                  onClick={() => setDueEditId(t.id)}
+                                  title="마감일 변경"
+                                  onClick={(e) => openTodoPop('due', t.id, e)}
                                 >
                                   {dueBadge(t.due_at)!.label}
                                 </button>
                               ) : (
                                 <button
                                   type="button"
-                                  className="hub-todo-due ghost"
+                                  className="hub-todo-due ghost icon"
                                   title="마감일 지정"
-                                  onClick={() => setDueEditId(t.id)}
+                                  onClick={(e) => openTodoPop('due', t.id, e)}
                                 >
-                                  기한
+                                  <CalendarIcon size={13} />
                                 </button>
                               )}
                               <button
                                 type="button"
-                                className={`hub-todo-assign${(t.assignees ?? []).length ? ' has faces' : ''}`}
-                                onClick={() => setAssignPick(assignPick === t.id ? null : t.id)}
+                                className={`hub-todo-assign${(t.assignees ?? []).length ? ' has faces' : ' icon'}`}
+                                onClick={(e) => openTodoPop('assign', t.id, e)}
                                 title={(t.assignees ?? []).length ? undefined : '담당자 지정'}
                               >
                                 {(t.assignees ?? []).length ? (
@@ -1496,7 +1506,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                     )}
                                   </span>
                                 ) : (
-                                  '담당'
+                                  <UsersIcon size={13} />
                                 )}
                               </button>
                               {(t.assignees ?? []).length > 0 && (
@@ -1517,24 +1527,6 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                   })}
                                 </div>
                               )}
-                              {assignPick === t.id && (
-                                <div className="hub-assign-pop">
-                                  {detail.participants.map((p) => (
-                                    <label key={p.username} className="hub-assign-opt">
-                                      <input
-                                        type="checkbox"
-                                        checked={(t.assignees ?? []).includes(p.username)}
-                                        onChange={() => void toggleAssignee(t, p.username)}
-                                      />
-                                      <span className="hub-todo-check" aria-hidden>
-                                        <CheckMarkIcon size={13} />
-                                      </span>
-                                      <Avatar value={p.avatar} className="hub-assign-avatar" />
-                                      <span className="hub-assign-name">{dn(p.username)}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              )}
                               <button
                                 className="hub-todo-del"
                                 onClick={() => void deleteTodo(t)}
@@ -1548,63 +1540,13 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                           <div className="hub-section-empty">함께 할 일을 추가해보세요</div>
                         )}
                       </div>
+                      {/* 추가는 가볍게 [입력][추가]만 — 마감·담당은 추가된 행의 아이콘에서 지정 */}
                       <form className="hub-todo-add" onSubmit={addTodo}>
                         <input
                           value={todoInput}
                           onChange={(e) => setTodoInput(e.target.value)}
                           placeholder="할 일 추가"
                         />
-                        {newDueOpen ? (
-                          <input
-                            type="date"
-                            className="hub-todo-due-input"
-                            autoFocus
-                            value={newDue}
-                            onChange={(e) => setNewDue(e.target.value)}
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className={`hub-todo-due ghost icon${newDue ? ' set' : ''}`}
-                            title={newDue ? `마감 ${newDue}` : '마감일 지정'}
-                            onClick={() => setNewDueOpen(true)}
-                          >
-                            <CalendarIcon size={14} />
-                            {newDue ? dueBadge(newDue)?.label : null}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className={`hub-todo-assign${newAssign.length ? ' has' : ''}`}
-                          onClick={() => setAssignPick(assignPick === 'new' ? null : 'new')}
-                          title="담당자 지정 (없으면 나)"
-                        >
-                          담당{newAssign.length ? ` ${newAssign.length}` : ''}
-                        </button>
-                        {assignPick === 'new' && (
-                          <div className="hub-assign-pop up">
-                            {detail.participants.map((p) => (
-                              <label key={p.username} className="hub-assign-opt">
-                                <input
-                                  type="checkbox"
-                                  checked={newAssign.includes(p.username)}
-                                  onChange={() =>
-                                    setNewAssign((cur) =>
-                                      cur.includes(p.username)
-                                        ? cur.filter((n) => n !== p.username)
-                                        : [...cur, p.username],
-                                    )
-                                  }
-                                />
-                                <span className="hub-todo-check" aria-hidden>
-                                  <CheckMarkIcon size={13} />
-                                </span>
-                                <Avatar value={p.avatar} className="hub-assign-avatar" />
-                                <span className="hub-assign-name">{dn(p.username)}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
                         <button type="submit">추가</button>
                       </form>
                     </section>
@@ -2316,6 +2258,98 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
           onActivity={() => {}}
         />
       )}
+
+      {/* 할 일 속성 팝오버 — body 포털이라 스크롤 컨테이너·카드에 안 잘린다 */}
+      {todoPop &&
+        detail &&
+        (() => {
+          const t = todos.find((x) => x.id === todoPop.todoId);
+          if (!t) return null;
+          return createPortal(
+            <>
+              <div className="todo-pop-backdrop" onClick={() => setTodoPop(null)} />
+              <div
+                className={`todo-pop${todoPop.up ? ' up' : ''}`}
+                style={{ left: todoPop.left, top: todoPop.top }}
+              >
+                {todoPop.kind === 'assign' ? (
+                  <div className="todo-pop-list">
+                    {detail.participants.map((p) => (
+                      <label key={p.username} className="hub-assign-opt">
+                        <input
+                          type="checkbox"
+                          checked={(t.assignees ?? []).includes(p.username)}
+                          onChange={() => void toggleAssignee(t, p.username)}
+                        />
+                        <span className="hub-todo-check" aria-hidden>
+                          <CheckMarkIcon size={13} />
+                        </span>
+                        <Avatar value={p.avatar} className="hub-assign-avatar" />
+                        <span className="hub-assign-name">{dn(p.username)}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : dueCustom ? (
+                  <div className="todo-pop-list">
+                    <input
+                      type="date"
+                      className="hub-todo-due-input"
+                      autoFocus
+                      defaultValue={t.due_at?.slice(0, 10) ?? ''}
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        void saveDue(t, e.target.value);
+                        setTodoPop(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setTodoPop(null);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="todo-pop-list">
+                    {(
+                      [
+                        { label: '오늘', value: ymdPlus(0) },
+                        { label: '내일', value: ymdPlus(1) },
+                        { label: '다음 주', value: ymdPlus(7) },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        className="todo-pop-item"
+                        onClick={() => {
+                          void saveDue(t, opt.value);
+                          setTodoPop(null);
+                        }}
+                      >
+                        {opt.label}
+                        <span className="todo-pop-date">{opt.value.slice(5).replace('-', '/')}</span>
+                      </button>
+                    ))}
+                    <button type="button" className="todo-pop-item" onClick={() => setDueCustom(true)}>
+                      직접 선택…
+                    </button>
+                    {t.due_at && (
+                      <button
+                        type="button"
+                        className="todo-pop-item danger"
+                        onClick={() => {
+                          void saveDue(t, '');
+                          setTodoPop(null);
+                        }}
+                      >
+                        기한 지우기
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>,
+            document.body,
+          );
+        })()}
     </div>
   );
 }

@@ -4001,6 +4001,79 @@ input:focus {
   bottom: calc(100% + 4px);
 }
 
+/* ── 할 일 속성 팝오버 (body 포털) — 스크롤 컨테이너에 잘리는 문제 원천 차단 ── */
+.todo-pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4300;
+}
+
+.todo-pop {
+  position: fixed;
+  z-index: 4310;
+  width: 224px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  margin-top: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.todo-pop.up {
+  margin-top: 0;
+  transform: translateY(calc(-100% - 6px));
+}
+
+.todo-pop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.todo-pop-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.todo-pop-item:hover {
+  background: var(--surface-2);
+}
+
+.todo-pop-item.danger {
+  color: var(--red, #e5484d);
+}
+
+.todo-pop-date {
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+
+.todo-pop .hub-todo-due-input {
+  width: 100%;
+}
+
+/* 값 없는 상태의 기한·담당은 아이콘 전용 미니 버튼 — 행 소음 최소화 */
+.hub-todo-due.ghost.icon,
+.hub-todo-assign.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 6px;
+}
+
 .hub-assign-opt {
   display: flex;
   align-items: center;
