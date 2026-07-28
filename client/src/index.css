@@ -3855,7 +3855,8 @@ input:focus {
   color: #fff;
 }
 
-/* .dev-menu 기본(파일 뒤쪽, 위로 열림)보다 특이도를 높여 헤더 아래로 연다 */
+/* .dev-menu 기본(파일 뒤쪽, 위로 열림)보다 특이도를 높여 헤더 아래로 연다.
+   색은 앱 테마를 따름 — dev-menu의 다크 고정과 달리 임베드 라이트에서도 통일 (주호 지시) */
 .dev-menu.ppl-menu {
   position: absolute;
   bottom: auto;
@@ -3863,10 +3864,17 @@ input:focus {
   left: 0;
   right: auto;
   transform: none;
-  min-width: 260px;
-  max-width: min(320px, 92vw);
+  min-width: 280px;
+  max-width: min(340px, 92vw);
   max-height: min(420px, 60vh);
   z-index: 40;
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.dev-menu.ppl-menu .dev-menu-title {
+  color: var(--text-sub);
 }
 
 .ppl-search {
@@ -3875,14 +3883,14 @@ input:focus {
   margin: 2px 0 6px;
   padding: 7px 10px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
   font-size: 13px;
 }
 
 .ppl-search::placeholder {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-sub);
 }
 
 .ppl-row {
@@ -3891,12 +3899,12 @@ input:focus {
   gap: 8px;
   padding: 6px 8px;
   border-radius: 9px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text);
   font-size: 13px;
 }
 
 .ppl-row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-2);
 }
 
 .ppl-name {
@@ -3907,17 +3915,17 @@ input:focus {
   white-space: nowrap;
 }
 
-/* 마이크 상태 — 꺼짐이면 붉게 + 슬래시 겹침 (타일 이름표와 같은 문법) */
+/* 마이크·카메라 상태 — 꺼짐이면 붉게 + 슬래시 겹침 (타일 이름표와 같은 문법) */
 .ppl-mic {
   position: relative;
   display: inline-flex;
   align-items: center;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-sub);
   flex-shrink: 0;
 }
 
 .ppl-mic.off {
-  color: #ff7a7f;
+  color: #e5484d;
 }
 
 .ppl-mic.off svg:last-child {
@@ -3930,8 +3938,8 @@ input:focus {
   height: 26px;
   border-radius: 8px;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.85);
+  background: var(--surface-2);
+  color: var(--text-sub);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3940,12 +3948,13 @@ input:focus {
 }
 
 .ppl-act:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--surface-3, var(--surface-2));
+  color: var(--text);
 }
 
 .ppl-act.danger:hover {
-  background: rgba(229, 72, 77, 0.35);
-  color: #fff;
+  background: rgba(229, 72, 77, 0.18);
+  color: #e5484d;
 }
 
 .hub-assign-tip.down {

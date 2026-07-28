@@ -303,6 +303,9 @@ export default function MeetingView({
   const [camId, setCamId] = useState(() => localStorage.getItem('exist:cam-device') ?? '');
   const [devMenu, setDevMenu] = useState<'mic' | 'cam' | 'opts' | 'people' | null>(null); // 장치 선택 + 통화 설정 + 참가자 패널
   const [pplQ, setPplQ] = useState(''); // 참가자 패널 검색 (인원 많을 때)
+  // hover로도 패널 열림 — 패널로 마우스를 옮기는 사이 닫히지 않게 200ms 유예
+  const [pplHover, setPplHover] = useState(false);
+  const pplHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     devMenuOpenRef.current = devMenu != null;
   }, [devMenu]);
@@ -1439,8 +1442,18 @@ export default function MeetingView({
           <span className="meeting-title">{title || '회의'}</span>
           <span className="meeting-code">
             코드 <b>{code}</b> ·{' '}
-            <span className="ppl-wrap">
-              {/* 클릭 = 참가자 패널 — 명단·마이크 상태·1:1 채팅·강퇴 (100명 페이지네이션에서 명단 확인 경로) */}
+            <span
+              className="ppl-wrap"
+              onMouseEnter={() => {
+                if (pplHoverTimer.current) clearTimeout(pplHoverTimer.current);
+                setPplHover(true);
+              }}
+              onMouseLeave={() => {
+                if (pplHoverTimer.current) clearTimeout(pplHoverTimer.current);
+                pplHoverTimer.current = setTimeout(() => setPplHover(false), 200);
+              }}
+            >
+              {/* hover = 미리보기, 클릭 = 고정 — 명단·마이크/카메라 상태·1:1 채팅·강퇴 */}
               <button
                 className="mv-peers-btn"
                 onClick={() => {
@@ -1451,12 +1464,14 @@ export default function MeetingView({
               >
                 참가자 {peers.length + 1}명
               </button>
-              {devMenu === 'people' && (
+              {(devMenu === 'people' || pplHover) && (
                 <>
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 39 }}
-                    onClick={() => setDevMenu(null)}
-                  />
+                  {devMenu === 'people' && (
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 39 }}
+                      onClick={() => setDevMenu(null)}
+                    />
+                  )}
                   <div className="dev-menu ppl-menu">
                     <div className="dev-menu-title">참가자 {peers.length + 1}명</div>
                     {peers.length >= 8 && (
@@ -1482,6 +1497,13 @@ export default function MeetingView({
                           <MicIcon size={13} />
                           {!micOn && <SlashIcon size={13} />}
                         </span>
+                        <span
+                          className={`ppl-mic${camOn ? '' : ' off'}`}
+                          title={camOn ? '카메라 켜짐' : '카메라 꺼짐'}
+                        >
+                          <CamIcon size={13} />
+                          {!camOn && <SlashIcon size={13} />}
+                        </span>
                       </div>
                       {peers
                         .filter((p) => {
@@ -1505,6 +1527,13 @@ export default function MeetingView({
                             >
                               <MicIcon size={13} />
                               {p.audioMuted && <SlashIcon size={13} />}
+                            </span>
+                            <span
+                              className={`ppl-mic${p.videoPaused ? ' off' : ''}`}
+                              title={p.videoPaused ? '카메라 꺼짐' : '카메라 켜짐'}
+                            >
+                              <CamIcon size={13} />
+                              {p.videoPaused && <SlashIcon size={13} />}
                             </span>
                             <button
                               className="ppl-act"
