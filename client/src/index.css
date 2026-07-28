@@ -14005,19 +14005,46 @@ html:not(.dark) .meeting-controls .leave:hover {
   flex-shrink: 0;
 }
 
-/* 통화 설정(⚙) — 자막·발화자 자동 확대 토글 메뉴. 헤더의 전체화면 토글 왼쪽 */
+/* 헤더 알약 — [⚙ | ⛶] 캡슐 (일정 헤더 알약과 같은 문법) */
+.hdr-pill {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 2px;
+  flex: none;
+}
+
+.hdr-pill .expand-btn {
+  margin-left: 0;
+  border: none;
+  background: none;
+  border-radius: 999px;
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hdr-pill .expand-btn:hover {
+  background: var(--hover);
+  color: var(--green);
+}
+
+.hdr-pill-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  flex: none;
+}
+
 .ctl-gear {
   position: relative;
   display: flex;
-  margin-left: auto; /* 헤더 오른쪽 정렬 — 뒤따르는 전체화면 토글과 한 묶음 */
-}
-
-.ctl-gear .expand-btn {
-  margin-left: 0;
-}
-
-.ctl-gear + .expand-btn {
-  margin-left: 10px;
 }
 
 /* 헤더에선 메뉴가 아래로 열림 (컨트롤 바의 위로 열림과 반대) */

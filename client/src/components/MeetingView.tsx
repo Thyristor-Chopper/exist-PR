@@ -1242,7 +1242,8 @@ export default function MeetingView({
           </span>
         </div>
         {status && <span className="meeting-status">{status}</span>}
-        {/* 통화 설정(⚙) — 자막(CC)·발화자 자동 확대. 전체화면 토글 왼쪽 */}
+        {/* 헤더 알약 — [⚙ 통화 설정 | ⛶ 전체화면] 캡슐 (일정 헤더 알약과 같은 문법) */}
+        <div className="hdr-pill">
         <div className="ctl-gear">
           <button
             className="expand-btn"
@@ -1305,14 +1306,18 @@ export default function MeetingView({
           )}
         </div>
         {embedded && onToggleExpand && (
-          <button
-            className="expand-btn"
-            title={expanded ? '탭으로 축소' : '전체화면으로 확대'}
-            onClick={onToggleExpand}
-          >
-            {expanded ? <ShrinkIcon size={17} /> : <ExpandIcon size={17} />}
-          </button>
+          <>
+            <i className="hdr-pill-sep" />
+            <button
+              className="expand-btn"
+              title={expanded ? '탭으로 축소' : '전체화면으로 확대'}
+              onClick={onToggleExpand}
+            >
+              {expanded ? <ShrinkIcon size={17} /> : <ExpandIcon size={17} />}
+            </button>
+          </>
         )}
+        </div>
       </header>
 
       <div className="meeting-body">
