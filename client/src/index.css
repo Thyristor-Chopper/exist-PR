@@ -14343,6 +14343,60 @@ html:not(.dark) .meeting-controls .leave:hover {
   place-items: center;
 }
 
+/* ── 일정 수신확인 — 결정 원장 회람 사인의 일정판 ── */
+.msched-pop-acks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.msched-ack-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.msched-ack-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--green);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.msched-ack-names {
+  color: var(--text-sub);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 리스트 행의 확인 수 뱃지 */
+.msched-ack-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+}
+
 /* 통화 채팅이 물린 채널 표시 — 기본 채널이 아니라 화상회의 채널임을 알림 */
 .chat-head-channel {
   font-size: 11px;

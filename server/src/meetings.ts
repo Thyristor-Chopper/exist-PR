@@ -834,6 +834,11 @@ router.get('/:code/events', (req: AuthedRequest, res) => {
     .all(meeting.id) as { people: string | null; [k: string]: unknown }[];
   // people(JSON id 배열)을 이름으로 풀어서 내려줌 — 못 찾는 id(탈퇴 등)는 제외
   const pickUser = db.prepare('SELECT id, username, name FROM users WHERE id = ?');
+  // 일정 수신확인 명단 — 회람 사인의 일정판
+  const pickAcks = db.prepare(
+    `SELECT u.username FROM event_acks a JOIN users u ON u.id = a.user_id
+     WHERE a.event_id = ? ORDER BY a.created_at`,
+  );
   res.json(
     rows.map((r) => {
       let ids: number[] = [];
@@ -845,9 +850,25 @@ router.get('/:code/events', (req: AuthedRequest, res) => {
       const people = ids
         .map((id) => pickUser.get(id) as { id: number; username: string; name: string | null } | undefined)
         .filter((u): u is { id: number; username: string; name: string | null } => !!u);
-      return { ...r, people };
+      const acks = (pickAcks.all(r.id) as { username: string }[]).map((a) => a.username);
+      return { ...r, people, acks };
     }),
   );
+});
+
+/** 일정 수신확인 — "일정 잡힌 것 봤음" 서명 (참가자만, 멱등) */
+router.post('/:code/events/:eventId/ack', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const ev = db
+    .prepare('SELECT id FROM meeting_events WHERE id = ? AND meeting_id = ?')
+    .get(req.params.eventId, r.meeting.id) as { id: number } | undefined;
+  if (!ev) return res.status(404).json({ error: '존재하지 않는 일정이에요' });
+  db.prepare('INSERT OR IGNORE INTO event_acks (event_id, user_id) VALUES (?, ?)').run(
+    ev.id,
+    req.userId,
+  );
+  res.json({ ok: true });
 });
 
 /** body.people을 회의 참가자 id만 남긴 중복 없는 배열로 정리 */
@@ -1008,6 +1029,7 @@ router.delete('/:code/events/:eventId', (req: AuthedRequest, res) => {
   if (ev.created_by !== req.userId && !canManageMeeting(meeting, req.userId!, 'group:schedule')) {
     return res.status(403).json({ error: '작성자·호스트·조직 관리자만 삭제할 수 있어요' });
   }
+  db.prepare('DELETE FROM event_acks WHERE event_id = ?').run(req.params.eventId);
   db.prepare('DELETE FROM meeting_events WHERE id = ?').run(req.params.eventId);
   res.json({ ok: true });
 });
