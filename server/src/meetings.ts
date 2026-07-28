@@ -8,7 +8,7 @@ import { requireAuth, type AuthedRequest } from './auth.js';
 import { invalidateBrief } from './agent.js';
 import { emitToUser, notifyUser } from './notify.js';
 import { getRoomSize, getRoomPeers } from './sfu.js';
-import { isMember, audit as orgAudit } from './orgs.js';
+import { isMember, canCreateOrgGroup, audit as orgAudit } from './orgs.js';
 import { canManageMeeting } from './perm.js';
 import { byPositionDesc } from './positions.js';
 import {
@@ -26,7 +26,7 @@ import {
   cleanChannelName,
   setNotifyMode,
 } from './channels.js';
-import { generateAgenda, invalidateAgenda, ensureAgentUser } from './steward.js';
+import { generateAgenda, generateDecisionHistory, invalidateAgenda, ensureAgentUser } from './steward.js';
 import filesRouter, { deleteMeetingFiles } from './files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -140,6 +140,10 @@ router.post('/', (req: AuthedRequest, res) => {
     if (!Number.isInteger(orgId)) return res.status(400).json({ error: '잘못된 조직입니다' });
     if (!isMember(orgId, req.userId!)) {
       return res.status(403).json({ error: '이 조직의 멤버만 회의를 만들 수 있어요' });
+    }
+    // 조직 그룹 생성은 권한제 — owner/admin 또는 group:create 역할 보유자만
+    if (!canCreateOrgGroup(orgId, req.userId!)) {
+      return res.status(403).json({ error: '조직에 그룹을 만들 권한이 없어요 — 관리자에게 요청하세요' });
     }
   }
 
@@ -1346,6 +1350,13 @@ router.get('/:code/decisions', (req: AuthedRequest, res) => {
   res.json(listDecisions(r.meeting.id));
 });
 
+/** 변경 이력 뷰 — 원장을 같은 주제끼리 묶은 타임라인 (AI 그룹핑, 10분 캐시, 규칙 폴백) */
+router.get('/:code/decisions/history', async (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json(await generateDecisionHistory(r.meeting.id));
+});
+
 /** 결정 수신 확인 — 회람 사인. recap이 이 회의 것인지 검증 후 기록 */
 router.post('/:code/decisions/ack', (req: AuthedRequest, res) => {
   const r = meetingForParticipant(req.params.code, req.userId!);
@@ -1359,7 +1370,9 @@ router.post('/:code/decisions/ack', (req: AuthedRequest, res) => {
     .prepare('SELECT 1 FROM meeting_recaps WHERE id = ? AND meeting_id = ?')
     .get(recapId, r.meeting.id);
   if (!owns) return res.status(404).json({ error: '존재하지 않는 결정입니다' });
-  if (!ackDecision(recapId, idx, req.userId!)) {
+  // note = 현장 피드백 한 줄(선택) — 확인 후에 노트만 추가하는 재호출도 허용
+  const note = typeof req.body?.note === 'string' ? req.body.note : null;
+  if (!ackDecision(recapId, idx, req.userId!, note)) {
     return res.status(404).json({ error: '존재하지 않는 결정입니다' });
   }
   res.json({ ok: true });
@@ -1441,12 +1454,14 @@ router.get('/:code/messages', (req: AuthedRequest, res) => {
 
   const rows = db
     .prepare(
-      `SELECT u.username AS "from", u.avatar, m.text, m.file, m.channel_id, m.created_at FROM messages m
+      `SELECT m.id, m.user_id, u.username AS "from", u.avatar, m.text, m.file, m.channel_id, m.created_at FROM messages m
        JOIN users u ON u.id = m.user_id
        WHERE m.meeting_id = ? AND (m.channel_id = ? OR m.channel_id IS NULL)
        ORDER BY m.id DESC LIMIT 100`,
     )
     .all(meeting.id, channelId) as {
+    id: number;
+    user_id: number;
     from: string;
     avatar: string | null;
     text: string;
@@ -1455,14 +1470,24 @@ router.get('/:code/messages', (req: AuthedRequest, res) => {
     created_at: string;
   }[];
 
+  // "여기까지 읽었어요" 구분선용 — 내 last_read 이후의 남이 보낸 메시지에 unread 표시
+  const lastRead =
+    (
+      db
+        .prepare('SELECT last_read FROM chat_reads WHERE user_id = ? AND meeting_id = ?')
+        .get(req.userId!, meeting.id) as { last_read: number } | undefined
+    )?.last_read ?? 0;
+
   res.json(
     rows.reverse().map((r) => ({
+      id: r.id,
       from: r.from,
       avatar: r.avatar,
       text: r.text,
       file: r.file ? JSON.parse(r.file) : undefined,
       channelId: r.channel_id ?? channelId,
       ts: new Date(r.created_at + 'Z').getTime(),
+      unread: r.id > lastRead && r.user_id !== req.userId ? true : undefined,
     })),
   );
 });

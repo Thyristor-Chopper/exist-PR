@@ -11716,6 +11716,30 @@ input:focus {
   border-radius: 10px;
 }
 
+/* "여기까지 읽었어요" 안읽음 구분선 — 열었을 때의 읽음 경계, 창 닫을 때까지 고정 */
+.chat-unread-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.chat-unread-divider::before,
+.chat-unread-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--green);
+  opacity: 0.35;
+}
+
+.chat-unread-divider span {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+}
+
 /* 메시지 행 */
 .chat-row {
   display: flex;
@@ -12908,6 +12932,52 @@ input:focus {
 .org-audit-list {
   display: flex;
   flex-direction: column;
+}
+
+/* 전체 그룹 (관리자 조회) — 감사 로그와 같은 접이식 섹션의 행 */
+.org-groups-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.org-groups-row:last-child {
+  border-bottom: none;
+}
+
+.org-groups-title {
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.org-groups-mine {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--green);
+  background: var(--green-soft);
+  padding: 1px 7px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.org-groups-meta {
+  color: var(--text-sub);
+  font-size: 12.5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.org-groups-time {
+  color: var(--text-sub);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .org-audit-row {
@@ -14757,6 +14827,179 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   inset: 0;
   display: grid;
   place-items: center;
+}
+
+/* ── 변경 이력 뷰 — 같은 주제 결정의 변천 타임라인 ── */
+.ledger-view-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ledger-view-seg button {
+  border: none;
+  background: var(--surface);
+  color: var(--text-sub);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.ledger-view-seg button.on {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.ledger-hist {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ledger-hist-src {
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+
+.ledger-topic {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.ledger-topic-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.ledger-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ledger-tl-item {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 6px 0 6px 2px;
+}
+
+/* 세로 연결선 — 마지막 항목 아래로는 안 그림 */
+.ledger-tl-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 18px;
+  bottom: -6px;
+  width: 2px;
+  background: var(--border);
+}
+
+.ledger-tl-dot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.ledger-tl-item.latest .ledger-tl-dot {
+  background: var(--green);
+}
+
+.ledger-tl-body {
+  min-width: 0;
+}
+
+.ledger-tl-date {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ledger-tl-now {
+  color: var(--green);
+  font-size: 11px;
+}
+
+.ledger-tl-text {
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.ledger-tl-item:not(.latest) .ledger-tl-text {
+  color: var(--text-sub);
+}
+
+/* ── 현장 피드백 — 수신확인에 딸린 한 줄 (LIG 현직자 제안) ── */
+.ledger-feedback {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ledger-feedback-row {
+  font-size: 12px;
+  color: var(--text-sub);
+  padding: 3px 8px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.ledger-feedback-row b {
+  color: var(--text);
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.ledger-note-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ledger-note-form input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ledger-note-form button {
+  border: none;
+  border-radius: 7px;
+  padding: 5px 12px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── 결정 배경 — "왜 그렇게 됐는지"가 결정과 같이 남는다 ── */
+.hub-recap-why,
+.ledger-why {
+  font-size: 12px;
+  color: var(--text-sub);
+  margin-top: 2px;
+  padding-left: 2px;
 }
 
 /* ── AI 겹침 시간 제안 — recap의 다음 회의 후보 슬롯 ── */

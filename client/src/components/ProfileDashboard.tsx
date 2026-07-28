@@ -282,9 +282,12 @@ export default function ProfileDashboard() {
         <div style={section}>
           <div style={sectionHead}>⚡ 빠른 시작</div>
           <div className="pd-actions" style={actionRow}>
-            <button style={actionBtn} onClick={newMeeting}>
-              <span style={{ fontSize: 20 }}>＋</span> 새 그룹 만들기
-            </button>
+            {/* 조직 그룹 생성은 권한제 — owner/admin 또는 group:create 역할만 */}
+            {(orgInfo?.canCreateGroup ?? true) && (
+              <button style={actionBtn} onClick={newMeeting}>
+                <span style={{ fontSize: 20 }}>＋</span> 새 그룹 만들기
+              </button>
+            )}
             <button style={actionBtn} onClick={() => navigate(`/org/${org}`)}>
               <span style={{ fontSize: 18 }}>👥</span> 조직도 보기
             </button>

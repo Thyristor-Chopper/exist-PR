@@ -52,6 +52,19 @@ interface AuditRow {
   at: string;
 }
 
+/** 관리자 전용 전체 그룹 조회 행 */
+interface OrgGroup {
+  id: number;
+  code: string;
+  title: string;
+  thumbnail: string | null;
+  host: string;
+  hostDept: string | null;
+  participantCount: number;
+  joined: boolean;
+  createdAt: string;
+}
+
 const ROLE_LABEL: Record<string, string> = { owner: '소유자', admin: '관리자', member: '멤버' };
 
 /* IAM식 세분 액션 — 커스텀 역할(중간관리자)에 조합해 부여 */
@@ -61,6 +74,7 @@ const ACTION_LABEL: Record<string, string> = {
   'member:edit-position': '직급 수정',
   'member:edit-department': '부서 수정',
   'member:remove': '내보내기',
+  'group:create': '그룹 생성',
   'group:lock': '입장 잠금',
   'group:settings': '설정(편집 허용·음소거)',
   'group:edit-info': '정보 수정(제목·썸네일)',
@@ -81,8 +95,9 @@ const ACTION_GROUPS: { title: string; hint: string; actions: string[] }[] = [
   },
   {
     title: '그룹',
-    hint: '자기 부서원이 호스트인 그룹에만',
+    hint: '자기 부서원이 호스트인 그룹에만 (생성은 본인이 새로 만드는 권한)',
     actions: [
+      'group:create',
       'group:lock',
       'group:settings',
       'group:edit-info',
@@ -186,6 +201,21 @@ export default function OrgChartPage() {
           : { roleId: Number(value.slice(1)) };
     await api(`/api/orgs/${orgId}/members/${userId}`, { method: 'PATCH', body });
     await load();
+  }
+
+  // ── 전체 그룹 — 관리자 전용 조회 (내가 참가 안 한 그룹 포함), 접이식(열 때 로드) ──
+  const [groupsOpen, setGroupsOpen] = useState(false);
+  const [orgGroups, setOrgGroups] = useState<OrgGroup[] | null>(null);
+  async function toggleGroups() {
+    const next = !groupsOpen;
+    setGroupsOpen(next);
+    if (next) {
+      try {
+        setOrgGroups(await api<OrgGroup[]>(`/api/orgs/${orgId}/groups`));
+      } catch {
+        setOrgGroups([]);
+      }
+    }
   }
 
   // ── 활동 기록(감사 로그) — 관리자 전용, 접이식(열 때 로드) ──
@@ -697,6 +727,48 @@ export default function OrgChartPage() {
             ))}
           </div>
 
+          {/* 전체 그룹 — 관리자만. 참가 여부와 무관하게 조직의 모든 그룹을 조회 */}
+          {manager && (
+            <section className="org-perm">
+              <button className="org-perm-head" onClick={() => void toggleGroups()}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ verticalAlign: '-2px', marginRight: 6 }}>
+                  <rect x="3.5" y="4.5" width="7" height="7" rx="1.5" />
+                  <rect x="13.5" y="4.5" width="7" height="7" rx="1.5" />
+                  <rect x="3.5" y="14.5" width="7" height="7" rx="1.5" />
+                  <rect x="13.5" y="14.5" width="7" height="7" rx="1.5" />
+                </svg>
+                전체 그룹{orgGroups ? ` ${orgGroups.length}` : ''}
+                <span className="org-perm-caret">{groupsOpen ? '▴' : '▾'}</span>
+              </button>
+              {groupsOpen && (
+                <div className="org-perm-body">
+                  {orgGroups === null ? (
+                    <div className="org-audit-empty">불러오는 중…</div>
+                  ) : orgGroups.length === 0 ? (
+                    <div className="org-audit-empty">아직 조직에 그룹이 없어요</div>
+                  ) : (
+                    <div className="org-groups-list">
+                      {orgGroups.map((g) => (
+                        <div key={g.id} className="org-groups-row">
+                          <span className="org-groups-title">
+                            {g.title}
+                            {g.joined && <b className="org-groups-mine">내 참여</b>}
+                          </span>
+                          <span className="org-groups-meta">
+                            호스트 {dn(g.host)}
+                            {g.hostDept ? ` (${g.hostDept})` : ''} · 참가 {g.participantCount}명 · 코드{' '}
+                            {g.code}
+                          </span>
+                          <span className="org-groups-time">{g.createdAt.slice(0, 10)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
           {/* 활동 기록(감사 로그) — 관리자만. 인사·권한 변경의 책임 추적 */}
           {manager && (
             <section className="org-perm">
@@ -813,6 +885,7 @@ const PERM_MATRIX: MatrixRow[] = [
   { label: '역할 변경 (관리자 ↔ 멤버)', allow: [true, false, false] },
   { label: '가입코드 보기·공유', allow: [true, true, false] },
   { section: '조직 소속 그룹' },
+  { label: '새 그룹 생성', allow: [true, true, false], actions: ['group:create'] },
   { label: '입장 잠금·해제', allow: [true, true, false], actions: ['group:lock'] },
   { label: '그룹 설정 (편집 허용·음소거)', allow: [true, true, false], actions: ['group:settings'] },
   { label: '참가자 내보내기·호스트 위임', allow: [true, true, false], actions: ['group:kick', 'group:transfer'] },

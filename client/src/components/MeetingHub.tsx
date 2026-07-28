@@ -410,6 +410,12 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   const [editChannelName, setEditChannelName] = useState('');
   const activeChannelRef = useRef<number | null>(null);
   activeChannelRef.current = activeChannel;
+  // "여기까지 읽었어요" 구분선 — 채널별로 이 허브 세션 처음 로드했을 때의 첫 안읽음 id를 고정
+  // (재조회·재접속에도 위치가 안 흔들리게 채널 키로 한 번만 기록)
+  const unreadAnchorRef = useRef<Record<string, number | null>>({});
+  const [unreadMarkId, setUnreadMarkId] = useState<number | null>(null);
+  const unreadMarkRef = useRef<HTMLDivElement>(null);
+  const chatScrolledRef = useRef(false); // 채널 첫 로드 시 구분선으로 스크롤했는지
   const [filesMounted, setFilesMounted] = useState(false); // 공동편집(파일시스템)은 한 번 열면 마운트 유지
   const [pipPos, setPipPos] = useState<{ x: number; y: number } | null>(null); // 무빙 통화창 위치
   const [pipW, setPipW] = useState<number>(() => {
@@ -523,6 +529,13 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
       socket.emit('chat:viewing', { code: null });
     };
   }, [visible, subtab, code]);
+
+  // 채팅을 실제로 보고 있으면 읽음 처리 — 히스토리가 로드된 "뒤"에만 돌아서
+  // 구분선 앵커(히스토리의 unread 플래그)와 경쟁하지 않는다. 새 메시지 수신 시에도 갱신.
+  useEffect(() => {
+    if (!(visible && subtab === 'chat') || messages.length === 0) return;
+    void api(`/api/meetings/${code}/messages/read`, { method: 'POST' }).catch(() => {});
+  }, [visible, subtab, code, messages]);
 
   // 최근회의 버튼 등에서 세부 탭 지정 → 해당 탭으로 이동
   useEffect(() => {
@@ -673,6 +686,14 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   }
 
   useEffect(() => {
+    if (messages.length === 0 || subtab !== 'chat') return;
+    // 채팅 처음 열 때 안읽음 구분선이 있으면 거기부터 — 이후엔 새 메시지 따라 맨 아래로
+    if (!chatScrolledRef.current && unreadMarkRef.current) {
+      chatScrolledRef.current = true;
+      unreadMarkRef.current.scrollIntoView({ block: 'center' });
+      return;
+    }
+    chatScrolledRef.current = true;
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, subtab]);
 
@@ -730,11 +751,19 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
       // 재연결 시 놓친 메시지까지 복구 (활성 채널 히스토리 재로드 + 룸 재가입)
       void api<ChatMessage[]>(`/api/meetings/${code}/messages?channel=${activeChannel}`).then(
         (history) => {
-          if (alive) setMessages(history);
+          if (!alive) return;
+          // 첫 안읽음 위치 앵커 — 채널당 한 번만 기록 (재조회로 사라지지 않게)
+          const key = `${code}:${activeChannel}`;
+          if (!(key in unreadAnchorRef.current)) {
+            unreadAnchorRef.current[key] = history.find((m) => m.unread)?.id ?? null;
+          }
+          setUnreadMarkId(unreadAnchorRef.current[key]);
+          setMessages(history);
         },
       );
       void request(socket, 'chat:join', { code }).catch(() => {});
     }
+    chatScrolledRef.current = false; // 채널 전환 — 구분선 첫 스크롤 다시 허용
     join();
     // 채널로 들어왔으니 이 채널의 세션 안읽음 점은 해제
     setChannelUnread((prev) => ({ ...prev, [activeChannel]: 0 }));
@@ -2069,6 +2098,11 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   !!prev && prev.from === m.from && !showDate && m.ts - prev.ts < 5 * 60_000;
                 return (
                   <Fragment key={i}>
+                    {m.id != null && m.id === unreadMarkId && (
+                      <div className="chat-unread-divider" ref={unreadMarkRef}>
+                        <span>여기까지 읽었어요</span>
+                      </div>
+                    )}
                     {showDate && (
                       <div className="chat-date">
                         <span>{chatDateLabel(m.ts)}</span>
