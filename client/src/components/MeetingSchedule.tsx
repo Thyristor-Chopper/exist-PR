@@ -1759,18 +1759,18 @@ export default function MeetingSchedule({
           </div>
         )}
 
-        {view !== 'day' && (
-          <div className="msched-events">
-            {dayEvents.length === 0 ? (
-              <div className="msched-empty">이 날 일정이 없어요</div>
-            ) : (
-              dayEvents.map((ev) => eventRow(ev))
-            )}
-          </div>
-        )}
-        {view === 'day' && dayEvents.length === 0 && !meetingToday && (
-          <div className="msched-empty">이 날 일정이 없어요 — 시간을 눌러 바로 추가할 수 있어요</div>
-        )}
+        {/* 하단 = 선택한 날 일정 리스트 — 월·주·일 공통 규칙 */}
+        <div className="msched-events">
+          {dayEvents.length === 0 ? (
+            <div className="msched-empty">
+              {view === 'day'
+                ? '이 날 일정이 없어요 — 시간을 눌러 바로 추가할 수 있어요'
+                : '이 날 일정이 없어요'}
+            </div>
+          ) : (
+            dayEvents.map((ev) => eventRow(ev))
+          )}
+        </div>
 
         {(!pop || pop.mode === 'view') && formEl}
       </div>
