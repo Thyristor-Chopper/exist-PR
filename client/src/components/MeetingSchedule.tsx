@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
-import { PhoneIcon, BellIcon } from './Icons';
+import { PhoneIcon, BellIcon, ListIcon, PlusIcon, CheckIcon } from './Icons';
 import Marquee from './Marquee';
 
 interface MEvent {
@@ -365,6 +365,18 @@ export default function MeetingSchedule({
 
   /** 모바일(767px↓)은 하단 상시 폼이 숨어 있어 생성·수정을 전부 팝오버(중앙 시트)로 */
   const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
+
+  // 모바일 보기 형태 드롭다운 (알약의 리스트 아이콘 → 월/이틀/하루)
+  const [viewMenu, setViewMenu] = useState(false);
+  const viewPillRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!viewMenu) return;
+    const onDown = (e: PointerEvent) => {
+      if (viewPillRef.current && !viewPillRef.current.contains(e.target as Node)) setViewMenu(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [viewMenu]);
 
   /** 헤더 + 버튼 → 생성 폼 (선택 날짜 + 다음 정시 프리필). 모바일에서 유일한 생성 진입점 */
   function openCreatePlus(e: React.MouseEvent) {
@@ -1264,15 +1276,55 @@ export default function MeetingSchedule({
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            className="msched-plus"
-            onClick={openCreatePlus}
-            aria-label="일정 추가"
-            title="일정 추가"
-          >
-            +
-          </button>
+          {/* 모바일 전용 알약 — 보기 형태(월/이틀/하루) + 일정 추가. 데스크톱은 위 세그 유지 */}
+          <div className="msched-viewpill" ref={viewPillRef}>
+            <button
+              type="button"
+              className={`vp-view${viewMenu ? ' on' : ''}`}
+              onClick={() => setViewMenu((v) => !v)}
+              aria-label="보기 형태"
+              title="보기 형태"
+            >
+              <ListIcon size={16} />
+            </button>
+            <i className="vp-sep" />
+            <button
+              type="button"
+              className="vp-plus"
+              onClick={(e) => {
+                setViewMenu(false);
+                openCreatePlus(e);
+              }}
+              aria-label="일정 추가"
+              title="일정 추가"
+            >
+              <PlusIcon size={16} />
+            </button>
+            {viewMenu && (
+              <div className="msched-view-menu">
+                {(
+                  [
+                    ['month', '월'],
+                    ['week', '이틀'],
+                    ['day', '하루'],
+                  ] as const
+                ).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className={view === v ? 'on' : ''}
+                    onClick={() => {
+                      switchView(v);
+                      setViewMenu(false);
+                    }}
+                  >
+                    {label}
+                    {view === v && <CheckIcon size={14} />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {view === 'week' && (

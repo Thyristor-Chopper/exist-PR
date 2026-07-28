@@ -3910,32 +3910,94 @@ input:focus {
   border-color: var(--green) !important;
 }
 
-/* 헤더 + 버튼 — 모바일 전용 일정 생성 진입점 (데스크톱은 드래그 생성이 있어 숨김) */
-.msched-plus {
+/* 모바일 전용 알약 — [보기 형태 아이콘 | +] (애플 캘린더식). 데스크톱은 세그 유지 */
+.msched-viewpill {
   display: none;
-  font-size: 18px !important;
-  font-weight: 700;
-  width: 26px;
-  height: 26px;
-  line-height: 1;
+  position: relative;
   align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border) !important;
-  border-radius: 8px;
-  color: var(--text) !important;
-  padding: 0 !important;
-  margin-left: 6px;
+  gap: 0;
+  margin-left: 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 2px;
   flex: none;
 }
 
-.msched-plus:hover {
-  border-color: var(--green) !important;
-  color: var(--green) !important;
+.msched-viewpill > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 28px;
+  border: none !important;
+  background: none;
+  border-radius: 999px;
+  color: var(--text) !important;
+  padding: 0 !important;
+  font-size: 15px !important;
+}
+
+.msched-viewpill > button.on {
+  background: var(--hover);
+}
+
+.msched-viewpill .vp-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  flex: none;
+}
+
+/* 보기 형태 드롭다운 — 알약 아래 오른쪽 정렬 */
+.msched-view-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 132px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
+  padding: 5px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.msched-view-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: none !important;
+  background: none;
+  border-radius: 9px;
+  padding: 10px 12px !important;
+  font-size: 14.5px !important;
+  font-weight: 600;
+  color: var(--text) !important;
+  text-align: left;
+}
+
+.msched-view-menu button.on {
+  font-weight: 800;
+  color: var(--green-dark) !important;
+}
+
+.msched-view-menu button:active {
+  background: var(--hover);
 }
 
 @media (max-width: 767px) {
-  .msched-plus {
+  .msched-viewpill {
     display: inline-flex;
+  }
+
+  /* 세그는 알약 드롭다운으로 대체 */
+  .msched-cal-head .msched-seg {
+    display: none;
   }
 
   /* 모바일: 하단 상시 추가 폼 제거 — 생성·수정은 + 버튼/시간 탭/✎로 중앙 시트에서 */
