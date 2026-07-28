@@ -119,7 +119,10 @@ export function ruleBasedAnswer(question: string, ctx: AgentContext): string {
     known.push(`미완료 할 일 ${ctx.todos.filter((t) => !t.done).length}개`);
   if (ctx.events.length > 0) known.push(`다가오는 일정 ${ctx.events.length}건`);
   if (known.length === 0 && ctx.recaps.length === 0) {
-    return '아직 이 그룹에 쌓인 결정·통화 기록이 없어서 답할 근거가 없어요.';
+    return (
+      '아직 기록이 쌓이기 전이라 답해드릴 근거가 없어요. ' +
+      '통화나 채팅이 시작되면 제가 결정·할 일·일정으로 정리해두고, 그때부터 뭐든 물어보시면 찾아드릴게요.'
+    );
   }
   const cut = question.length > 40 ? `${question.slice(0, 40)}…` : question;
   return (
@@ -132,8 +135,10 @@ async function aiAnswer(question: string, asker: string, ctx: AgentContext): Pro
   const system =
     `너는 분산 근무 플랫폼 exist의 AI 총무다. "${ctx.meetingTitle}" 그룹에 상주하며 팀의 기록을 관리한다. ` +
     '아래 제공되는 그룹 기록(결정 원장·통화 정리·할 일·최근 대화)에 근거해서만 답한다. ' +
-    '기록에 없는 내용은 추측하지 말고 "기록에 없다"고 답한다. 수치·사실을 만들지 않는다.\n' +
-    '답변은 한국어로 간결하게(300자 이내), 필요하면 근거가 된 결정·대화를 짧게 인용한다. ' +
+    '기록에 없는 내용은 추측하지 말되, "기록에 없다"처럼 딱딱하게 끊지 말고 ' +
+    '"그 내용은 아직 기록에 없어요 — 회의나 채팅에서 다뤄지면 제가 정리해둘게요"처럼 부드러운 해요체로 밝히고, ' +
+    '대신 관련해서 아는 기록이나 다음 행동을 한 줄 안내한다. 수치·사실을 만들지 않는다.\n' +
+    '답변은 한국어 해요체로 간결하게(300자 이내), 필요하면 근거가 된 결정·대화를 짧게 인용한다. ' +
     '응답은 오직 JSON: {"answer": string}';
 
   const response = await openai!.chat.completions.create({

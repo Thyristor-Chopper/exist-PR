@@ -3845,17 +3845,15 @@ input:focus {
   background: none;
   padding: 0;
   font: inherit;
-  color: inherit;
+  color: inherit; /* hover에도 색 변화 없음 (주호 지시) — 열림 어포던스는 점선 밑줄이 담당 */
   cursor: pointer;
-  text-decoration: underline dotted rgba(255, 255, 255, 0.35);
+  /* 밑줄도 글자색 따라감 — 흰색 고정이면 라이트 헤더에서 안 보임 */
+  text-decoration: underline dotted color-mix(in srgb, currentColor 45%, transparent);
   text-underline-offset: 3px;
 }
 
-.mv-peers-btn:hover {
-  color: #fff;
-}
-
-/* .dev-menu 기본(파일 뒤쪽, 위로 열림)보다 특이도를 높여 헤더 아래로 연다 */
+/* .dev-menu 기본(파일 뒤쪽, 위로 열림)보다 특이도를 높여 헤더 아래로 연다.
+   색은 앱 테마를 따름 — dev-menu의 다크 고정과 달리 임베드 라이트에서도 통일 (주호 지시) */
 .dev-menu.ppl-menu {
   position: absolute;
   bottom: auto;
@@ -3863,10 +3861,36 @@ input:focus {
   left: 0;
   right: auto;
   transform: none;
-  min-width: 260px;
-  max-width: min(320px, 92vw);
+  min-width: 280px;
+  max-width: min(340px, 92vw);
   max-height: min(420px, 60vh);
   z-index: 40;
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-md);
+  transform-origin: top left;
+  animation: ppl-menu-in 0.16s ease-out;
+}
+
+@keyframes ppl-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dev-menu.ppl-menu {
+    animation: none;
+  }
+}
+
+.dev-menu.ppl-menu .dev-menu-title {
+  color: var(--text-sub);
 }
 
 .ppl-search {
@@ -3875,14 +3899,14 @@ input:focus {
   margin: 2px 0 6px;
   padding: 7px 10px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
   font-size: 13px;
 }
 
 .ppl-search::placeholder {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-sub);
 }
 
 .ppl-row {
@@ -3891,33 +3915,39 @@ input:focus {
   gap: 8px;
   padding: 6px 8px;
   border-radius: 9px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text);
   font-size: 13px;
 }
 
 .ppl-row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-2);
 }
 
+/* 이름은 내용 폭만 — 상태 아이콘(마이크·캠)이 이름 바로 옆에 붙는다 (주호 지시).
+   액션 알약이 margin-left:auto로 오른쪽 끝 정렬 */
 .ppl-name {
-  flex: 1;
   min-width: 0;
+  max-width: 55%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 마이크 상태 — 꺼짐이면 붉게 + 슬래시 겹침 (타일 이름표와 같은 문법) */
+.ppl-pill {
+  margin-left: auto;
+}
+
+/* 마이크·카메라 상태 — 꺼짐이면 붉게 + 슬래시 겹침 (타일 이름표와 같은 문법) */
 .ppl-mic {
   position: relative;
   display: inline-flex;
   align-items: center;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-sub);
   flex-shrink: 0;
 }
 
 .ppl-mic.off {
-  color: #ff7a7f;
+  color: #e5484d;
 }
 
 .ppl-mic.off svg:last-child {
@@ -3925,13 +3955,31 @@ input:focus {
   left: 0;
 }
 
+/* 액션 알약 — [채팅|내보내기] 캡슐, 헤더 hdr-pill과 같은 문법 */
+.ppl-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+.ppl-pill-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
 .ppl-act {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 30px;
+  height: 24px;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.85);
+  border-radius: 0;
+  background: none;
+  color: var(--text-sub);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3940,12 +3988,13 @@ input:focus {
 }
 
 .ppl-act:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--surface-3, var(--border));
+  color: var(--text);
 }
 
 .ppl-act.danger:hover {
-  background: rgba(229, 72, 77, 0.35);
-  color: #fff;
+  background: rgba(229, 72, 77, 0.15);
+  color: #e5484d;
 }
 
 .hub-assign-tip.down {
@@ -11518,9 +11567,11 @@ input:focus {
   }
 }
 
-/* 터치 기기 — hover가 없으므로 이름변경/삭제 버튼 항상 노출 */
+/* 터치 기기 — hover가 없으므로 이름변경/삭제 버튼 항상 노출.
+   ⚠️ 베이스 .cf-actions{display:none}이 이 블록보다 뒤에 있어 소스 순서로 이김 —
+   .cf-item 스코프로 특이도를 올려야 실제로 노출됨 (7/29 모바일 QA에서 실측) */
 @media (hover: none) {
-  .cf-actions {
+  .cf-item .cf-actions {
     display: inline-flex;
   }
 
@@ -18268,4 +18319,36 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   border-radius: 5px;
   background: var(--surface-2);
   font-weight: 700;
+}
+
+/* 터치 기기 — hover가 없어 숨은 컨트롤 접근 불가 방지 (cf-actions의 기존 패턴 확장, 7/29 모바일 담당) */
+@media (hover: none) {
+  .hub-todo-editbtn,
+  .hub-todo-due.ghost,
+  .hub-channel-edit,
+  .hub-channel-del {
+    opacity: 0.55;
+  }
+
+  .kick-btn {
+    opacity: 0.9;
+  }
+}
+
+/* 숫자 고정폭(tabular) — 실시간 갱신·정렬되는 숫자의 씰룩거림 제거 (7/29, 폰트 교체 대신 채택) */
+.meeting-elapsed,
+.nowbar-clock,
+.pd-stat-num,
+.hub-todo-pct,
+.hub-todo-count,
+.hub-decision-stat,
+.ledger-count,
+.ledger-exec,
+.nb-cal-day,
+.msched-grid,
+.hub-sched-time,
+.badge,
+.hub-channel-item,
+.notif-time {
+  font-variant-numeric: tabular-nums;
 }
