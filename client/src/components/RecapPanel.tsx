@@ -97,6 +97,40 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
     };
   }, [code, load]);
 
+  // AI 겹침 시간 제안 (P1 ⑥ 업그레이드) — 명시적 합의가 없을 때 참가자 일정 기반 후보
+  const [slots, setSlots] = useState<{ date: string; time: string; free: number; busy: string[] }[] | null>(null);
+  const [slotTotal, setSlotTotal] = useState(0);
+  const [slotState, setSlotState] = useState<'idle' | 'loading' | 'done'>('idle');
+
+  async function findSlots() {
+    if (slotState === 'loading') return;
+    setSlotState('loading');
+    try {
+      const r = await api<{ total: number; slots: { date: string; time: string; free: number; busy: string[] }[] }>(
+        `/api/meetings/${code}/schedule/suggest`,
+      );
+      setSlots(r.slots);
+      setSlotTotal(r.total);
+    } catch {
+      setSlots([]);
+    } finally {
+      setSlotState('idle');
+    }
+  }
+
+  /** 후보 슬롯 → 사람이 확정 — 일정 등록 (AI는 제안까지) */
+  async function registerSlot(s: { date: string; time: string }) {
+    try {
+      await api(`/api/meetings/${code}/events`, {
+        method: 'POST',
+        body: { title: '다음 회의', date: s.date, time: s.time, is_call: true },
+      });
+      setSlotState('done');
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
   /** AI 제안 → 사람이 확정 — 기존 일정 API로 등록하고 제안에 등록됨 표시 */
   async function registerNext(r: Recap) {
     const nm = r.nextMeeting;
@@ -144,7 +178,7 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
         </div>
       ) : (
         <div className="hub-recap-list">
-          {shown.map((r) => (
+          {shown.map((r, idx) => (
             <div key={r.id} className="hub-recap">
               <div className="hub-recap-head">
                 <span className="hub-recap-summary">{r.summary}</span>
@@ -192,6 +226,47 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
                     >
                       {registering === r.id ? '등록 중…' : '일정 등록'}
                     </button>
+                  )}
+                </div>
+              )}
+
+              {/* 회의 중 합의가 없었으면 — AI가 참가자 일정을 보고 겹치는 시간 후보 제안 (최신 정리에만) */}
+              {!r.nextMeeting && idx === 0 && (
+                <div className="hub-recap-next suggest">
+                  <span className="hub-recap-next-label">다음 회의</span>
+                  {slotState === 'done' ? (
+                    <span className="hub-recap-next-done">
+                      <CheckMarkIcon size={12} /> 일정 등록됨
+                    </span>
+                  ) : slots === null ? (
+                    <button
+                      className="hub-recap-next-btn"
+                      disabled={slotState === 'loading'}
+                      onClick={() => void findSlots()}
+                      title="참가자 전원의 일정을 보고 모두 비는 시간을 찾아요"
+                    >
+                      {slotState === 'loading' ? '찾는 중…' : '✨ 겹치는 시간 찾기'}
+                    </button>
+                  ) : slots.length === 0 ? (
+                    <span className="hub-recap-slot-empty">다음 7일 평일에 빈 시간을 못 찾았어요</span>
+                  ) : (
+                    <span className="hub-recap-slots">
+                      {slots.map((s) => (
+                        <button
+                          key={`${s.date}${s.time}`}
+                          className="hub-recap-slot"
+                          onClick={() => void registerSlot(s)}
+                          title={
+                            s.free === slotTotal
+                              ? '전원 가능 — 클릭하면 통화 일정으로 등록'
+                              : `${s.busy.map((b) => dn(b)).join(', ')} 제외 가능`
+                          }
+                        >
+                          {fmtNext({ title: '', date: s.date, time: s.time })}
+                          <b>{s.free === slotTotal ? '전원 가능' : `${s.free}/${slotTotal}명`}</b>
+                        </button>
+                      ))}
+                    </span>
                   )}
                 </div>
               )}
