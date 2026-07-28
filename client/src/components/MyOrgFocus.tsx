@@ -183,7 +183,7 @@ const chip: CSSProperties = {
   color: 'var(--text-sub)',
   background: 'var(--bg)',
   border: '1px solid var(--border)',
-  borderRadius: 7,
+  borderRadius: 8,
   padding: '3px 8px',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
@@ -191,7 +191,7 @@ const chip: CSSProperties = {
 const checkBtn: CSSProperties = {
   width: 17,
   height: 17,
-  borderRadius: 5,
+  borderRadius: 6,
   border: '1.5px solid var(--border)',
   background: 'transparent',
   cursor: 'pointer',
@@ -207,7 +207,7 @@ const when: CSSProperties = {
 const unreadBadge: CSSProperties = {
   background: '#e5484d',
   color: '#fff',
-  borderRadius: 9,
+  borderRadius: 8,
   fontSize: 11,
   fontWeight: 700,
   padding: '2px 7px',

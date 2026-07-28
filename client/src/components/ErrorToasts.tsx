@@ -15,7 +15,12 @@ export default function ErrorToasts() {
   useEffect(() => {
     function push(text: string, kind: Toast['kind']) {
       const id = nextId++;
-      setToasts((prev) => [...prev.slice(-2), { id, text, kind }]); // 최대 3개
+      // 같은 문구가 이미 떠 있으면 스택하지 않음 (반복 폴링 에러 스팸 방지)
+      setToasts((prev) =>
+        prev.some((t) => t.text === text && t.kind === kind)
+          ? prev
+          : [...prev.slice(-2), { id, text, kind }],
+      ); // 최대 3개
       setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 6000);
     }
     function onError(e: Event) {

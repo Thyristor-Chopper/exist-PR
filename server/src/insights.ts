@@ -318,7 +318,7 @@ async function aiInsights(m: OrgMetrics): Promise<Insights> {
   const system =
     '너는 재택근무 플랫폼 exist의 팀 분석 AI다. 조직의 협업 데이터 집계치(추세 trends·신호 signals 포함)를 보고 팀 상태를 진단하고 위험을 예측한다.\n' +
     '응답은 오직 JSON 하나. 형식: {"summary": string, "trend": string, "burnoutRisk": {"level": string, "reason": string}, "delayRisk": {"level": string, "reason": string}, "risks": string[], "recommendations": string[]}.\n' +
-    'summary: 팀 상태 2문장(한국어). ' +
+    'summary: 팀 상태 2문장(한국어). 사실 수치 중심으로 담백하게 서술하고, "어려움이 예상됩니다"류의 부정 단정·비관 전망은 금지 — 개선 여지는 recommendations에서만 제안한다. 활동이 적으면 "아직 기록이 쌓이는 중"으로 중립 서술. ' +
     'trend: 최근 7일 vs 이전 7일 활동 추세 해석 한 문장. ' +
     'burnoutRisk: 번아웃 위험 예측 — level은 "낮음"|"보통"|"높음" 중 하나, reason은 근거(40자내). 야간 메시지 비율(signals.nightRatio), 인당 통화시간(signals.callMinPerMember), 참여 편중(signals.topShare)을 종합 판단. ' +
     'delayRisk: 일정 지연 위험 예측 — level은 "낮음"|"보통"|"높음", reason은 근거(40자내). 완료율, 마감 지난 할 일(todos.overdue), 임박 마감(signals.soonDue), 활동 추세를 종합 판단. ' +

@@ -779,6 +779,12 @@ router.delete('/:code', (req: AuthedRequest, res) => {
     const t = db.prepare('SELECT title FROM meetings WHERE id = ?').get(meeting.id) as { title: string };
     orgAudit(meeting.org_id, req.userId!, 'group.delete', null, `그룹 "${t.title}" 삭제`);
   }
+  // 삭제 전에 참가자 목록 확보 — 삭제 후 열려 있는 탭을 실시간으로 닫으라고 알림
+  const participantIds = (
+    db.prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?').all(meeting.id) as {
+      user_id: number;
+    }[]
+  ).map((r) => r.user_id);
   db.prepare('DELETE FROM messages WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM meeting_participants WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM meeting_events WHERE meeting_id = ?').run(meeting.id);
@@ -805,6 +811,8 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   db.prepare('DELETE FROM call_transcripts WHERE meeting_id = ?').run(meeting.id);
   deleteMeetingFiles(meeting.id, String(req.params.code).toUpperCase());
   db.prepare('DELETE FROM meetings WHERE id = ?').run(meeting.id);
+  const upper = String(req.params.code).toUpperCase();
+  for (const uid of participantIds) emitToUser(uid, 'meeting:deleted', { code: upper });
   res.json({ ok: true });
 });
 
