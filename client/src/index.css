@@ -3934,6 +3934,11 @@ input:focus {
   .msched-plus {
     display: inline-flex;
   }
+
+  /* 모바일: 하단 상시 추가 폼 제거 — 생성·수정은 + 버튼/시간 탭/✎로 중앙 시트에서 */
+  .msched .msched-add {
+    display: none;
+  }
 }
 
 /* 일/주/월 세그먼트 (애플 캘린더식) */

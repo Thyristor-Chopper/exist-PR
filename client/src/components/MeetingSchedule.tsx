@@ -363,6 +363,9 @@ export default function MeetingSchedule({
     setPop({ mode: 'create', evId: null, x, y });
   }
 
+  /** 모바일(767px↓)은 하단 상시 폼이 숨어 있어 생성·수정을 전부 팝오버(중앙 시트)로 */
+  const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
+
   /** 헤더 + 버튼 → 생성 폼 (선택 날짜 + 다음 정시 프리필). 모바일에서 유일한 생성 진입점 */
   function openCreatePlus(e: React.MouseEvent) {
     resetForm();
@@ -938,7 +941,12 @@ export default function MeetingSchedule({
           <button
             className={`msched-event-edit${editingId === ev.id ? ' on' : ''}`}
             title="수정"
-            onClick={() => startEdit(ev)}
+            onClick={() => {
+              startEdit(ev);
+              // 모바일은 하단 폼이 없으니 수정 폼을 중앙 시트로
+              if (isMobile())
+                setPop({ mode: 'edit', evId: ev.id, day: ev.date, x: window.innerWidth / 2, y: 100 });
+            }}
           >
             ✎
           </button>
@@ -1481,6 +1489,14 @@ export default function MeetingSchedule({
                   onClick={() => {
                     if (suppressClick.current) {
                       suppressClick.current = false;
+                      return;
+                    }
+                    if (isMobile()) {
+                      // 모바일: 하단 폼이 없으니 그 시간으로 생성 시트를 바로 연다
+                      resetForm();
+                      setTime(`${pad(h)}:00`);
+                      setEndTime(`${pad(Math.min(h + 1, 23))}:${h + 1 > 23 ? '59' : '00'}`);
+                      setPop({ mode: 'create', evId: null, x: window.innerWidth / 2, y: 100 });
                       return;
                     }
                     setAllDay(false);
