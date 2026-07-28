@@ -50,7 +50,16 @@ function relTime(ts: number): string {
   return `${Math.floor(h / 24)}일 전`;
 }
 
-export default function RecapPanel({ code, isHost = false }: { code: string; isHost?: boolean }) {
+export default function RecapPanel({
+  code,
+  isHost = false,
+  part = 'all',
+}: {
+  code: string;
+  isHost?: boolean;
+  /** 3단 파이프라인 분할 렌더 — past=①지난 회의(정리·결정·할일), next=③다음 회의(제안·겹치는 시간)만 */
+  part?: 'all' | 'past' | 'next';
+}) {
   const dn = useDisplayName();
   const [recaps, setRecaps] = useState<Recap[]>([]);
   const [expanded, setExpanded] = useState(false); // 기본은 최신 1건만
@@ -152,10 +161,87 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
 
   const shown = expanded ? recaps : recaps.slice(0, 1);
 
+  // part='next' — 최신 정리의 다음 회의 제안(합의·AI 겹침 시간)만 (파이프라인 ③번 카드용)
+  if (part === 'next') {
+    const r = recaps[0];
+    if (!r) {
+      return <div className="hub-section-empty">아직 다음 회의 제안이 없어요 — 회의 정리가 쌓이면 여기에 떠요</div>;
+    }
+    return (
+      <div className="pipe-next-meeting">
+        {r.nextMeeting ? (
+          <div className="hub-recap-next">
+            <span className="hub-recap-next-label">다음 회의 제안</span>
+            <span className="hub-recap-next-when">
+              {fmtNext(r.nextMeeting)} — {r.nextMeeting.title}
+            </span>
+            {r.nextMeeting.registered ? (
+              <span className="hub-recap-next-done">
+                <CheckMarkIcon size={12} /> 등록됨
+              </span>
+            ) : (
+              <button
+                className="hub-recap-next-btn"
+                disabled={registering === r.id}
+                onClick={() => void registerNext(r)}
+              >
+                {registering === r.id ? '등록 중…' : '일정 등록'}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="hub-recap-next suggest">
+            <span className="hub-recap-next-label">다음 회의</span>
+            {slotState === 'done' ? (
+              <span className="hub-recap-next-done">
+                <CheckMarkIcon size={12} /> 일정 등록됨
+              </span>
+            ) : slots === null ? (
+              <button
+                className="hub-recap-next-btn"
+                disabled={slotState === 'loading'}
+                onClick={() => void findSlots()}
+                title="참가자 전원의 일정을 보고 모두 비는 시간을 찾아요"
+              >
+                {slotState === 'loading' ? (
+                  '찾는 중…'
+                ) : (
+                  <>
+                    <SparklesIcon size={13} /> 겹치는 시간 찾기
+                  </>
+                )}
+              </button>
+            ) : slots.length === 0 ? (
+              <span className="hub-recap-slot-empty">다음 7일 평일에 빈 시간을 못 찾았어요</span>
+            ) : (
+              <span className="hub-recap-slots">
+                {slots.map((s) => (
+                  <button
+                    key={`${s.date}${s.time}`}
+                    className="hub-recap-slot"
+                    onClick={() => void registerSlot(s)}
+                    title={
+                      s.free === slotTotal
+                        ? '전원 가능 — 클릭하면 통화 일정으로 등록'
+                        : `${s.busy.map((b) => dn(b)).join(', ')} 제외 가능`
+                    }
+                  >
+                    {fmtNext({ title: '', date: s.date, time: s.time })}
+                    <b>{s.free === slotTotal ? '전원 가능' : `${s.free}/${slotTotal}명`}</b>
+                  </button>
+                ))}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <section className="hub-section hub-recap-card">
       <div className="hub-section-title">
-        <SparklesIcon size={15} /> AI 회의 정리
+        <SparklesIcon size={15} /> <span className="hub-recap-title-txt">AI 회의 정리</span>
         {isHost && (
           <button
             className="hub-recap-run"
@@ -175,8 +261,8 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
 
       {recaps.length === 0 ? (
         <div className="hub-section-empty">
-          통화가 끝나면 AI가 채팅에서 결정과 할 일을 정리해 여기에 둬요 — 참석하지 못한
-          팀원에게도 자동으로 전달됩니다.
+          아직 지난 회의 기록이 없어요. <b>통화하거나 채팅을 나눈 뒤 '지금 정리하기'</b>를 누르면
+          AI가 결정·할 일을 정리해 여기에 둬요 — 참석하지 못한 팀원에게도 자동으로 전달됩니다.
         </div>
       ) : (
         <div className="hub-recap-list">
@@ -212,7 +298,7 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
                 </div>
               )}
 
-              {r.nextMeeting && (
+              {part !== 'past' && r.nextMeeting && (
                 <div className="hub-recap-next">
                   <span className="hub-recap-next-label">다음 회의 제안</span>
                   <span className="hub-recap-next-when">
@@ -235,7 +321,7 @@ export default function RecapPanel({ code, isHost = false }: { code: string; isH
               )}
 
               {/* 회의 중 합의가 없었으면 — AI가 참가자 일정을 보고 겹치는 시간 후보 제안 (최신 정리에만) */}
-              {!r.nextMeeting && idx === 0 && (
+              {part !== 'past' && !r.nextMeeting && idx === 0 && (
                 <div className="hub-recap-next suggest">
                   <span className="hub-recap-next-label">다음 회의</span>
                   {slotState === 'done' ? (

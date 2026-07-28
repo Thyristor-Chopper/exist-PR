@@ -4,6 +4,7 @@ import { useAuthStore } from '../store';
 import { getSocket } from '../lib/socket';
 import { useDisplayName } from '../names';
 import { CheckMarkIcon, SparklesIcon } from './Icons';
+import PillSeg from './PillSeg';
 
 /*
  * 결정 원장 — 이 그룹의 모든 통화 결정이 시간순으로 쌓이는 타임라인.
@@ -146,23 +147,27 @@ export default function DecisionLedger({ code }: { code: string }) {
           <CheckMarkIcon size={16} /> 결정 원장
           <span className="ledger-count">{entries.length}</span>
         </div>
-        {/* 목록 ↔ 변경 이력 — 이력은 같은 주제 결정의 변천 타임라인 */}
-        <div className="ledger-view-seg">
-          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>
-            목록
-          </button>
-          <button className={view === 'history' ? 'on' : ''} onClick={() => void openHistory()}>
-            변경 이력
-          </button>
-        </div>
-        {view === 'list' && (
-          <input
-            className="ledger-search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="결정 검색"
+        {/* 오른쪽 컨트롤 그룹 — [검색(목록 모드만)] [목록|변경 이력]. 토글은 항상 맨 오른쪽 고정 */}
+        <div className="ledger-head-right">
+          {view === 'list' && (
+            <input
+              className="ledger-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="결정 검색"
+            />
+          )}
+          <PillSeg
+            className="ledger-view-seg"
+            ariaLabel="결정 보기"
+            options={[
+              { key: 'list', label: '목록' },
+              { key: 'history', label: '변경 이력' },
+            ]}
+            value={view}
+            onChange={(k) => (k === 'list' ? setView('list') : void openHistory())}
           />
-        )}
+        </div>
       </div>
 
       {view === 'history' ? (

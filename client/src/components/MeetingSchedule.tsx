@@ -13,6 +13,7 @@ import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
 import { PhoneIcon, BellIcon, ListIcon, PlusIcon, CheckMarkIcon, PenIcon, CloseIcon, ChevronLeftIcon, ChevronRightIcon, PinIcon } from './Icons';
 import Marquee from './Marquee';
+import PillSeg from './PillSeg';
 
 interface MEvent {
   id: number;
@@ -1326,18 +1327,13 @@ export default function MeetingSchedule({
           <button type="button" className="msched-today-btn" onClick={goToday}>
             오늘
           </button>
-          <div className="msched-seg" role="tablist" aria-label="일정 보기 단위">
-            {(['day', 'week', 'month'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                className={view === v ? 'on' : ''}
-                onClick={() => switchView(v)}
-              >
-                {VIEW_LABEL[v]}
-              </button>
-            ))}
-          </div>
+          <PillSeg
+            className="msched-seg"
+            ariaLabel="일정 보기 단위"
+            options={(['day', 'week', 'month'] as const).map((v) => ({ key: v, label: VIEW_LABEL[v] }))}
+            value={view}
+            onChange={(v) => switchView(v as ViewMode)}
+          />
           {/* 모바일 전용 알약 — 보기 형태(월/이틀/하루) + 일정 추가. 데스크톱은 위 세그 유지 */}
           <div className="msched-viewpill" ref={viewPillRef}>
             <button
