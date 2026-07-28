@@ -17499,3 +17499,24 @@ html:not(.dark) .meeting-controls .leave:hover {
 .org-perm-table td svg {
   vertical-align: -2px;
 }
+
+/* 홈 라이브 표시 — 🔴 이모지 대신 통화 탭과 같은 깜빡이 점 */
+.pd-live-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e5484d;
+  margin-right: 2px;
+  vertical-align: 0;
+  animation: pd-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pd-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.35); }
+  50% { box-shadow: 0 0 0 5px rgba(229, 72, 77, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-live-dot { animation: none; }
+}

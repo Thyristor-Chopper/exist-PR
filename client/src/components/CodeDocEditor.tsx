@@ -39,6 +39,8 @@ import {
   SheetIcon,
   SlideIcon,
   PenIcon,
+  ChevronIcon,
+  ChevronRightIcon,
 } from './Icons';
 
 const CURSOR_COLORS = ['#30a46c', '#e5484d', '#f76808', '#4f7cff', '#8e4ec6', '#0091ff', '#d6409f'];
@@ -728,7 +730,7 @@ export default function CodeDocEditor({
             dragIdRef.current = null;
           }}
         >
-          <span className="vsc-chev">{open ? '▾' : '▸'}</span>
+          <span className="vsc-chev">{open ? <ChevronIcon size={10} /> : <ChevronRightIcon size={10} />}</span>
           <span className="vsc-file-ic">📁</span>
           <Marquee className="vsc-file-name">{basename(fp)}</Marquee>
           <button className="vsc-file-del" title="폴더 삭제" onClick={(e) => deleteFolder(fp, e)}>

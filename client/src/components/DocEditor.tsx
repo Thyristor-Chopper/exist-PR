@@ -19,7 +19,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import { exportDocx } from '../lib/docx';
 import Marquee from './Marquee';
-import { PlusIcon, CloseIcon, DownloadIcon, CheckMarkIcon } from './Icons';
+import { PlusIcon, CloseIcon, DownloadIcon, CheckMarkIcon, ChevronIcon } from './Icons';
 import ColorGrid from './ColorGrid';
 import OverflowToolbar from './OverflowToolbar';
 
@@ -944,7 +944,7 @@ export default function DocEditor({
                     : editor?.isActive('heading', { level: 3 })
                       ? '제목 3'
                       : '일반 텍스트'}
-                <span className="doc-style-caret">▾</span>
+                <span className="doc-style-caret"><ChevronIcon size={10} /></span>
               </button>
               {menu === 'style' && (
                 <>
@@ -1000,7 +1000,7 @@ export default function DocEditor({
                 onClick={() => setMenu(menu === 'font' ? null : 'font')}
               >
                 {FONT_FAMILIES.find((f) => f.value && (editor?.getAttributes('textStyle').fontFamily as string | undefined) === f.value)?.label ?? '글꼴'}
-                <span className="doc-style-caret">▾</span>
+                <span className="doc-style-caret"><ChevronIcon size={10} /></span>
               </button>
               {menu === 'font' && (
                 <>

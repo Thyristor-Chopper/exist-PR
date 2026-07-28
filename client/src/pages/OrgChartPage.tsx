@@ -5,7 +5,7 @@ import { useOrgStore } from '../orgStore';
 import { useDisplayName } from '../names';
 import Logo from '../components/Logo';
 import Avatar from '../components/Avatar';
-import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon, PenIcon } from '../components/Icons';
+import { BuildingIcon, UsersIcon, ShareIcon, CheckMarkIcon, GearIcon, PenIcon, ChevronIcon, ChevronUpIcon, ChevronLeftIcon } from '../components/Icons';
 import { POSITIONS } from '../lib/positions';
 import InsightsPanel from '../components/InsightsPanel';
 
@@ -326,7 +326,7 @@ export default function OrgChartPage() {
     <div className="orgchart-page">
       <header className="orgchart-top">
         <button className="orgchart-back" onClick={() => navigate('/')} title="대시보드로">
-          ‹ 대시보드
+          <ChevronLeftIcon size={13} /> 대시보드
         </button>
         <Logo />
         <span />
@@ -706,7 +706,7 @@ export default function OrgChartPage() {
                   <path d="M12 7.5V12l3 2" />
                 </svg>
                 활동 기록
-                <span className="org-perm-caret">{auditOpen ? '▴' : '▾'}</span>
+                <span className="org-perm-caret">{auditOpen ? <ChevronUpIcon size={12} /> : <ChevronIcon size={12} />}</span>
               </button>
               {auditOpen && (
                 <div className="org-perm-body">
@@ -738,7 +738,7 @@ export default function OrgChartPage() {
                 <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
               </svg>
               역할별 권한 안내
-              <span className="org-perm-caret">{permOpen ? '▴' : '▾'}</span>
+              <span className="org-perm-caret">{permOpen ? <ChevronUpIcon size={12} /> : <ChevronIcon size={12} />}</span>
             </button>
             {permOpen && (
               <div className="org-perm-body">

@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
-import { PhoneIcon, BellIcon, ListIcon, PlusIcon, CheckMarkIcon } from './Icons';
+import { PhoneIcon, BellIcon, ListIcon, PlusIcon, CheckMarkIcon, PenIcon, CloseIcon, ChevronLeftIcon, ChevronRightIcon, PinIcon } from './Icons';
 import Marquee from './Marquee';
 
 interface MEvent {
@@ -1022,10 +1022,10 @@ export default function MeetingSchedule({
                 setPop({ mode: 'edit', evId: ev.id, day: ev.date, x: window.innerWidth / 2, y: 100 });
             }}
           >
-            ✎
+            <PenIcon size={12} />
           </button>
           <button className="msched-event-del" title="삭제" onClick={() => void removeEvent(ev.id)}>
-            ×
+            <CloseIcon size={13} />
           </button>
         </>
       )}
@@ -1227,7 +1227,7 @@ export default function MeetingSchedule({
                     aria-label={`${dn(p.username)} 제외`}
                     onClick={() => removePerson(p.id)}
                   >
-                    ×
+                    <CloseIcon size={12} />
                   </button>
                 </span>
               ))}
@@ -1291,7 +1291,7 @@ export default function MeetingSchedule({
           </div>
           <p className="msched-add-hint">
             {editingId != null ? (
-              '✎ 일정을 수정하는 중이에요'
+              '일정을 수정하는 중이에요'
             ) : (
               <>
                 <BellIcon size={12} /> 추가하면 참가자 전원에게 알림
@@ -1317,11 +1317,11 @@ export default function MeetingSchedule({
       <div className="msched-cal">
         <div className="msched-cal-head">
           <button onClick={() => nav(-1)} aria-label="이전">
-            ‹
+            <ChevronLeftIcon size={15} />
           </button>
           <span className="msched-head-label">{headLabel()}</span>
           <button onClick={() => nav(1)} aria-label="다음">
-            ›
+            <ChevronRightIcon size={15} />
           </button>
           <button type="button" className="msched-today-btn" onClick={goToday}>
             오늘
@@ -1528,7 +1528,7 @@ export default function MeetingSchedule({
                           )}
                           title="이 그룹 일정"
                         >
-                          📌 이 그룹
+                          <PinIcon size={11} /> 이 그룹
                         </div>
                       )}
                       {/* 겹치는 일정은 일 뷰와 같은 열 분할 (포개져 안 보이던 문제) */}
@@ -1658,7 +1658,7 @@ export default function MeetingSchedule({
                         : null,
                     )}
                   >
-                    <span className="msched-event-title">📌 이 그룹 일정</span>
+                    <span className="msched-event-title"><PinIcon size={12} /> 이 그룹 일정</span>
                     <span className="msched-event-time">
                       {ampmRange(
                         `${pad(meetStart!.getHours())}:${pad(meetStart!.getMinutes())}`,
@@ -1733,14 +1733,14 @@ export default function MeetingSchedule({
                           title="수정"
                           onClick={() => startEdit(ev)}
                         >
-                          ✎
+                          <PenIcon size={12} />
                         </button>
                         <button
                           className="msched-event-del"
                           title="삭제"
                           onClick={() => void removeEvent(ev.id)}
                         >
-                          ×
+                          <CloseIcon size={12} />
                         </button>
                       </>
                     )}
@@ -1862,7 +1862,7 @@ export default function MeetingSchedule({
         {view !== 'day' && isMeetingDayKey(selected) && (
           <div className="msched-main-event">
             <span className="msched-main-event-text">
-              📌 이 그룹 일정
+              <PinIcon size={12} /> 이 그룹 일정
               {startsAt && (
                 <span>
                   {' '}

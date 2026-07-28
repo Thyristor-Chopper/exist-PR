@@ -24,6 +24,7 @@ import {
   ShareIcon,
   ClipboardIcon,
   CheckMarkIcon,
+  CloseIcon,
 } from './Icons';
 
 /*
@@ -885,10 +886,10 @@ export default function CollabFiles({
                         setNameInput(f.name);
                       }}
                     >
-                      ✎
+                      <PenIcon size={12} />
                     </button>
                     <button title="삭제" className="danger" onClick={() => void deleteSelection([f])}>
-                      ×
+                      <CloseIcon size={12} />
                     </button>
                   </>
                 )}
@@ -1056,7 +1057,7 @@ export default function CollabFiles({
             disabled={!selected || !canEdit(selected)}
             onClick={() => selected && startRename(selected)}
           >
-            ✎ 이름 바꾸기
+            <PenIcon size={12} /> 이름 바꾸기
           </button>
           <button className="cf-tool" disabled={!selected} onClick={() => selected && share(selected)}>
             <ShareIcon size={13} /> 공유
@@ -1620,7 +1621,7 @@ export default function CollabFiles({
             <div className="cf-trash-head">
               <b>♻ 휴지통</b>
               <button className="cf-trash-close" onClick={() => setTrashOpen(false)}>
-                ×
+                <CloseIcon size={12} />
               </button>
             </div>
             {trashItems.length === 0 ? (

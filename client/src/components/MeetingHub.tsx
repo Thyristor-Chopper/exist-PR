@@ -34,6 +34,9 @@ import {
   BellIcon,
   BellOffIcon,
   AtSignIcon,
+  PenIcon,
+  CloseIcon,
+  ChevronRightIcon,
 } from './Icons';
 
 interface Participant {
@@ -1169,7 +1172,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             className="hub-preview-more"
                             onClick={() => setSubtab('decisions')}
                           >
-                            전체 보기 ›
+                            전체 보기 <ChevronRightIcon size={12} />
                           </button>
                         )}
                       </div>
@@ -1373,7 +1376,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                     setEditTodoTitle(t.title);
                                   }}
                                 >
-                                  ✎
+                                  <PenIcon size={11} />
                                 </span>
                               )}
                               {dueEditId === t.id ? (
@@ -1476,7 +1479,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 onClick={() => void deleteTodo(t)}
                                 title="삭제"
                               >
-                                ×
+                                <CloseIcon size={12} />
                               </button>
                             </div>
                           ))}
@@ -1988,7 +1991,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             setEditChannelName(ch.name);
                           }}
                         >
-                          ✎
+                          <PenIcon size={11} />
                         </span>
                       )}
                       {(detail?.isHost || detail?.canManage) && !ch.isDefault && ch.kind !== 'call' && (
@@ -2000,7 +2003,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             void deleteChannel(ch);
                           }}
                         >
-                          ×
+                          <CloseIcon size={12} />
                         </span>
                       )}
                       <span

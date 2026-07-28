@@ -18,6 +18,8 @@ import {
   PhoneIcon,
   GearIcon,
   LogOutIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from './Icons';
 import { getSocket } from '../lib/socket';
 import { useOrgStore } from '../orgStore';
@@ -334,11 +336,11 @@ function MonthCalendar({ meetings, now }: { meetings: Meeting[]; now: Date }) {
   return (
     <div className="nb-cal">
       <div className="nb-cal-head">
-        <button onClick={() => setOffset((o) => o - 1)}>‹</button>
+        <button onClick={() => setOffset((o) => o - 1)}><ChevronLeftIcon size={13} /></button>
         <span>
           {year}년 {month + 1}월
         </span>
-        <button onClick={() => setOffset((o) => o + 1)}>›</button>
+        <button onClick={() => setOffset((o) => o + 1)}><ChevronRightIcon size={13} /></button>
       </div>
       <div className="nb-cal-grid">
         {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
