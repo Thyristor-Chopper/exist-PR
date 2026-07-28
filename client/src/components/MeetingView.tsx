@@ -1253,6 +1253,52 @@ export default function MeetingView({
           </button>
         )}
         {status && <span className="meeting-status">{status}</span>}
+        {/* 통화 설정(⚙) — 자막(CC)·발화자 자동 확대. 전체화면 토글 왼쪽 */}
+        <div className="ctl-gear">
+          <button
+            className="expand-btn"
+            onClick={() => setDevMenu((v) => (v === 'opts' ? null : 'opts'))}
+            title="통화 설정"
+          >
+            <GearIcon size={16} />
+          </button>
+          {devMenu === 'opts' && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 39 }} onClick={() => setDevMenu(null)} />
+              <div className="dev-menu align-right ctl-opts">
+                <div className="dev-menu-title">통화 설정</div>
+                {sttSupported && (
+                  <button
+                    className="dev-menu-item"
+                    onClick={() => setSttOn((v) => !v)}
+                    title="발화를 자막으로 띄우고 AI 총무가 기록·정리해요"
+                  >
+                    <span className="dev-menu-label">음성 기록·자막 (CC)</span>
+                    <span className={`msched-sw${sttOn ? ' on' : ''}`}>
+                      <i />
+                    </span>
+                  </button>
+                )}
+                <button
+                  className="dev-menu-item"
+                  onClick={() => {
+                    setAutoStage((v) => {
+                      const next = !v;
+                      if (!next) setPinned(null); // 끄면 그리드로 복귀
+                      return next;
+                    });
+                  }}
+                  title="말하는 사람을 자동으로 크게 보여줘요"
+                >
+                  <span className="dev-menu-label">발화자 자동 확대</span>
+                  <span className={`msched-sw${autoStage ? ' on' : ''}`}>
+                    <i />
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         {embedded && onToggleExpand && (
           <button
             className="expand-btn"
@@ -1485,52 +1531,6 @@ export default function MeetingView({
         >
           <ScreenIcon size={21} />
         </button>
-        {/* 통화 설정 — 자막(CC)·발화자 자동 확대를 한 메뉴로 */}
-        <div className="ctl-gear">
-          <button
-            className={devMenu === 'opts' ? 'active' : ''}
-            onClick={() => setDevMenu((v) => (v === 'opts' ? null : 'opts'))}
-            title="통화 설정"
-          >
-            <GearIcon size={20} />
-          </button>
-          {devMenu === 'opts' && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 39 }} onClick={() => setDevMenu(null)} />
-              <div className="dev-menu align-right ctl-opts">
-                <div className="dev-menu-title">통화 설정</div>
-                {sttSupported && (
-                  <button
-                    className="dev-menu-item"
-                    onClick={() => setSttOn((v) => !v)}
-                    title="발화를 자막으로 띄우고 AI 총무가 기록·정리해요"
-                  >
-                    <span className="dev-menu-label">음성 기록·자막 (CC)</span>
-                    <span className={`msched-sw${sttOn ? ' on' : ''}`}>
-                      <i />
-                    </span>
-                  </button>
-                )}
-                <button
-                  className="dev-menu-item"
-                  onClick={() => {
-                    setAutoStage((v) => {
-                      const next = !v;
-                      if (!next) setPinned(null); // 끄면 그리드로 복귀
-                      return next;
-                    });
-                  }}
-                  title="말하는 사람을 자동으로 크게 보여줘요"
-                >
-                  <span className="dev-menu-label">발화자 자동 확대</span>
-                  <span className={`msched-sw${autoStage ? ' on' : ''}`}>
-                    <i />
-                  </span>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
         <button
           className={`chat-toggle${chatOpen ? ' active' : ''}`}
           onClick={() => {
