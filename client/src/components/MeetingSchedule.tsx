@@ -366,6 +366,10 @@ export default function MeetingSchedule({
   /** 모바일(767px↓)은 하단 상시 폼이 숨어 있어 생성·수정을 전부 팝오버(중앙 시트)로 */
   const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
 
+  // 모바일 하단 리스트 = 고정 높이 바텀시트 — 그립 스와이프/탭으로 확장·축소
+  const [panelUp, setPanelUp] = useState(false);
+  const gripY = useRef<number | null>(null);
+
   // 모바일 보기 형태 드롭다운 (알약의 리스트 아이콘 → 월/이틀/하루)
   const [viewMenu, setViewMenu] = useState(false);
   const viewPillRef = useRef<HTMLDivElement>(null);
@@ -1777,7 +1781,25 @@ export default function MeetingSchedule({
         )}
       </div>
 
-      <div className="msched-day-panel">
+      <div className={`msched-day-panel${panelUp ? ' up' : ''}`}>
+        {/* 모바일 그립 — 위로 스와이프(또는 탭)하면 리스트 확장 */}
+        <div
+          className="msched-panel-grip"
+          onClick={() => setPanelUp((v) => !v)}
+          onTouchStart={(e) => {
+            gripY.current = e.touches[0].clientY;
+          }}
+          onTouchEnd={(e) => {
+            const y0 = gripY.current;
+            gripY.current = null;
+            if (y0 == null) return;
+            const dy = e.changedTouches[0].clientY - y0;
+            if (dy < -24) setPanelUp(true);
+            else if (dy > 24) setPanelUp(false);
+          }}
+        >
+          <i />
+        </div>
         {view !== 'day' && <div className="msched-day-title">{selectedLabel()}</div>}
 
         {/* 회의 본 일정이 이 날이면 표시 (일 뷰는 타임라인에 이미 있음) */}

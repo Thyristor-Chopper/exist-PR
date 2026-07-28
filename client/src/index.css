@@ -5069,6 +5069,40 @@ input:focus {
   container-type: inline-size; /* 폼 줄바꿈을 패널 실폭 기준으로 (컨테이너 쿼리) */
 }
 
+/* 바텀시트 그립 — 모바일 전용 */
+.msched-panel-grip {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* 하단 리스트 = 고정 높이 바텀시트 — 일정 개수와 무관하게 높이 안정 */
+  .msched-day-panel {
+    height: 188px;
+    box-sizing: border-box;
+    transition: height 0.22s ease;
+    padding-top: 4px;
+  }
+
+  .msched-day-panel.up {
+    height: 62dvh;
+  }
+
+  .msched-panel-grip {
+    display: flex;
+    justify-content: center;
+    padding: 7px 0 9px;
+    touch-action: none; /* 그립 스와이프가 패널 스크롤로 새지 않게 */
+    cursor: pointer;
+  }
+
+  .msched-panel-grip i {
+    width: 42px;
+    height: 4.5px;
+    border-radius: 999px;
+    background: var(--border);
+  }
+}
+
 .msched-day-title {
   font-size: 16px;
   font-weight: 900;
