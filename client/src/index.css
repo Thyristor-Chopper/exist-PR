@@ -14090,7 +14090,6 @@ html:not(.dark) .meeting-controls .leave:hover {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
 }
 
 .grid-page-btn.prev {
@@ -14186,7 +14185,6 @@ html:not(.dark) .meeting-controls .leave:hover {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .strip-page-btn.prev {
