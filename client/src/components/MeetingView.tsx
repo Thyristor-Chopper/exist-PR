@@ -1132,6 +1132,29 @@ export default function MeetingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
+  // 안드로이드 셸(Capacitor): 통화 중이면 홈 이동 시 화면째 OS PiP — 네이티브에 상태 전달
+  useEffect(() => {
+    const pip = (
+      window as unknown as {
+        Capacitor?: { Plugins?: { CallPip?: { setCallActive: (o: { active: boolean }) => void } } };
+      }
+    ).Capacitor?.Plugins?.CallPip;
+    if (!pip) return; // 일반 브라우저 — 해당 없음
+    const active = phase !== 'preview';
+    try {
+      pip.setCallActive({ active });
+    } catch {
+      /* 브릿지 오류 무시 */
+    }
+    return () => {
+      try {
+        pip.setCallActive({ active: false });
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [phase]);
+
   // 입장 전 디바이스 프리뷰 게이트 (카메라/마이크 미리 확인 후 입장)
   if (phase === 'preview') {
     return (
