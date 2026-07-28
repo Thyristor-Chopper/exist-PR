@@ -14078,8 +14078,8 @@ html:not(.dark) .meeting-controls .leave:hover {
   top: 50%;
   transform: translateY(-50%);
   z-index: 9;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: none;
   background: var(--surface-2);
@@ -14209,13 +14209,13 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   top: 50%;
   transform: translateY(-50%);
   z-index: 5;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: none;
   background: var(--surface-2);
   color: var(--text);
-  font-size: 16px;
+  font-size: 20px;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -14466,7 +14466,32 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   cursor: pointer;
 }
 
-/* 탭 핀 무대 — 비율 유지(contain·레터박스). cover는 크롭돼서 화면이 잘려 보임 (주호 실기기 확인) */
+/* 탭 핀 무대 — 타일 자체를 16:9로 고정하고 무대 중앙에 최대 크기로 (줌 스포트라이트식).
+   무대 통짜 타일은 아바타·레터박스에서 초광폭으로 늘어져 보임 (주호 확인) */
+.pin-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pin-stage .video-tile {
+  /* 가로 화면: 높이를 꽉 채우고 폭은 16:9로 따라옴 */
+  height: 100%;
+  width: auto;
+  aspect-ratio: 16 / 9;
+  max-width: 100%;
+  min-height: 0;
+  flex: none;
+}
+
+@media (max-width: 767px) {
+  /* 세로 화면: 폭 기준으로 뒤집기 */
+  .pin-stage .video-tile {
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+  }
+}
 
 .video-tile {
   position: relative;
