@@ -328,6 +328,24 @@ export default function MeetingView({
   const [page, setPage] = useState(0);
   /** 페이지당 타일 상한 — 타일이 이름표 읽히는 최소 크기 아래로 안 내려가는 선 */
   const pageCap = vw < 768 ? 8 : vw < 1024 ? 12 : vw < 1536 ? 16 : 25;
+
+  // ── 계산 배치(768px+) — 3사 방식: 인원·컨테이너 크기로 타일 폭을 계산해 잘림 없이 배치 ──
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridSize, setGridSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      setGridSize((prev) =>
+        Math.abs(prev.w - r.width) > 2 || Math.abs(prev.h - r.height) > 2
+          ? { w: r.width, h: r.height }
+          : prev,
+      );
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [phase]);
   // 발화자 자동 무대 — 최근 원격 발화자를 자동 핀 (수동 핀하면 꺼짐, 줌 스피커 뷰)
   const [autoStage, setAutoStage] = useState(false);
   const [lastRemoteSpeaker, setLastRemoteSpeaker] = useState<string | null>(null);
@@ -338,6 +356,7 @@ export default function MeetingView({
   const devMenuOpenRef = useRef(false); // 메뉴 열림 중엔 자동 숨김 보류
   const ctlJustShown = useRef(false); // 터치로 방금 표시됨 — 이어지는 click이 도로 숨기지 않게
   const areaTouchY = useRef<number | null>(null); // 아래 스와이프 = 툴바 숨김 감지용
+  const areaTouchX = useRef<number | null>(null); // 좌우 스와이프 = 페이지 넘김 (모바일)
   // 컨트롤 항상 표시(자동 숨김 끔) — ⚙ 설정, 기기별 저장
   const [ctlAlways, setCtlAlways] = useState(() => localStorage.getItem('call:ctlAlways') === '1');
   const ctlAlwaysRef = useRef(ctlAlways);
@@ -1077,6 +1096,20 @@ export default function MeetingView({
     if (page > totalPages - 1) setPage(totalPages - 1);
   }, [page, totalPages]);
 
+  // 필름스트립(핀·공유 무대) 페이지 — 스트립 폭에 들어가는 만큼씩 넘겨서 전원 확인 가능
+  const stripTileW = vw < 768 ? 160 : 220;
+  const stripCap = Math.max(2, Math.floor((gridSize.w - 90) / (stripTileW + 10)));
+  const stripTotal = Math.max(1, Math.ceil((peers.length + 1) / stripCap));
+  const [stripPage, setStripPage] = useState(0);
+  const stripNow = Math.min(stripPage, stripTotal - 1);
+  const stripPeers =
+    stripNow === 0
+      ? peers.slice(0, stripCap - 1)
+      : peers.slice(stripCap - 1 + (stripNow - 1) * stripCap, stripCap - 1 + stripNow * stripCap);
+  useEffect(() => {
+    if (stripPage > stripTotal - 1) setStripPage(stripTotal - 1);
+  }, [stripPage, stripTotal]);
+
   // 핀 정리 — 화면공유가 시작되면 해제, 핀한 사람이 나가도 해제
   useEffect(() => {
     if (hasScreen) setPinned(null);
@@ -1107,23 +1140,6 @@ export default function MeetingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, expanded]);
 
-  // ── 계산 배치(768px+) — 3사 방식: 인원·컨테이너 크기로 타일 폭을 계산해 잘림 없이 배치 ──
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [gridSize, setGridSize] = useState({ w: 0, h: 0 });
-  useEffect(() => {
-    const el = gridRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const r = entries[0].contentRect;
-      setGridSize((prev) =>
-        Math.abs(prev.w - r.width) > 2 || Math.abs(prev.h - r.height) > 2
-          ? { w: r.width, h: r.height }
-          : prev,
-      );
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [phase]);
   /** 열 수 1..n을 전부 시도해 16:9 타일이 가장 커지는 배치의 타일 폭 */
   function computeTileWidth(W: number, H: number, n: number, gap = 12): number {
     if (!W || !H || !n) return 320;
@@ -1370,6 +1386,12 @@ export default function MeetingView({
             <span className="meeting-elapsed" title="통화 경과 시간">
               {fmtElapsed(elapsed)}
             </span>
+            {!hasScreen && !pinned && totalPages > 1 && (
+              <span className="page-ind-inline" title="페이지 — 좌우로 쓸어 넘기세요">
+                {' · '}
+                {pageNow + 1}/{totalPages}쪽
+              </span>
+            )}
             {locked && (
               <span className="meeting-locked">
                 · <LockIcon size={12} /> 잠김
@@ -1483,6 +1505,7 @@ export default function MeetingView({
           className={`video-area${hasScreen || pinned ? ' with-screen' : ''}`}
           onTouchStart={(e) => {
             areaTouchY.current = e.touches[0].clientY;
+            areaTouchX.current = e.touches[0].clientX;
             // 숨김 상태에선 어떤 터치(탭·스와이프·스크롤)든 일단 컨트롤 표시
             if (ctlHidden) {
               bumpControls();
@@ -1496,9 +1519,28 @@ export default function MeetingView({
           onTouchMove={(e) => {
             // 스와이프가 스크롤로 전환되면 touchend가 안 오는 기기(iOS)가 있어 move에서 즉시 판정
             const y0 = areaTouchY.current;
-            if (y0 == null || ctlJustShown.current || ctlHidden || !isMobileView()) return;
+            const x0 = areaTouchX.current;
+            if (y0 == null || x0 == null || !isMobileView()) return;
             const dy = e.touches[0].clientY - y0;
-            if (dy > 60) {
+            const dx = e.touches[0].clientX - x0;
+            // 좌우 스와이프 = 페이지 넘김 (모바일은 화살표 대신 — 타일 위 오버레이 겹침 방지)
+            if (
+              !hasScreen &&
+              !pinned &&
+              totalPages > 1 &&
+              Math.abs(dx) > 70 &&
+              Math.abs(dx) > Math.abs(dy) * 1.5
+            ) {
+              areaTouchX.current = null; // 제스처당 1회
+              areaTouchY.current = null;
+              setPage((v) =>
+                dx < 0 ? Math.min(totalPages - 1, v + 1) : Math.max(0, v - 1),
+              );
+              return;
+            }
+            // 아래 스와이프 = 툴바 숨김 (세로 우세 제스처만)
+            if (ctlJustShown.current || ctlHidden) return;
+            if (dy > 60 && Math.abs(dy) > Math.abs(dx)) {
               areaTouchY.current = null; // 제스처당 1회
               if (ctlTimer.current) clearTimeout(ctlTimer.current);
               setCtlHidden(true);
@@ -1506,9 +1548,11 @@ export default function MeetingView({
           }}
           onTouchEnd={() => {
             areaTouchY.current = null;
+            areaTouchX.current = null;
           }}
           onTouchCancel={() => {
             areaTouchY.current = null;
+            areaTouchX.current = null;
           }}
           onClick={(e) => {
             const justShown = ctlJustShown.current;
@@ -1594,7 +1638,7 @@ export default function MeetingView({
                   } as CSSProperties)
             }
           >
-            {(pageNow === 0 || hasScreen || pinned) && (
+            {(hasScreen || pinned ? stripNow === 0 : pageNow === 0) && (
               <VideoTile
                 track={localTrack}
                 username={dn(user?.username ?? '나')}
@@ -1615,7 +1659,7 @@ export default function MeetingView({
                 }
               />
             )}
-            {(hasScreen || pinned ? peers.slice(0, 11) : pagedPeers).map((p) => (
+            {(hasScreen || pinned ? stripPeers : pagedPeers).map((p) => (
               <div key={p.peerId} className="peer-cell">
                 <VideoTile
                   track={p.videoTrack}
@@ -1640,9 +1684,32 @@ export default function MeetingView({
                 />
               </div>
             ))}
-            {/* 필름스트립 초과 인원 집계 타일 */}
-            {(hasScreen || pinned) && peers.length > 11 && (
-              <div className="video-tile strip-more">+{peers.length - 11}</div>
+            {/* 필름스트립 페이지 넘김 — 무대 아래에서도 전원 확인 가능 */}
+            {(hasScreen || pinned) && stripTotal > 1 && (
+              <>
+                <button
+                  className="strip-page-btn prev"
+                  disabled={stripNow === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStripPage((v) => Math.max(0, v - 1));
+                  }}
+                  title="이전"
+                >
+                  ‹
+                </button>
+                <button
+                  className="strip-page-btn next"
+                  disabled={stripNow >= stripTotal - 1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStripPage((v) => Math.min(stripTotal - 1, v + 1));
+                  }}
+                  title="다음"
+                >
+                  ›
+                </button>
+              </>
             )}
           </div>
           {/* 페이지 넘김 — 그리드 모드에서 인원이 페이지 상한을 넘을 때만 */}

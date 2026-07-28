@@ -14121,15 +14121,62 @@ html:not(.dark) .meeting-controls .leave:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* 필름스트립 초과 인원 집계 타일 */
-.video-tile.strip-more {
+/* 헤더 인라인 페이지 표시 — 모바일 전용 (오버레이 배지가 타일과 겹쳐서) */
+.page-ind-inline {
+  display: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  /* 모바일: 화살표·배지 오버레이 제거 — 좌우 스와이프 + 헤더 표기로 대체 */
+  .grid-page-btn,
+  .grid-page-ind {
+    display: none;
+  }
+
+  .page-ind-inline {
+    display: inline;
+  }
+}
+
+/* 필름스트립 페이지 버튼 — 스트립 양끝 작은 원형 (무대 아래에서 전원 넘겨보기) */
+.video-grid.filmstrip {
+  position: relative;
+}
+
+.strip-page-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  font-weight: 800;
-  color: #fff;
-  background: #26292f;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.strip-page-btn.prev {
+  left: 4px;
+}
+
+.strip-page-btn.next {
+  right: 4px;
+}
+
+.strip-page-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* 공유 화면 스테이지 — 동시 공유 N개를 그리드로 */
