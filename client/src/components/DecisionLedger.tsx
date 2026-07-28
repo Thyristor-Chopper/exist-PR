@@ -27,11 +27,39 @@ function dateLabel(ts: number): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
+interface HistoryTopic {
+  title: string;
+  entries: { recapId: number; idx: number; decision: string; why: string; ts: number }[];
+}
+
+interface DecisionHistory {
+  topics: HistoryTopic[];
+  source: 'ai' | 'rule';
+  generatedAt: number;
+}
+
 export default function DecisionLedger({ code }: { code: string }) {
   const user = useAuthStore((s) => s.user);
   const dn = useDisplayName();
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [query, setQuery] = useState('');
+  // 변경 이력 뷰 — 같은 주제 결정의 변천 (AI 그룹핑, 현직자 요구 "변경사항 이력 관리")
+  const [view, setView] = useState<'list' | 'history'>('list');
+  const [hist, setHist] = useState<DecisionHistory | null>(null);
+  const [histLoading, setHistLoading] = useState(false);
+
+  async function openHistory() {
+    setView('history');
+    if (hist || histLoading) return;
+    setHistLoading(true);
+    try {
+      setHist(await api<DecisionHistory>(`/api/meetings/${code}/decisions/history`));
+    } catch {
+      setHist({ topics: [], source: 'rule', generatedAt: Date.now() });
+    } finally {
+      setHistLoading(false);
+    }
+  }
   // 확인 직후 뜨는 "현장 한 줄(선택)" 입력 — 현직자 제안(확인 + 현장 피드백) 반영
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
@@ -86,7 +114,10 @@ export default function DecisionLedger({ code }: { code: string }) {
   useEffect(() => {
     const socket = getSocket();
     function onNotify(n: { kind?: string; meeting?: { code?: string | null } }) {
-      if (n.kind === 'recap' && n.meeting?.code === code) load();
+      if (n.kind === 'recap' && n.meeting?.code === code) {
+        load();
+        setHist(null); // 새 결정이 생겼으니 이력도 다시 묶어야 함
+      }
     }
     socket.on('agent:notify', onNotify);
     return () => {
@@ -113,15 +144,68 @@ export default function DecisionLedger({ code }: { code: string }) {
           <CheckMarkIcon size={16} /> 결정 원장
           <span className="ledger-count">{entries.length}</span>
         </div>
-        <input
-          className="ledger-search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="결정 검색"
-        />
+        {/* 목록 ↔ 변경 이력 — 이력은 같은 주제 결정의 변천 타임라인 */}
+        <div className="ledger-view-seg">
+          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>
+            목록
+          </button>
+          <button className={view === 'history' ? 'on' : ''} onClick={() => void openHistory()}>
+            변경 이력
+          </button>
+        </div>
+        {view === 'list' && (
+          <input
+            className="ledger-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="결정 검색"
+          />
+        )}
       </div>
 
-      {entries.length === 0 ? (
+      {view === 'history' ? (
+        histLoading || !hist ? (
+          <div className="ledger-empty">
+            <SparklesIcon size={36} />
+            <p>이력을 정리하는 중…</p>
+          </div>
+        ) : hist.topics.length === 0 ? (
+          <div className="ledger-empty">
+            <p>아직 이력으로 묶을 결정이 없어요</p>
+          </div>
+        ) : (
+          <div className="ledger-hist">
+            <div className="ledger-hist-src">
+              {hist.source === 'ai' ? 'AI가 같은 주제끼리 묶었어요' : '시간순 이력'}
+            </div>
+            {hist.topics.map((t, ti) => (
+              <div key={ti} className="ledger-topic">
+                <div className="ledger-topic-title">{t.title}</div>
+                <div className="ledger-timeline">
+                  {t.entries.map((e, ei) => {
+                    const latest = ei === t.entries.length - 1;
+                    return (
+                      <div key={`${e.recapId}-${e.idx}`} className={`ledger-tl-item${latest ? ' latest' : ''}`}>
+                        <span className="ledger-tl-dot" />
+                        <div className="ledger-tl-body">
+                          <div className="ledger-tl-date">
+                            {dateLabel(e.ts)}
+                            {latest && t.entries.length > 1 && <b className="ledger-tl-now">현재</b>}
+                          </div>
+                          <div className="ledger-tl-text">{e.decision}</div>
+                          {e.why && <div className="ledger-why">배경 · {e.why}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : null}
+
+      {view === 'history' ? null : entries.length === 0 ? (
         <div className="ledger-empty">
           <SparklesIcon size={36} />
           <p>아직 기록된 결정이 없어요</p>

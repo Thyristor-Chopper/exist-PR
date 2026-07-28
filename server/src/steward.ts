@@ -277,9 +277,114 @@ async function aiAgenda(ctx: AgentContext): Promise<AgendaItem[]> {
   return items;
 }
 
-/** recap 생성 등 기록이 갱신되면 아젠다 캐시를 버림 — 10분 캐시가 구버전 재료를 물고 있지 않게 */
+/** recap 생성 등 기록이 갱신되면 아젠다·이력 캐시를 버림 — 10분 캐시가 구버전 재료를 물고 있지 않게 */
 export function invalidateAgenda(meetingId: number) {
   agendaCache.delete(meetingId);
+  historyCache.delete(meetingId);
+}
+
+/* ── 변경 이력 뷰 — 같은 주제 결정의 변천 추적 (현직자 요구: "변경사항 이력 관리") ──
+ * 저장 구조는 그대로 두고 조회 시점에 원장을 주제별 타임라인으로 묶는다.
+ * 환각 방어: AI는 텍스트를 생성하지 않고 기존 결정의 인덱스만 반환 — 서버가 검증 후 원문 매핑.
+ * AI 실패·키 없음 → 규칙 폴백(전체를 시간순 단일 타임라인으로). */
+
+export interface HistoryEntry {
+  recapId: number;
+  idx: number;
+  decision: string;
+  why: string;
+  ts: number;
+}
+
+export interface HistoryTopic {
+  title: string;
+  entries: HistoryEntry[]; // 시간순 오름차순 — 마지막이 현재 유효한 결정
+}
+
+export interface DecisionHistory {
+  topics: HistoryTopic[];
+  source: 'ai' | 'rule';
+  generatedAt: number;
+}
+
+const historyCache = new Map<number, DecisionHistory>();
+const HISTORY_CACHE_MS = 10 * 60_000;
+
+async function aiGroupHistory(entries: HistoryEntry[]): Promise<HistoryTopic[]> {
+  const system =
+    '너는 분산 근무 플랫폼 exist의 AI 총무다. 팀의 결정 목록을 "같은 주제"끼리 묶어 변천 이력으로 정리한다.\n' +
+    '입력은 결정 배열(i = 배열 인덱스, text, date). 출력은 오직 JSON: {"topics": [{"title": string, "indexes": number[]}]}.\n' +
+    '규칙: 모든 인덱스는 정확히 한 topic에만 속한다. 같은 안건이 시간에 따라 바뀐 것(예: 출시일 변경, 방안 교체)을 한 topic으로 묶는 게 목적이다. ' +
+    '관련 없는 단독 결정은 자기 혼자 topic이 된다. title은 주제를 나타내는 한국어 한 줄(20자 이내) — 입력에 없는 사실을 만들지 않는다. ' +
+    'indexes는 입력의 i 값만 사용한다.';
+  const response = await openai!.chat.completions.create({
+    model: OPENAI_MODEL,
+    temperature: 0.1,
+    max_tokens: 600,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          decisions: entries.map((e, i) => ({
+            i,
+            text: e.decision,
+            date: new Date(e.ts).toISOString().slice(0, 10),
+          })),
+        }),
+      },
+    ],
+  });
+  const raw = response.choices[0]?.message?.content ?? '';
+  const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
+    topics?: unknown;
+  };
+  if (!Array.isArray(parsed.topics)) throw new Error('no topics');
+
+  // 인덱스 검증 — 범위 밖·중복은 버리고, 누락된 결정은 "기타" 토픽으로 회수 (결정이 사라지면 안 됨)
+  const used = new Set<number>();
+  const topics: HistoryTopic[] = [];
+  for (const t of parsed.topics as { title?: unknown; indexes?: unknown }[]) {
+    const idxs = (Array.isArray(t.indexes) ? t.indexes : [])
+      .map(Number)
+      .filter((n) => Number.isInteger(n) && n >= 0 && n < entries.length && !used.has(n));
+    if (idxs.length === 0) continue;
+    idxs.forEach((n) => used.add(n));
+    const es = idxs.map((n) => entries[n]).sort((a, b) => a.ts - b.ts);
+    topics.push({ title: String(t.title ?? '').trim().slice(0, 40) || es[es.length - 1].decision.slice(0, 30), entries: es });
+  }
+  const missing = entries.filter((_, i) => !used.has(i));
+  for (const e of missing) topics.push({ title: e.decision.slice(0, 30), entries: [e] });
+  if (topics.length === 0) throw new Error('empty topics');
+  // 최신 활동 순으로 정렬 (마지막 항목 ts 기준)
+  topics.sort((a, b) => b.entries[b.entries.length - 1].ts - a.entries[a.entries.length - 1].ts);
+  return topics;
+}
+
+export async function generateDecisionHistory(meetingId: number): Promise<DecisionHistory> {
+  const cached = historyCache.get(meetingId);
+  if (cached && Date.now() - cached.generatedAt < HISTORY_CACHE_MS) return cached;
+
+  const entries: HistoryEntry[] = listDecisions(meetingId, 100)
+    .map((d) => ({ recapId: d.recapId, idx: d.idx, decision: d.decision, why: d.why, ts: d.ts }))
+    .sort((a, b) => a.ts - b.ts); // 시간순 오름차순 — id 순서와 시간이 어긋난 데이터도 안전
+
+  let result: DecisionHistory;
+  if (entries.length === 0) {
+    result = { topics: [], source: 'rule', generatedAt: Date.now() };
+  } else if (openai && entries.length > 1) {
+    try {
+      result = { topics: await aiGroupHistory(entries), source: 'ai', generatedAt: Date.now() };
+    } catch (err) {
+      console.error('[steward] 이력 그룹핑 AI 실패, 규칙 폴백:', err);
+      result = { topics: [{ title: '전체 이력', entries }], source: 'rule', generatedAt: Date.now() };
+    }
+  } else {
+    result = { topics: [{ title: '전체 이력', entries }], source: 'rule', generatedAt: Date.now() };
+  }
+  historyCache.set(meetingId, result);
+  return result;
 }
 
 export async function generateAgenda(meetingId: number, channelId: number): Promise<Agenda> {

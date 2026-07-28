@@ -26,7 +26,7 @@ import {
   cleanChannelName,
   setNotifyMode,
 } from './channels.js';
-import { generateAgenda, invalidateAgenda, ensureAgentUser } from './steward.js';
+import { generateAgenda, generateDecisionHistory, invalidateAgenda, ensureAgentUser } from './steward.js';
 import filesRouter, { deleteMeetingFiles } from './files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1335,6 +1335,13 @@ router.get('/:code/decisions', (req: AuthedRequest, res) => {
   const r = meetingForParticipant(req.params.code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   res.json(listDecisions(r.meeting.id));
+});
+
+/** 변경 이력 뷰 — 원장을 같은 주제끼리 묶은 타임라인 (AI 그룹핑, 10분 캐시, 규칙 폴백) */
+router.get('/:code/decisions/history', async (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json(await generateDecisionHistory(r.meeting.id));
 });
 
 /** 결정 수신 확인 — 회람 사인. recap이 이 회의 것인지 검증 후 기록 */

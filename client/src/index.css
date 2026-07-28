@@ -14343,6 +14343,119 @@ html:not(.dark) .meeting-controls .leave:hover {
   place-items: center;
 }
 
+/* ── 변경 이력 뷰 — 같은 주제 결정의 변천 타임라인 ── */
+.ledger-view-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ledger-view-seg button {
+  border: none;
+  background: var(--surface);
+  color: var(--text-sub);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.ledger-view-seg button.on {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.ledger-hist {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ledger-hist-src {
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+
+.ledger-topic {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.ledger-topic-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.ledger-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ledger-tl-item {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 6px 0 6px 2px;
+}
+
+/* 세로 연결선 — 마지막 항목 아래로는 안 그림 */
+.ledger-tl-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 18px;
+  bottom: -6px;
+  width: 2px;
+  background: var(--border);
+}
+
+.ledger-tl-dot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.ledger-tl-item.latest .ledger-tl-dot {
+  background: var(--green);
+}
+
+.ledger-tl-body {
+  min-width: 0;
+}
+
+.ledger-tl-date {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ledger-tl-now {
+  color: var(--green);
+  font-size: 11px;
+}
+
+.ledger-tl-text {
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.ledger-tl-item:not(.latest) .ledger-tl-text {
+  color: var(--text-sub);
+}
+
 /* ── 현장 피드백 — 수신확인에 딸린 한 줄 (LIG 현직자 제안) ── */
 .ledger-feedback {
   margin-top: 4px;
