@@ -5075,16 +5075,40 @@ input:focus {
 }
 
 @media (max-width: 767px) {
+  .msched {
+    position: relative; /* 확장 시트의 absolute 기준 */
+  }
+
   /* 하단 리스트 = 고정 높이 바텀시트 — 일정 개수와 무관하게 높이 안정 */
   .msched-day-panel {
-    height: 188px;
+    height: 132px;
     box-sizing: border-box;
-    transition: height 0.22s ease;
     padding-top: 4px;
   }
 
+  /* 확장 = 캘린더 위를 덮는 오버레이 — 뒤의 월/주 그리드가 찌그러지지 않음 */
   .msched-day-panel.up {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     height: 62dvh;
+    z-index: 40;
+    border-top: 1px solid var(--border);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.16);
+    animation: msched-sheet-up 0.22s ease;
+  }
+
+  @keyframes msched-sheet-up {
+    from {
+      transform: translateY(28px);
+      opacity: 0.6;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 
   .msched-panel-grip {
