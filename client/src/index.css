@@ -3847,7 +3847,8 @@ input:focus {
   font: inherit;
   color: inherit; /* hover에도 색 변화 없음 (주호 지시) — 열림 어포던스는 점선 밑줄이 담당 */
   cursor: pointer;
-  text-decoration: underline dotted rgba(255, 255, 255, 0.35);
+  /* 밑줄도 글자색 따라감 — 흰색 고정이면 라이트 헤더에서 안 보임 */
+  text-decoration: underline dotted color-mix(in srgb, currentColor 45%, transparent);
   text-underline-offset: 3px;
 }
 
