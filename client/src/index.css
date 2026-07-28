@@ -10925,9 +10925,14 @@ input:focus {
   margin-bottom: 16px;
 }
 
-/* 토글은 제목 옆 고정 — 검색창(목록 모드에만 있음)이 사라져도 토글이 안 밀린다 */
-.ledger-head .ledger-search {
+/* 오른쪽 컨트롤 그룹 — 토글은 항상 맨 오른쪽, 검색은 그 왼쪽(목록 모드만).
+ * 그룹째 오른쪽 앵커라 검색창이 사라져도 토글이 안 밀린다 */
+.ledger-head-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .ledger-title {

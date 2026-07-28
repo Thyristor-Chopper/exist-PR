@@ -146,23 +146,25 @@ export default function DecisionLedger({ code }: { code: string }) {
           <CheckMarkIcon size={16} /> 결정 원장
           <span className="ledger-count">{entries.length}</span>
         </div>
-        {/* 목록 ↔ 변경 이력 — 이력은 같은 주제 결정의 변천 타임라인 */}
-        <div className="ledger-view-seg">
-          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>
-            목록
-          </button>
-          <button className={view === 'history' ? 'on' : ''} onClick={() => void openHistory()}>
-            변경 이력
-          </button>
+        {/* 오른쪽 컨트롤 그룹 — [검색(목록 모드만)] [목록|변경 이력]. 토글은 항상 맨 오른쪽 고정 */}
+        <div className="ledger-head-right">
+          {view === 'list' && (
+            <input
+              className="ledger-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="결정 검색"
+            />
+          )}
+          <div className="ledger-view-seg">
+            <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>
+              목록
+            </button>
+            <button className={view === 'history' ? 'on' : ''} onClick={() => void openHistory()}>
+              변경 이력
+            </button>
+          </div>
         </div>
-        {view === 'list' && (
-          <input
-            className="ledger-search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="결정 검색"
-          />
-        )}
       </div>
 
       {view === 'history' ? (
