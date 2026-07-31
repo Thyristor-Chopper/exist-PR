@@ -3501,6 +3501,14 @@ input:focus {
   font-weight: 700;
 }
 
+/* 자동 기록의 [기록 취소] — 주역이 아니라 거부권이라 톤을 낮춘다 */
+.chat-decision-undo {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
 /* 다음 회의 제안 — AI가 감지한 시각, 사람이 버튼으로 확정 */
 .hub-recap-next {
   margin-top: 10px;

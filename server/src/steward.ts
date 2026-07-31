@@ -460,12 +460,133 @@ interface Broadcaster {
 }
 
 /* ── 채팅 결정 감지 — 부르지 않아도 일하는 총무 ──
- * "~하기로 했다/확정/합의" 패턴이 보이면 결정 후보로 제안 (기록은 사람이 버튼으로 확정).
+ * "~하기로 했다/확정/합의" 패턴이 걸리면 AI가 앞뒤 대화 문맥으로 판정한다:
+ *   record  = 실제 합의가 명확 → 원장에 자동 기록 (사람에겐 취소라는 사후 거부권)
+ *   suggest = 결정 같지만 확신 부족 → 기록할지 물어봄 (기존 동작)
+ *   ignore  = 농담·가정·인용 → 침묵
+ * AI 없거나 실패하면 suggest 폴백 — 자동 기록은 확신 있을 때만 (원장에 가짜가 섞이면 신뢰가 죽는다).
  * 과잉 개입 방지: 회의당 2분 쿨다운. */
 export const DECISION_RX = /(하기로 (했|함|결정)|확정(했|입니다|이에요)|합의(했|됐)|결정(했|됐))/;
 const DECISION_SUGGEST_PREFIX = '💡 결정 후보: ';
+export const DECISION_AUTO_PREFIX = '🧾 결정 원장에 기록했어요: ';
 const decisionCooldown = new Map<number, number>();
 const DECISION_COOLDOWN_MS = 2 * 60 * 1000;
+
+function postAgentChat(io: Broadcaster, meetingId: number, code: string, channelId: number, text: string) {
+  db.prepare('INSERT INTO messages (meeting_id, user_id, text, channel_id) VALUES (?, ?, ?, ?)').run(
+    meetingId,
+    ensureAgentUser(),
+    text,
+    channelId,
+  );
+  io.to(`chat:${code.toUpperCase()}`).emit('chat:message', {
+    code: code.toUpperCase(),
+    from: AGENT_NAME,
+    avatar: AGENT_AVATAR,
+    text,
+    channelId,
+    ts: Date.now(),
+  });
+}
+
+interface DecisionVerdict {
+  verdict: 'record' | 'suggest' | 'ignore';
+  decision: string;
+  why: string;
+}
+
+/** 감지된 발언을 최근 대화 문맥과 함께 AI에 판정시킨다 — 정규식 오탐(농담·가정·인용) 걸러내기 */
+async function judgeDecisionCandidate(
+  meetingId: number,
+  channelId: number,
+  from: string,
+  text: string,
+): Promise<DecisionVerdict> {
+  const recent = db
+    .prepare(
+      `SELECT u.username AS "from", m.text FROM messages m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.meeting_id = ? AND m.user_id != ? AND (m.channel_id = ? OR m.channel_id IS NULL) AND m.text != ''
+       ORDER BY m.id DESC LIMIT 12`,
+    )
+    .all(meetingId, ensureAgentUser(), channelId)
+    .reverse() as { from: string; text: string }[];
+
+  const system =
+    '너는 분산 근무 플랫폼 exist의 AI 총무다. 팀 채팅에서 결정 패턴이 감지된 발언이 "팀이 실제로 합의·확정한 결정"인지 판정한다.\n' +
+    '판정 기준:\n' +
+    '- "record": 대화 문맥상 팀이 실제로 합의·확정한 결정이 명확할 때만. 조금이라도 애매하면 record 금지.\n' +
+    '- "suggest": 결정으로 보이지만 합의 여부가 문맥상 불확실할 때.\n' +
+    '- "ignore": 농담·가정("만약 ~라면")·과거 회상·남의 말 인용·질문·아직 논의 중인 제안일 때.\n' +
+    'decision은 원장 기록용 문장(발언 의미 그대로, 한국어 200자 이내, record/suggest일 때만). ' +
+    'why는 문맥에 언급된 그 결정의 배경·이유 한 줄(60자 이내) — 문맥에 근거가 없으면 반드시 빈 문자열 "" (추측 금지).\n' +
+    '응답은 오직 JSON: {"verdict": "record"|"suggest"|"ignore", "decision": string, "why": string}';
+
+  const response = await openai!.chat.completions.create({
+    model: OPENAI_MODEL,
+    temperature: 0,
+    max_tokens: 300,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          recent_chat: recent.map((c) => `${c.from}: ${c.text}`),
+          flagged_message: `${from}: ${text}`,
+        }),
+      },
+    ],
+  });
+  const raw = response.choices[0]?.message?.content ?? '';
+  const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as Partial<DecisionVerdict>;
+  const verdict = parsed.verdict === 'record' || parsed.verdict === 'ignore' ? parsed.verdict : 'suggest';
+  return {
+    verdict,
+    decision: String(parsed.decision ?? '').trim().slice(0, 200),
+    why: String(parsed.why ?? '').trim().slice(0, 60),
+  };
+}
+
+/** 확정 판정된 결정을 원장(1건짜리 recap, source='auto')에 기록하고 참가자에게 알린다 */
+async function recordAutoDecision(
+  args: { meetingId: number; code: string; from: string },
+  d: { decision: string; why: string },
+): Promise<number> {
+  const info = db
+    .prepare(
+      `INSERT INTO meeting_recaps (meeting_id, summary, decisions, whys, actions, attendees, source)
+       VALUES (?, ?, ?, ?, ?, ?, 'auto')`,
+    )
+    .run(
+      args.meetingId,
+      d.decision.slice(0, 80),
+      JSON.stringify([d.decision]),
+      JSON.stringify([d.why]),
+      JSON.stringify([]),
+      JSON.stringify([args.from]),
+    );
+  invalidateAgenda(args.meetingId);
+  // 발언자 제외 참가자에게 알림 — 정적 import는 agent→sfu→steward 순환이라 동적 로드
+  const { notifyUser } = await import('./notify.js');
+  const { invalidateBrief } = await import('./agent.js');
+  const speaker = db.prepare('SELECT id FROM users WHERE username = ?').get(args.from) as
+    | { id: number }
+    | undefined;
+  const others = db
+    .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ? AND user_id != ?')
+    .all(args.meetingId, speaker?.id ?? -1) as { user_id: number }[];
+  for (const p of others) {
+    notifyUser(p.user_id, {
+      from: AGENT_NAME,
+      text: `결정이 원장에 기록됐어요 — ${d.decision.slice(0, 60)}`,
+      kind: 'recap',
+      meetingCode: args.code.toUpperCase(),
+    });
+    invalidateBrief(p.user_id);
+  }
+  return info.lastInsertRowid as number;
+}
 
 export function maybeSuggestDecision(
   io: Broadcaster,
@@ -476,21 +597,46 @@ export function maybeSuggestDecision(
   const last = decisionCooldown.get(args.meetingId) ?? 0;
   if (Date.now() - last < DECISION_COOLDOWN_MS) return;
   decisionCooldown.set(args.meetingId, Date.now());
+  void handleDecisionCandidate(io, args).catch((err) =>
+    console.error('[steward] 결정 감지 처리 실패:', err),
+  );
+}
 
-  const quoted = args.text.trim().slice(0, 160);
-  const suggest = `${DECISION_SUGGEST_PREFIX}"${quoted}" — ${args.from}님의 발언을 결정 원장에 기록할까요?`;
-  const agentId = ensureAgentUser();
-  db.prepare(
-    'INSERT INTO messages (meeting_id, user_id, text, channel_id) VALUES (?, ?, ?, ?)',
-  ).run(args.meetingId, agentId, suggest, args.channelId);
-  io.to(`chat:${args.code.toUpperCase()}`).emit('chat:message', {
-    code: args.code.toUpperCase(),
-    from: AGENT_NAME,
-    avatar: AGENT_AVATAR,
-    text: suggest,
-    channelId: args.channelId,
-    ts: Date.now(),
-  });
+async function handleDecisionCandidate(
+  io: Broadcaster,
+  args: { meetingId: number; code: string; channelId: number; from: string; text: string },
+): Promise<void> {
+  let judged: DecisionVerdict | null = null;
+  if (openai) {
+    try {
+      judged = await judgeDecisionCandidate(args.meetingId, args.channelId, args.from, args.text);
+    } catch (err) {
+      console.error('[steward] 결정 판정 실패, 제안 폴백:', err); // 판정 불가 = 확신 없음 → suggest
+    }
+  }
+  if (judged?.verdict === 'ignore') return;
+
+  if (judged?.verdict === 'record' && judged.decision) {
+    const id = await recordAutoDecision(args, judged);
+    const whyPart = judged.why ? ` (배경: ${judged.why})` : '';
+    postAgentChat(
+      io,
+      args.meetingId,
+      args.code,
+      args.channelId,
+      `${DECISION_AUTO_PREFIX}"${judged.decision}"${whyPart} — 잘못 기록됐다면 취소할 수 있어요 #R${id}`,
+    );
+    return;
+  }
+
+  const quoted = (judged?.decision || args.text.trim()).slice(0, 160);
+  postAgentChat(
+    io,
+    args.meetingId,
+    args.code,
+    args.channelId,
+    `${DECISION_SUGGEST_PREFIX}"${quoted}" — ${args.from}님의 발언을 결정 원장에 기록할까요?`,
+  );
 }
 
 /**

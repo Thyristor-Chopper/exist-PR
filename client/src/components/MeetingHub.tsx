@@ -292,6 +292,16 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }
   }
 
+  /** AI 자동 기록 메시지의 [취소] — 사후 거부권 (source='auto'인 원장 항목만 지워짐) */
+  async function undoAutoDecision(recapId: string) {
+    try {
+      await api(`/api/meetings/${code}/decisions/auto/${recapId}`, { method: 'DELETE' });
+      window.dispatchEvent(new CustomEvent('app:error', { detail: '기록을 취소했어요' }));
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
   /** 조직 회의 + 나·상대 둘 다 활성 멤버면 조직 스코프(홈 통합 메시지와 같은 방), 아니면 개인 DM */
   function openDm(p: Participant) {
     if (!detail || p.username === user?.username) return;
@@ -2230,6 +2240,9 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 )}
                                 {m.text && <span className="chat-file-text">{m.text}</span>}
                               </a>
+                            ) : m.from === 'exist AI' ? (
+                              // 자동 기록 메시지 꼬리의 #R123 토큰(취소용 ID)은 화면에서 숨김
+                              m.text.replace(/\s*#R\d+\s*$/, '')
                             ) : (
                               m.text
                             )}
@@ -2242,6 +2255,20 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                                 <CheckMarkIcon size={12} /> 원장에 기록
                               </button>
                             )}
+                            {/* AI 자동 기록 — 승인 없이 기록되고, 사람에겐 취소(사후 거부권)만 남긴다 */}
+                            {m.from === 'exist AI' &&
+                              m.text.startsWith('🧾 결정 원장에 기록했어요:') &&
+                              (() => {
+                                const rid = m.text.match(/#R(\d+)\s*$/)?.[1];
+                                return rid ? (
+                                  <button
+                                    className="chat-decision-btn chat-decision-undo"
+                                    onClick={() => void undoAutoDecision(rid)}
+                                  >
+                                    기록 취소
+                                  </button>
+                                ) : null;
+                              })()}
                           </div>
                           {!mine && <span className="chat-time">{chatTime(m.ts)}</span>}
                         </div>

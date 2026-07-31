@@ -369,8 +369,14 @@ export default function RecapPanel({
 
               <div className="hub-recap-foot">
                 참석 {r.attendees.length ? r.attendees.map((a) => dn(a)).join(', ') : '없음'}
-                <span className={`hub-recap-src${r.source === 'ai' ? ' ai' : ''}`}>
-                  {r.source === 'ai' ? 'AI 분석' : '규칙 정리'}
+                <span className={`hub-recap-src${r.source === 'ai' || r.source === 'auto' ? ' ai' : ''}`}>
+                  {r.source === 'ai'
+                    ? 'AI 분석'
+                    : r.source === 'auto'
+                      ? 'AI 자동 기록'
+                      : r.source === 'manual'
+                        ? '직접 기록'
+                        : '규칙 정리'}
                 </span>
               </div>
             </div>

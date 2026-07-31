@@ -1335,6 +1335,27 @@ router.post('/:code/decisions/manual', (req: AuthedRequest, res) => {
   res.json({ id: info.lastInsertRowid });
 });
 
+/** AI 자동 기록 취소 — 채팅의 [취소] 버튼 (참가자 누구나, 사후 거부권). source='auto'만 지울 수 있다 */
+router.delete('/:code/decisions/auto/:recapId', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const recapId = Number(req.params.recapId);
+  const row = db
+    .prepare('SELECT source FROM meeting_recaps WHERE id = ? AND meeting_id = ?')
+    .get(recapId, r.meeting.id) as { source: string } | undefined;
+  if (!row) return res.status(404).json({ error: '이미 취소됐거나 없는 기록이에요' });
+  if (row.source !== 'auto')
+    return res.status(403).json({ error: 'AI가 자동 기록한 결정만 취소할 수 있어요' });
+  db.prepare('DELETE FROM decision_acks WHERE recap_id = ?').run(recapId);
+  db.prepare('DELETE FROM meeting_recaps WHERE id = ?').run(recapId);
+  invalidateAgenda(r.meeting.id);
+  const parts = db
+    .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+    .all(r.meeting.id) as { user_id: number }[];
+  for (const p of parts) invalidateBrief(p.user_id);
+  res.json({ ok: true });
+});
+
 /** recap의 다음 회의 제안을 등록됨으로 표시 — 클라가 events POST 성공 후 호출 (참가자만) */
 router.post('/:code/recaps/:recapId/next-registered', (req: AuthedRequest, res) => {
   const meeting = db
