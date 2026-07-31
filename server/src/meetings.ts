@@ -1279,9 +1279,12 @@ router.post('/:code/recaps/run', async (req: AuthedRequest, res) => {
   if (!canManageMeeting(meeting, req.userId!, 'group:recap')) {
     return res.status(403).json({ error: '호스트나 조직 관리자만 정리를 실행할 수 있어요' });
   }
-  // 정리 창 = 마지막 recap 이후 (runRecapForMeeting과 동일 기준)
+  // 정리 창 = 마지막 recap 이후 (runRecapForMeeting과 동일 기준 — 수동/자동 1건 기록은 제외)
   const last = db
-    .prepare('SELECT MAX(call_ended_at) AS t FROM meeting_recaps WHERE meeting_id = ?')
+    .prepare(
+      `SELECT MAX(call_ended_at) AS t FROM meeting_recaps
+       WHERE meeting_id = ? AND source NOT IN ('manual', 'auto')`,
+    )
     .get(meeting.id) as { t: string | null };
   const since =
     last.t ?? new Date(Date.now() - 24 * 3600_000).toISOString().replace('T', ' ').slice(0, 19);

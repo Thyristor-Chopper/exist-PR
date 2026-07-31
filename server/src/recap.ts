@@ -296,8 +296,13 @@ export async function runRecapForMeeting(
   if (!meeting) return null;
 
   // 요약 창: 마지막 recap 이후 ~ 지금. 첫 recap이면 최근 24시간.
+  // 1건짜리 수동/자동 기록(source manual·auto)은 요약이 아니므로 창 기준에서 제외 —
+  // 안 그러면 채팅 도중 자동 기록 하나가 창을 당겨 그 앞 메시지들이 요약에서 증발한다
   const last = db
-    .prepare('SELECT MAX(call_ended_at) AS t FROM meeting_recaps WHERE meeting_id = ?')
+    .prepare(
+      `SELECT MAX(call_ended_at) AS t FROM meeting_recaps
+       WHERE meeting_id = ? AND source NOT IN ('manual', 'auto')`,
+    )
     .get(meeting.id) as { t: string | null };
   const since = last.t ?? new Date(Date.now() - 24 * 3600_000).toISOString().replace('T', ' ').slice(0, 19);
 
