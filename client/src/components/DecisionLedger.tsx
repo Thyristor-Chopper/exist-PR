@@ -18,6 +18,8 @@ interface LedgerEntry {
   decision: string;
   /** 결정 배경 한 줄 — 없으면 '' (실무자 인터뷰: 배경 유실이 진짜 페인) */
   why?: string;
+  /** 검토됐지만 채택되지 않은 대안 ("대안 — 기각 사유") — 같은 검토의 반복 방지 */
+  alts?: string[];
   attendees: string[];
   ts: number;
   acks: { username: string; ts: number; note?: string | null }[];
@@ -240,6 +242,15 @@ export default function DecisionLedger({ code }: { code: string }) {
                     <div className="ledger-body">
                       <div className="ledger-decision">{e.decision}</div>
                       {e.why && <div className="ledger-why">배경 · {e.why}</div>}
+                      {(e.alts?.length ?? 0) > 0 && (
+                        <div className="ledger-alts">
+                          {e.alts!.map((a, i) => (
+                            <div key={i} className="ledger-alt">
+                              검토된 대안 · {a}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div className="ledger-meta">
                         참석 {e.attendees.length ? e.attendees.map((a) => dn(a)).join(', ') : '기록 없음'}
                         {e.acks.length > 0 && (

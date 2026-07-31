@@ -27,6 +27,8 @@ interface Recap {
   decisions: string[];
   /** 결정별 배경 한 줄 (decisions와 인덱스 정렬, 없으면 '') */
   whys?: string[];
+  /** 결정별 검토된 대안 ("대안 — 기각 사유", 없으면 빈 배열) */
+  alts?: string[][];
   actions: RecapAction[];
   attendees: string[];
   nextMeeting: NextMeeting | null;
@@ -280,6 +282,13 @@ export default function RecapPanel({
                       <CheckMarkIcon size={13} /> {d}
                       {/* 결정 배경 — "왜 그렇게 됐는지"가 같이 남는다 (실무자 인터뷰 반영) */}
                       {r.whys?.[i] && <div className="hub-recap-why">배경 · {r.whys[i]}</div>}
+                      {/* 검토된 대안 — 기각된 안까지 남아야 같은 검토를 반복하지 않는다 */}
+                      {(r.alts?.[i]?.length ?? 0) > 0 &&
+                        r.alts![i].map((a, j) => (
+                          <div key={j} className="hub-recap-why recap-alt">
+                            검토된 대안 · {a}
+                          </div>
+                        ))}
                     </li>
                   ))}
                 </ul>

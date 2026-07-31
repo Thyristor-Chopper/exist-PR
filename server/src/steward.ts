@@ -49,11 +49,16 @@ function gatherContext(meetingId: number, channelId: number): AgentContext {
   const meeting = db.prepare('SELECT title FROM meetings WHERE id = ?').get(meetingId) as {
     title: string;
   };
-  // 배경(why)까지 근거에 포함 — "이 결정 왜 이렇게 됐어?" 역질문에 답할 수 있게
-  const decisions = listDecisions(meetingId, 30).map((d) => ({
-    decision: d.why ? `${d.decision} (배경: ${d.why})` : d.decision,
-    ts: d.ts,
-  }));
+  // 배경(why)·검토된 대안까지 근거에 포함 — "왜 이렇게 됐어?" "그때 뭐 검토했었지?" 역질문에 답할 수 있게
+  const decisions = listDecisions(meetingId, 30).map((d) => {
+    const extra = [
+      d.why ? `배경: ${d.why}` : null,
+      d.alts.length ? `검토된 대안: ${d.alts.join(' / ')}` : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    return { decision: extra ? `${d.decision} (${extra})` : d.decision, ts: d.ts };
+  });
   const recaps = listRecaps(meetingId, 5).map((r) => ({ summary: r.summary, ts: r.ts }));
   const todos = db
     .prepare(

@@ -15550,6 +15550,16 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   padding-left: 2px;
 }
 
+/* 검토된 대안 — 배경보다 한 톤 더 낮게 (기각된 안의 기록) */
+.ledger-alt,
+.recap-alt {
+  font-size: 12px;
+  color: var(--text-sub);
+  opacity: 0.75;
+  margin-top: 2px;
+  padding-left: 2px;
+}
+
 /* ── AI 겹침 시간 제안 — recap의 다음 회의 후보 슬롯 ── */
 .hub-recap-next.suggest {
   flex-wrap: wrap;

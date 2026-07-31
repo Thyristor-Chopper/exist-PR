@@ -624,6 +624,14 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: 결정별 검토된 대안 — decisions와 인덱스 정렬된 JSON string[][]
+// ("대안 — 기각 사유" 한 줄씩). 실무자 인터뷰 반영: 기각된 대안의 기록이 없어 같은 검토를 반복한다
+try {
+  db.exec(`ALTER TABLE meeting_recaps ADD COLUMN alts TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 미확인 리마인드 발송 기록 — recap×사용자당 1회만 보챈다 (중복 알림 방지)
 db.exec(`
   CREATE TABLE IF NOT EXISTS decision_remind_sent (
