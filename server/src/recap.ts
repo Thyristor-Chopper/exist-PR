@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import db from './db.js';
 import { notifyUser } from './notify.js';
 import { invalidateBrief } from './agent.js';
-import { invalidateAgenda, ensureAgentUser } from './steward.js';
+import { invalidateAgenda, ensureAgentUser, settleAgendaAfterRecap } from './steward.js';
 
 /*
  * exist P1 — 회의 통화가 끝나면 그 회의의 채팅에서 결정·할 일을 추출해
@@ -371,6 +371,11 @@ export async function runRecapForMeeting(
 
   // 새 recap이 생겼으니 아젠다는 다시 만들어야 함 (10분 캐시가 구재료를 물지 않게)
   invalidateAgenda(meeting.id);
+  // 이월 안건 정산 — 이번 회의에서 결론 난 안건은 종결, 못 낸 안건은 rounds+1로 다음 안건에 재상정
+  void settleAgendaAfterRecap(meeting.id, {
+    summary: recap.summary,
+    decisions: recap.decisions,
+  }).catch((err) => console.error('[recap] 안건 정산 실패:', err));
 
   console.log(
     `[recap] ${meeting.code} 요약 저장 (${recap.source}) — 결정 ${recap.decisions.length}, 할 일 ${recap.actions.length}, 배달 ${members.length}명`,

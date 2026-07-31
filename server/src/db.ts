@@ -634,6 +634,23 @@ db.exec(`
   );
 `);
 
+// 이월 안건 — 안건으로 올라갔지만 결론에 이르지 못한 것을 영속 추적.
+// 회의(recap)가 지나갈 때마다 rounds+1, 결론이 잡히면 resolved=1.
+// 목적: "같은 안건이 결론 없이 반복 논의된다"의 대응 — 미결이 최근 대화 창을 벗어나도 증발하지 않게.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS agenda_items (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id),
+    title      TEXT NOT NULL,
+    why        TEXT NOT NULL DEFAULT '',
+    rounds     INTEGER NOT NULL DEFAULT 1,
+    resolved   INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_agenda_items ON agenda_items(meeting_id, resolved);
+`);
+
 // 마이그레이션: 개인 DM 지원 — 기존 테이블 org_id가 NOT NULL이면 NULL 허용으로 재생성
 try {
   const col = db

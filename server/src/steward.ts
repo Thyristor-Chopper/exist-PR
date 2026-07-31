@@ -256,6 +256,8 @@ export async function answerDmQuery(
 export interface AgendaItem {
   title: string;
   why: string; // 근거 한 줄 ("지난 통화 미결" / "미완료 할 일" 등)
+  /** 안건으로 올라간 회의 횟수 — 2 이상이면 이월 안건 (클라가 "N회째" 배지) */
+  rounds?: number;
 }
 
 export interface Agenda {
@@ -266,6 +268,110 @@ export interface Agenda {
 
 const agendaCache = new Map<number, Agenda>();
 const AGENDA_CACHE_MS = 10 * 60 * 1000;
+
+/* ── 이월 안건 — 결론 못 낸 안건을 영속 추적 (agenda_items 테이블) ──
+ * 안건 생성 시 AI 안건을 저장해두고, recap이 생길 때마다 정산:
+ * 이번 회의에서 결론(결정)에 이른 안건은 resolved, 나머지는 rounds+1로 이월.
+ * 효과: 미결 안건이 최근 대화 창(30개)을 벗어나도 다음 안건에 계속 올라온다. */
+
+const CARRYOVER_MAX = 3; // 안건 상단에 끼워 넣는 이월 안건 수 (신규 안건 자리도 남긴다)
+const normTitle = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+
+interface CarryoverRow {
+  id: number;
+  title: string;
+  why: string;
+  rounds: number;
+}
+
+function listCarryover(meetingId: number): CarryoverRow[] {
+  return db
+    .prepare(
+      `SELECT id, title, why, rounds FROM agenda_items
+       WHERE meeting_id = ? AND resolved = 0 ORDER BY rounds DESC, id ASC LIMIT ?`,
+    )
+    .all(meetingId, CARRYOVER_MAX) as CarryoverRow[];
+}
+
+/** AI가 새로 제안한 안건을 저장 — 이미 추적 중인 미결 안건과 같은 제목이면 스킵 */
+function persistNewAgendaItems(meetingId: number, items: AgendaItem[]) {
+  const known = new Set(
+    (
+      db
+        .prepare('SELECT title FROM agenda_items WHERE meeting_id = ? AND resolved = 0')
+        .all(meetingId) as { title: string }[]
+    ).map((r) => normTitle(r.title)),
+  );
+  const ins = db.prepare('INSERT INTO agenda_items (meeting_id, title, why) VALUES (?, ?, ?)');
+  for (const it of items) {
+    if (known.has(normTitle(it.title))) continue;
+    ins.run(meetingId, it.title.slice(0, 120), it.why.slice(0, 80));
+    known.add(normTitle(it.title));
+  }
+}
+
+/** recap 생성 직후 호출 — 미결 안건 정산.
+ *  결론에 이른 안건은 AI가 인덱스로만 지목(환각 방어), 나머지는 rounds+1로 이월.
+ *  AI 없거나 실패하면 보수적으로 전부 이월 (틀린 종결이 미결 유실보다 나쁘다). */
+export async function settleAgendaAfterRecap(
+  meetingId: number,
+  recap: { summary: string; decisions: string[] },
+): Promise<void> {
+  const open = db
+    .prepare('SELECT id, title FROM agenda_items WHERE meeting_id = ? AND resolved = 0')
+    .all(meetingId) as { id: number; title: string }[];
+  if (open.length === 0) return;
+
+  let resolvedIds: number[] = [];
+  if (openai && recap.decisions.length > 0) {
+    try {
+      const system =
+        '너는 exist의 AI 총무다. 회의 안건 목록과 방금 끝난 회의의 결정을 비교해, 이번 회의에서 결론(결정)에 이른 안건을 고른다.\n' +
+        '확실히 대응되는 것만 고른다 — 애매하면 고르지 않는다 (미결로 남기는 쪽이 안전).\n' +
+        '응답은 오직 JSON: {"resolved_ids": number[]} (없으면 빈 배열)';
+      const response = await openai.chat.completions.create({
+        model: OPENAI_MODEL,
+        temperature: 0,
+        max_tokens: 200,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: system },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              agenda_items: open.map((o) => ({ id: o.id, title: o.title })),
+              meeting_summary: recap.summary,
+              meeting_decisions: recap.decisions,
+            }),
+          },
+        ],
+      });
+      const raw = response.choices[0]?.message?.content ?? '';
+      const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
+        resolved_ids?: unknown;
+      };
+      const valid = new Set(open.map((o) => o.id));
+      resolvedIds = (Array.isArray(parsed.resolved_ids) ? parsed.resolved_ids : [])
+        .map(Number)
+        .filter((n) => valid.has(n));
+    } catch (err) {
+      console.error('[steward] 안건 정산 AI 실패 — 전부 이월:', err);
+    }
+  }
+
+  const resolve = db.prepare(
+    `UPDATE agenda_items SET resolved = 1, updated_at = datetime('now') WHERE id = ?`,
+  );
+  for (const id of resolvedIds) resolve.run(id);
+  db.prepare(
+    `UPDATE agenda_items SET rounds = rounds + 1, updated_at = datetime('now')
+     WHERE meeting_id = ? AND resolved = 0`,
+  ).run(meetingId);
+  if (resolvedIds.length > 0 || open.length > 0)
+    console.log(
+      `[steward] 안건 정산 — 종결 ${resolvedIds.length}, 이월 ${open.length - resolvedIds.length}`,
+    );
+}
 
 /** 규칙 폴백 — 미완료 할 일과 최근 결정 후속을 안건으로 */
 function ruleBasedAgenda(ctx: AgentContext): AgendaItem[] {
@@ -282,11 +388,14 @@ function ruleBasedAgenda(ctx: AgentContext): AgendaItem[] {
   return items.slice(0, 4);
 }
 
-async function aiAgenda(ctx: AgentContext): Promise<AgendaItem[]> {
+async function aiAgenda(ctx: AgentContext, carryTitles: string[] = []): Promise<AgendaItem[]> {
   const system =
     `너는 분산 근무 플랫폼 exist의 AI 총무다. "${ctx.meetingTitle}" 그룹의 다음 회의 안건 초안을 만든다. ` +
     '아래 기록(통화 정리·결정·미완료 할 일·최근 대화)에서 아직 끝나지 않았거나 다음에 논의하기로 한 것만 골라 ' +
     '안건 2~4개를 제안한다. 기록에 없는 내용은 만들지 않는다.\n' +
+    (carryTitles.length
+      ? 'carryover_titles는 이미 안건으로 확정된 이월 안건 — 같은 내용을 다시 제안하지 않는다.\n'
+      : '') +
     '각 안건: title(한국어 30자 이내, 명사형), why(근거 한 줄 20자 이내 — 어떤 기록에서 나왔는지).\n' +
     '응답은 오직 JSON: {"items": [{"title": string, "why": string}]}';
 
@@ -304,6 +413,7 @@ async function aiAgenda(ctx: AgentContext): Promise<AgendaItem[]> {
           decisions: ctx.decisions.map((d) => d.decision),
           undone_todos: ctx.todos.filter((t) => !t.done).map((t) => `${t.title} (${t.author})`),
           recent_chat: ctx.chat.slice(-20).map((c) => `${c.from}: ${c.text}`),
+          ...(carryTitles.length ? { carryover_titles: carryTitles } : {}),
         }),
       },
     ],
@@ -439,10 +549,13 @@ export async function generateAgenda(meetingId: number, channelId: number): Prom
   if (cached && Date.now() - cached.generatedAt < AGENDA_CACHE_MS) return cached;
 
   const ctx = gatherContext(meetingId, channelId);
+  const carry = listCarryover(meetingId);
   let result: Agenda;
   if (openai) {
     try {
-      result = { items: await aiAgenda(ctx), source: 'ai', generatedAt: Date.now() };
+      const fresh = await aiAgenda(ctx, carry.map((c) => c.title));
+      persistNewAgendaItems(meetingId, fresh); // 새 안건도 추적 시작 — 다음 recap에서 정산 대상
+      result = { items: fresh, source: 'ai', generatedAt: Date.now() };
     } catch (err) {
       console.error('[steward] 아젠다 AI 실패, 규칙 폴백:', err);
       result = { items: ruleBasedAgenda(ctx), source: 'rule', generatedAt: Date.now() };
@@ -450,6 +563,16 @@ export async function generateAgenda(meetingId: number, channelId: number): Prom
   } else {
     result = { items: ruleBasedAgenda(ctx), source: 'rule', generatedAt: Date.now() };
   }
+  // 이월 안건을 맨 위에 — 결론 못 낸 것부터 다시 상정. AI 신규 안건과 제목 중복은 신규 쪽을 버림
+  const carrySet = new Set(carry.map((c) => normTitle(c.title)));
+  result.items = [
+    ...carry.map((c) => ({
+      title: c.title,
+      why: c.rounds >= 2 ? `${c.rounds}회째 안건 — 아직 결론 없음` : c.why,
+      rounds: c.rounds,
+    })),
+    ...result.items.filter((it) => !carrySet.has(normTitle(it.title))),
+  ].slice(0, 5);
   agendaCache.set(meetingId, result);
   return result;
 }

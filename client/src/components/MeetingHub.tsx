@@ -972,6 +972,8 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   interface AgendaItem {
     title: string;
     why: string;
+    /** 2 이상 = 이월 안건 (결론 없이 N번째 상정) */
+    rounds?: number;
   }
   const [recentDecisions, setRecentDecisions] = useState<LedgerEntry[]>([]);
   async function ackDecisionRow(d: LedgerEntry) {
@@ -1441,6 +1443,14 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                               <Marquee className="hub-agenda-title">{a.title}</Marquee>
                               {a.why && <span className="hub-agenda-why">{a.why}</span>}
                             </div>
+                            {(a.rounds ?? 1) >= 2 && (
+                              <span
+                                className="pipe-agenda-carry"
+                                title="결론 없이 다시 상정된 이월 안건이에요"
+                              >
+                                {a.rounds}회째
+                              </span>
+                            )}
                             {agendaFromOverdue(a.title) && (
                               <span className="pipe-agenda-late" title="지연된 할 일이 안건 후보로 승격됐어요">
                                 지연 → 안건

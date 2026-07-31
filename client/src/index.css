@@ -3215,6 +3215,18 @@ input:focus {
   white-space: nowrap;
 }
 
+/* 이월 안건 — 결론 없이 N번째 상정 (지연 red보다 낮은 톤: 경고가 아니라 상태) */
+.pipe-agenda-carry {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--amber, #d97706);
+  background: color-mix(in srgb, var(--amber, #d97706) 12%, transparent);
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
 .pipe-more {
   margin-top: auto;
   align-self: flex-start;
