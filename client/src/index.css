@@ -3319,8 +3319,85 @@ input:focus {
 }
 .ho-editor-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+.ho-actions-spacer {
+  flex: 1;
+}
+.ho-review-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
+  border-radius: 9px;
+  padding: 8px 13px;
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  color: var(--green);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.ho-review-btn:disabled {
+  opacity: 0.6;
+}
+
+/* AI 점검 결과 — 기록 대조 제안 */
+.ho-review {
+  border: 1px dashed color-mix(in srgb, var(--green) 45%, transparent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: color-mix(in srgb, var(--green) 5%, transparent);
+}
+.ho-review-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--green);
+}
+.ho-review-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ho-review-sec {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text-sub);
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.ho-review-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.ho-review-add {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 7px;
+  padding: 4px 10px;
+  background: var(--green);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.ho-review-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--green);
 }
 .ho-cancel {
   border: 1px solid var(--border);

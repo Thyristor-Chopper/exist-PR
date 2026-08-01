@@ -27,7 +27,7 @@ import {
   setNotifyMode,
 } from './channels.js';
 import { generateAgenda, generateDecisionHistory, invalidateAgenda, ensureAgentUser } from './steward.js';
-import { draftHandover, publishHandover, listHandovers, ackHandover } from './handover.js';
+import { draftHandover, publishHandover, listHandovers, ackHandover, reviewHandover } from './handover.js';
 import filesRouter, { deleteMeetingFiles } from './files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1353,6 +1353,13 @@ router.post('/:code/handovers/draft', async (req: AuthedRequest, res) => {
   const r = meetingForParticipant(req.params.code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   res.json(await draftHandover(r.meeting.id));
+});
+
+/** AI 부족분 점검 — 초안과 이번 조 기록 대조, 빠진 항목 제안 */
+router.post('/:code/handovers/review', async (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json(await reviewHandover(r.meeting.id, req.body?.sections));
 });
 
 /** 발행 — 작성자 외 참가자에게 알림 */

@@ -142,6 +142,106 @@ export async function draftHandover(
   }
 }
 
+/** AI 부족분 점검 — 초안과 이번 조 기록을 대조해 빠진 것을 제안 (강제 아님, 사람이 [추가]로 채움).
+ *  현직자 페인: "작성자 주관에 따라 기록의 상세함이 달라진다" → 표준을 강제하는 대신 AI가 검토 */
+export async function reviewHandover(
+  meetingId: number,
+  sections: unknown,
+): Promise<{ suggestions: { section: keyof HandoverSections; text: string }[]; source: 'ai' | 'rule' }> {
+  const draft = sanitizeSections(sections);
+  const draftAll = [...draft.issues, ...draft.changes, ...draft.pending, ...draft.notes]
+    .join(' ')
+    .toLowerCase();
+  const since = windowStart(meetingId);
+  const chat = db
+    .prepare(
+      `SELECT u.username AS "from", m.text FROM messages m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.meeting_id = ? AND m.user_id != ? AND m.created_at > ? AND m.text != ''
+       ORDER BY m.id ASC LIMIT 120`,
+    )
+    .all(meetingId, ensureAgentUser(), since) as { from: string; text: string }[];
+  const decisions = db
+    .prepare(
+      `SELECT decisions FROM meeting_recaps WHERE meeting_id = ? AND created_at > ? ORDER BY id DESC LIMIT 10`,
+    )
+    .all(meetingId, since) as { decisions: string }[];
+  const decisionTexts = decisions.flatMap((r) => {
+    try {
+      return JSON.parse(r.decisions) as string[];
+    } catch {
+      return [];
+    }
+  });
+  const undone = db
+    .prepare(
+      `SELECT t.title, u.username AS author FROM todos t JOIN users u ON u.id = t.user_id
+       WHERE t.meeting_id = ? AND t.done = 0 ORDER BY t.id DESC LIMIT 15`,
+    )
+    .all(meetingId) as { title: string; author: string }[];
+
+  // 규칙 폴백 — 문자열 대조로 확실한 누락만: 초안에 안 보이는 미완료 할일·결정
+  const rule = (): { suggestions: { section: keyof HandoverSections; text: string }[]; source: 'rule' } => {
+    const suggestions: { section: keyof HandoverSections; text: string }[] = [];
+    for (const t of undone) {
+      if (!draftAll.includes(t.title.slice(0, 12).toLowerCase()))
+        suggestions.push({ section: 'pending', text: `${t.title} (${t.author})` });
+    }
+    for (const d of decisionTexts) {
+      if (!draftAll.includes(d.slice(0, 12).toLowerCase()))
+        suggestions.push({ section: 'changes', text: d.slice(0, 120) });
+    }
+    return { suggestions: suggestions.slice(0, 5), source: 'rule' };
+  };
+
+  if (!openai) return rule();
+  try {
+    const system =
+      '너는 교대 인수인계 노트를 검토하는 exist의 AI 총무다. 아래 초안과 이번 조의 기록을 대조해, 다음 조가 알아야 하는데 초안에 빠졌거나 너무 뭉뚱그려진 것을 찾는다.\n' +
+      '응답은 오직 JSON: {"suggestions": [{"section": "issues"|"changes"|"pending"|"notes", "text": string}]}\n' +
+      '- text는 초안에 그대로 추가할 수 있는 완성된 한 줄(한국어 80자 이내) — 기록에 근거한 것만, 추측 금지\n' +
+      '- 이미 초안에 있는 내용은 제안하지 않는다. 최대 5개, 빠진 게 없으면 빈 배열.\n' +
+      '- 특히 놓치기 쉬운 것: 설비·품질 이상 언급, 미완료 조치, 긴급 부품·자재 얘기, 다음 조에 걸리는 시간 약속';
+    const response = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      temperature: 0.2,
+      max_tokens: 400,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: system },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            draft,
+            chat: chat.map((c) => `${c.from}: ${c.text}`),
+            decisions: decisionTexts,
+            undone_todos: undone.map((t) => `${t.title} (${t.author})`),
+          }),
+        },
+      ],
+    });
+    const raw = response.choices[0]?.message?.content ?? '';
+    const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
+      suggestions?: unknown;
+    };
+    const valid: (keyof HandoverSections)[] = ['issues', 'changes', 'pending', 'notes'];
+    const suggestions = (Array.isArray(parsed.suggestions) ? parsed.suggestions : [])
+      .map((s) => {
+        const o = s as { section?: unknown; text?: unknown };
+        const section = valid.includes(o.section as keyof HandoverSections)
+          ? (o.section as keyof HandoverSections)
+          : 'notes';
+        return { section, text: String(o.text ?? '').trim().slice(0, 160) };
+      })
+      .filter((s) => s.text)
+      .slice(0, 5);
+    return { suggestions, source: 'ai' };
+  } catch (err) {
+    console.error('[handover] AI 점검 실패, 규칙 폴백:', err);
+    return rule();
+  }
+}
+
 /** 발행 — 저장 + 작성자 외 참가자에게 알림 (다음 조 서명 유도) */
 export function publishHandover(
   meetingId: number,

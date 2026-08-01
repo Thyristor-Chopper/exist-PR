@@ -55,6 +55,8 @@ export default function HandoverPanel({
   const [shiftLabel, setShiftLabel] = useState('');
   const [drafting, setDrafting] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // AI 부족분 점검 — "작성자 주관에 따라 상세함이 달라진다"의 해법: 표준 강제 대신 검토 제안
+  const [review, setReview] = useState<null | 'loading' | { section: keyof Sections; text: string }[]>(null);
 
   const load = useCallback(() => {
     void api<Handover[]>(`/api/meetings/${code}/handovers`)
@@ -89,6 +91,48 @@ export default function HandoverPanel({
     }
   }
 
+  /** AI 점검 — 초안과 이번 조 기록을 대조해 빠진 항목 제안 */
+  async function runReview() {
+    if (!editing || review === 'loading') return;
+    setReview('loading');
+    const toArr = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean);
+    try {
+      const r = await api<{ suggestions: { section: keyof Sections; text: string }[] }>(
+        `/api/meetings/${code}/handovers/review`,
+        {
+          method: 'POST',
+          body: {
+            sections: {
+              issues: toArr(editing.sections.issues),
+              changes: toArr(editing.sections.changes),
+              pending: toArr(editing.sections.pending),
+              notes: toArr(editing.sections.notes),
+            },
+          },
+        },
+      );
+      setReview(r.suggestions);
+    } catch {
+      setReview(null);
+    }
+  }
+
+  /** 제안 [추가] — 해당 섹션 끝에 한 줄 붙이고 제안 목록에서 제거 */
+  function applySuggestion(s: { section: keyof Sections; text: string }) {
+    setEditing((prev) =>
+      prev
+        ? {
+            ...prev,
+            sections: {
+              ...prev.sections,
+              [s.section]: (prev.sections[s.section] ? prev.sections[s.section] + '\n' : '') + s.text,
+            },
+          }
+        : prev,
+    );
+    setReview((prev) => (Array.isArray(prev) ? prev.filter((x) => x !== s) : prev));
+  }
+
   async function publish() {
     if (!editing || publishing) return;
     const toArr = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean);
@@ -108,6 +152,7 @@ export default function HandoverPanel({
         },
       });
       setEditing(null);
+      setReview(null);
       load();
     } catch {
       /* 전역 토스트 */
@@ -175,8 +220,46 @@ export default function HandoverPanel({
               />
             </label>
           ))}
+          {/* AI 점검 결과 — 기록엔 있는데 초안에 빠진 것 (한 클릭으로 채움) */}
+          {Array.isArray(review) && review.length === 0 && (
+            <div className="ho-review-ok">
+              <CheckMarkIcon size={12} /> 이번 조 기록과 대조했어요 — 빠진 게 없어 보여요
+            </div>
+          )}
+          {Array.isArray(review) && review.length > 0 && (
+            <div className="ho-review">
+              <div className="ho-review-head">
+                <SparklesIcon size={12} /> 기록엔 있는데 초안에 없는 것
+              </div>
+              {review.map((s, i) => (
+                <div key={i} className="ho-review-row">
+                  <span className="ho-review-sec">
+                    {SECTION_META.find((m) => m.key === s.section)?.label}
+                  </span>
+                  <span className="ho-review-text">{s.text}</span>
+                  <button className="ho-review-add" onClick={() => applySuggestion(s)}>
+                    + 추가
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="ho-editor-actions">
-            <button className="ho-cancel" onClick={() => setEditing(null)}>
+            <button
+              className="ho-review-btn"
+              onClick={() => void runReview()}
+              disabled={review === 'loading'}
+            >
+              <SparklesIcon size={13} /> {review === 'loading' ? '점검 중…' : 'AI 점검 — 빠진 것 찾기'}
+            </button>
+            <span className="ho-actions-spacer" />
+            <button
+              className="ho-cancel"
+              onClick={() => {
+                setEditing(null);
+                setReview(null);
+              }}
+            >
               취소
             </button>
             <button className="ho-publish" onClick={() => void publish()} disabled={publishing}>
