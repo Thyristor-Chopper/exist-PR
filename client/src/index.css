@@ -3519,6 +3519,64 @@ input:focus {
   color: var(--green);
 }
 
+/* 복명복창 — 수신자의 이해 한 줄 + AI 대조 배지 */
+.ho-echoes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+.ho-echo-row {
+  font-size: 12.5px;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+.ho-echo-row b {
+  color: var(--text);
+}
+.ho-echo-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--green);
+}
+.ho-echo-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--amber, #d97706);
+}
+.ho-echo-form {
+  display: flex;
+  gap: 6px;
+}
+.ho-echo-form input {
+  flex: 1;
+  border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  background: transparent;
+  color: var(--text);
+}
+.ho-echo-form button {
+  border: none;
+  border-radius: 9px;
+  padding: 7px 12px;
+  background: var(--green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 /* 이월 안건 — 결론 없이 N번째 상정 (지연 red보다 낮은 톤: 경고가 아니라 상태) */
 .pipe-agenda-carry {
   flex-shrink: 0;

@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
 import { CheckMarkIcon, SparklesIcon, AlertIcon, ListIcon, BulbIcon, RefreshIcon } from './Icons';
+// AlertIcon — 복명복창 대조 mismatch 배지에 사용
 
 /*
  * 교대 인수인계 — "주간조가 겪은 것을 야간조가 정확히 아는가"의 화면.
@@ -24,7 +25,13 @@ interface Handover {
   sections: Sections;
   source: string;
   ts: number;
-  acks: { username: string; ts: number }[];
+  acks: {
+    username: string;
+    ts: number;
+    note: string | null;
+    echoCheck: 'ok' | 'mismatch' | null;
+    echoReason: string | null;
+  }[];
 }
 
 const SECTION_META: { key: keyof Sections; label: string; Icon: typeof AlertIcon }[] = [
@@ -161,17 +168,43 @@ export default function HandoverPanel({
     }
   }
 
+  // 복명복창 — 서명 직후 "내가 이해한 내용 한 줄"(선택) 입력, AI가 원본과 대조
+  const [echoFor, setEchoFor] = useState<number | null>(null);
+  const [echoText, setEchoText] = useState('');
+
   async function ack(h: Handover) {
     setList((prev) =>
       (prev ?? []).map((x) =>
         x.id === h.id
-          ? { ...x, acks: [...x.acks, { username: user?.username ?? '', ts: Date.now() }] }
+          ? {
+              ...x,
+              acks: [
+                ...x.acks,
+                { username: user?.username ?? '', ts: Date.now(), note: null, echoCheck: null, echoReason: null },
+              ],
+            }
           : x,
       ),
     );
+    setEchoFor(h.id);
+    setEchoText('');
     await api(`/api/meetings/${code}/handovers/${h.id}/ack`, { method: 'POST', body: {} }).catch(
       () => load(),
     );
+  }
+
+  /** 복명복창 저장 — 같은 ack 엔드포인트 재호출 (멱등 + 노트 갱신), AI 대조는 서버가 비동기로 */
+  async function saveEcho(h: Handover) {
+    const note = echoText.trim();
+    setEchoFor(null);
+    if (!note) return;
+    await api(`/api/meetings/${code}/handovers/${h.id}/ack`, {
+      method: 'POST',
+      body: { note },
+    }).catch(() => {});
+    // 대조 결과(비동기)를 잠시 후 반영
+    setTimeout(load, 4000);
+    load();
   }
 
   return (
@@ -302,6 +335,46 @@ export default function HandoverPanel({
                       </ul>
                     </div>
                   ),
+                )}
+                {/* 복명복창 — 수신자들이 자기 말로 남긴 이해와 AI 대조 결과 */}
+                {h.acks.some((a) => a.note) && (
+                  <div className="ho-echoes">
+                    {h.acks
+                      .filter((a) => a.note)
+                      .map((a) => (
+                        <div key={a.username} className="ho-echo-row">
+                          <b>{dn(a.username)}</b> “{a.note}”
+                          {a.echoCheck === 'ok' && (
+                            <span className="ho-echo-ok">
+                              <CheckMarkIcon size={11} /> 이해 일치
+                            </span>
+                          )}
+                          {a.echoCheck === 'mismatch' && (
+                            <span className="ho-echo-bad" title={a.echoReason ?? ''}>
+                              <AlertIcon size={11} /> 해석 확인 필요{a.echoReason ? ` — ${a.echoReason}` : ''}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+                {echoFor === h.id && (
+                  <form
+                    className="ho-echo-form"
+                    onSubmit={(ev) => {
+                      ev.preventDefault();
+                      void saveEcho(h);
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      value={echoText}
+                      onChange={(e) => setEchoText(e.target.value)}
+                      placeholder="내가 이해한 내용 한 줄 (선택) — AI가 원본과 대조해요"
+                      maxLength={200}
+                    />
+                    <button type="submit">{echoText.trim() ? '남기기' : '건너뛰기'}</button>
+                  </form>
                 )}
                 <div className="ho-card-foot">
                   <span className="ho-acks" title={h.acks.map((a) => dn(a.username)).join(', ')}>

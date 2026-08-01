@@ -671,6 +671,24 @@ db.exec(`
   );
 `);
 
+// 마이그레이션: 인수인계 복명복창 — 서명에 "내가 이해한 내용 한 줄"(선택)을 곁들이면
+// AI가 원본과 의미 대조. echo_check: 'ok'|'mismatch', echo_reason: 어긋난 지점 한 줄
+try {
+  db.exec(`ALTER TABLE handover_acks ADD COLUMN note TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+try {
+  db.exec(`ALTER TABLE handover_acks ADD COLUMN echo_check TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+try {
+  db.exec(`ALTER TABLE handover_acks ADD COLUMN echo_reason TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 이월 안건 — 안건으로 올라갔지만 결론에 이르지 못한 것을 영속 추적.
 // 회의(recap)가 지나갈 때마다 rounds+1, 결론이 잡히면 resolved=1.
 // 목적: "같은 안건이 결론 없이 반복 논의된다"의 대응 — 미결이 최근 대화 창을 벗어나도 증발하지 않게.

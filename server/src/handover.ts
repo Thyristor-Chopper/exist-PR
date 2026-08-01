@@ -33,7 +33,16 @@ export interface HandoverRow {
   sections: HandoverSections;
   source: string;
   ts: number;
-  acks: { username: string; ts: number }[];
+  acks: {
+    username: string;
+    ts: number;
+    /** 복명복창 — 수신자가 자기 말로 남긴 이해 한 줄 (선택) */
+    note: string | null;
+    /** AI 대조 결과 — ok | mismatch | null(노트 없음/대조 전) */
+    echoCheck: 'ok' | 'mismatch' | null;
+    /** mismatch일 때 어긋난 지점 한 줄 */
+    echoReason: string | null;
+  }[];
 }
 
 const emptySections = (): HandoverSections => ({ issues: [], changes: [], pending: [], notes: [] });
@@ -301,7 +310,8 @@ export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
     author: string;
   }[];
   const ackStmt = db.prepare(
-    `SELECT u.username, a.created_at FROM handover_acks a JOIN users u ON u.id = a.user_id
+    `SELECT u.username, a.created_at, a.note, a.echo_check, a.echo_reason
+     FROM handover_acks a JOIN users u ON u.id = a.user_id
      WHERE a.handover_id = ? ORDER BY a.rowid`,
   );
   return rows.map((r) => {
@@ -318,16 +328,32 @@ export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
       sections,
       source: r.source,
       ts: new Date(r.created_at + 'Z').getTime(),
-      acks: (ackStmt.all(r.id) as { username: string; created_at: string }[]).map((a) => ({
+      acks: (
+        ackStmt.all(r.id) as {
+          username: string;
+          created_at: string;
+          note: string | null;
+          echo_check: string | null;
+          echo_reason: string | null;
+        }[]
+      ).map((a) => ({
         username: a.username,
         ts: new Date(a.created_at + 'Z').getTime(),
+        note: a.note ?? null,
+        echoCheck: a.echo_check === 'ok' || a.echo_check === 'mismatch' ? a.echo_check : null,
+        echoReason: a.echo_reason ?? null,
       })),
     };
   });
 }
 
-/** 서명 — "작업 전에 확인했다"의 기록. 멱등 */
-export function ackHandover(handoverId: number, meetingId: number, userId: number): boolean {
+/** 서명 — "작업 전에 확인했다"의 기록. 멱등, 노트만 나중에 추가/갱신 가능 */
+export function ackHandover(
+  handoverId: number,
+  meetingId: number,
+  userId: number,
+  note?: string,
+): boolean {
   const row = db
     .prepare('SELECT 1 FROM handovers WHERE id = ? AND meeting_id = ?')
     .get(handoverId, meetingId);
@@ -336,5 +362,67 @@ export function ackHandover(handoverId: number, meetingId: number, userId: numbe
     handoverId,
     userId,
   );
+  const clean = (note ?? '').trim().slice(0, 200);
+  if (clean) {
+    db.prepare(
+      'UPDATE handover_acks SET note = ?, echo_check = NULL, echo_reason = NULL WHERE handover_id = ? AND user_id = ?',
+    ).run(clean, handoverId, userId);
+    // 복명복창 대조는 비동기 — 서명 응답을 막지 않는다
+    void echoCheck(handoverId, meetingId, userId, clean).catch((err) =>
+      console.error('[handover] 복명복창 대조 실패:', err),
+    );
+  }
   return true;
+}
+
+/** 복명복창 대조 — 수신자의 "이해 한 줄"을 원본과 의미 비교. 어긋나면 작성자·수신자 모두에게 알림.
+ *  크로스체크의 본뜻: "봤다"가 아니라 "같은 맥락으로 이해했다"의 검증 */
+async function echoCheck(handoverId: number, meetingId: number, userId: number, note: string) {
+  if (!openai) return;
+  const h = db
+    .prepare('SELECT sections, shift_label, author_id FROM handovers WHERE id = ?')
+    .get(handoverId) as { sections: string; shift_label: string; author_id: number } | undefined;
+  if (!h) return;
+  const system =
+    '너는 교대 인수인계의 복명복창을 대조하는 exist의 AI 총무다. 원본 인수인계와 수신자가 자기 말로 요약한 이해를 비교한다.\n' +
+    '판정: 수신자의 이해가 원본의 사실(수치·시점·대상·방향)과 어긋나면 mismatch, 표현만 다르고 뜻이 같으면 ok. 요약이 일부만 다뤄도 다룬 부분이 맞으면 ok — 누락은 문제 삼지 않는다.\n' +
+    '응답은 오직 JSON: {"verdict": "ok"|"mismatch", "reason": string} — reason은 어긋난 지점 한 줄(한국어 60자 이내, ok면 빈 문자열)';
+  const response = await openai.chat.completions.create({
+    model: OPENAI_MODEL,
+    temperature: 0,
+    max_tokens: 200,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ original: JSON.parse(h.sections), receiver_understanding: note }) },
+    ],
+  });
+  const raw = response.choices[0]?.message?.content ?? '';
+  const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
+    verdict?: unknown;
+    reason?: unknown;
+  };
+  const verdict = parsed.verdict === 'mismatch' ? 'mismatch' : 'ok';
+  const reason = verdict === 'mismatch' ? String(parsed.reason ?? '').trim().slice(0, 120) : '';
+  db.prepare(
+    'UPDATE handover_acks SET echo_check = ?, echo_reason = ? WHERE handover_id = ? AND user_id = ?',
+  ).run(verdict, reason || null, handoverId, userId);
+  if (verdict === 'mismatch') {
+    const meeting = db.prepare('SELECT code FROM meetings WHERE id = ?').get(meetingId) as
+      | { code: string }
+      | undefined;
+    const receiver = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as
+      | { username: string }
+      | undefined;
+    // 작성자와 수신자 양쪽에 — 어긋남은 빨리 맞춰볼수록 싸다
+    for (const target of new Set([h.author_id, userId])) {
+      notifyUser(target, {
+        from: 'exist AI',
+        text: `${h.shift_label ? `[${h.shift_label}] ` : ''}인수인계 이해가 어긋난 것 같아요 — ${receiver?.username ?? '수신자'}: "${note.slice(0, 40)}" (${reason})`,
+        kind: 'recap',
+        meetingCode: meeting?.code ?? '',
+      });
+      invalidateBrief(target);
+    }
+  }
 }
