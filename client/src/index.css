@@ -12147,6 +12147,7 @@ input:focus {
   padding: 8px 12px;
   cursor: pointer;
   text-align: left;
+  white-space: nowrap;
 }
 
 .cf-type-menu button:hover {
