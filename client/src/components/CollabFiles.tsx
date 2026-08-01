@@ -436,31 +436,49 @@ export default function CollabFiles({
   // ── 업로드 파일 (type='file') ──
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const uploadParentRef = useRef<number | null>(null);
-  const [uploading, setUploading] = useState(false);
+  // 업로드 진행률 — fetch는 진행 이벤트가 없어 XHR 사용. 파일명·퍼센트·n/m을 토스트로
+  const [uploadProg, setUploadProg] = useState<{ name: string; pct: number; idx: number; total: number } | null>(null);
+
+  function uploadOne(file: File, parentId: number | null, onProgress: (pct: number) => void) {
+    return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      const q = new URLSearchParams({ name: file.name });
+      if (parentId != null) q.set('parent_id', String(parentId));
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/meetings/${code}/files/upload?${q}`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) return resolve({ ok: true });
+        let error: string | undefined;
+        try {
+          error = (JSON.parse(xhr.responseText) as { error?: string })?.error;
+        } catch {
+          /* 본문 없음 */
+        }
+        resolve({ ok: false, error });
+      };
+      xhr.onerror = () => resolve({ ok: false });
+      xhr.send(file);
+    });
+  }
 
   async function uploadFiles(list: FileList | File[], parentId: number | null) {
     const arr = [...list];
     if (!arr.length) return;
-    setUploading(true);
     try {
-      for (const file of arr) {
-        const q = new URLSearchParams({ name: file.name });
-        if (parentId != null) q.set('parent_id', String(parentId));
-        const res = await fetch(`/api/meetings/${code}/files/upload?${q}`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': file.type || 'application/octet-stream',
-          },
-          body: file,
-        });
-        if (!res.ok) {
-          const d = (await res.json().catch(() => null)) as { error?: string } | null;
-          toast(d?.error ?? `${file.name} 업로드 실패`);
-        }
+      for (let i = 0; i < arr.length; i++) {
+        const file = arr[i];
+        const prog = (pct: number) =>
+          setUploadProg({ name: file.name, pct, idx: i + 1, total: arr.length });
+        prog(0);
+        const r = await uploadOne(file, parentId, prog);
+        if (!r.ok) toast(r.error ?? `${file.name} 업로드 실패`);
       }
     } finally {
-      setUploading(false);
+      setUploadProg(null);
       load();
     }
   }
@@ -1826,7 +1844,23 @@ export default function CollabFiles({
           e.target.value = '';
         }}
       />
-      {uploading && <div className="cf-uploading">업로드 중…</div>}
+      {/* 업로드 진행률 토스트 — 얼마나 됐는지 보이게 (freeze 체감 방지) */}
+      {uploadProg && (
+        <div className="cf-upload-toast">
+          <div className="cf-upload-toast-head">
+            <span className="cf-upload-toast-name" title={uploadProg.name}>
+              <UploadIcon size={13} /> {uploadProg.name}
+            </span>
+            <span className="cf-upload-toast-pct">
+              {uploadProg.total > 1 ? `${uploadProg.idx}/${uploadProg.total} · ` : ''}
+              {uploadProg.pct}%
+            </span>
+          </div>
+          <div className="cf-upload-bar">
+            <span style={{ width: `${uploadProg.pct}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* 에디터 — 파일을 열면 전체 화면, ← 로 탐색기 복귀 */}
       <div

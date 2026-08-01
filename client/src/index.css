@@ -11770,6 +11770,60 @@ input:focus {
   height: 100%;
 }
 
+/* 업로드 진행률 토스트 — 우하단, 파일명·퍼센트·바 */
+.cf-upload-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 4300;
+  width: min(340px, calc(100vw - 40px));
+  background: var(--surface, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cf-upload-toast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cf-upload-toast-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cf-upload-toast-pct {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--green);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.cf-upload-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.cf-upload-bar span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  border-radius: 999px;
+  transition: width 0.15s ease-out;
+}
+
 /* ── 업로드 파일 인앱 미리보기 — 에디터와 같은 자리(인플레이스) ── */
 .cf-blobview {
   flex: 1;
