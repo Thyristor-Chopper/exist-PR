@@ -11635,11 +11635,12 @@ input:focus {
 }
 
 /* 2줄 — 툴바 */
+/* 툴바 — 알약 칩 언어 (8/2): 탐색기식 플랫 버튼 → 개별 알약, 구분선 없이 간격으로 그룹감 */
 .cf-toolbar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
@@ -11648,13 +11649,14 @@ input:focus {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: none;
-  background: none;
-  padding: 6px 10px;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: 6px 13px;
+  border-radius: 999px;
   font-size: 12.5px;
   color: var(--text);
   white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .cf-tool:hover:not(:disabled) {
@@ -11668,20 +11670,20 @@ input:focus {
 
 .cf-tool.primary {
   background: var(--green-soft);
+  border-color: transparent;
   color: var(--green-dark);
   font-weight: 700;
 }
 
 .cf-tool.danger:hover:not(:disabled) {
   background: rgba(230, 60, 60, 0.08);
+  border-color: rgba(230, 60, 60, 0.25);
   color: #d33;
 }
 
 .cf-tool-sep {
-  width: 1px;
-  height: 18px;
-  background: var(--border);
-  margin: 0 6px;
+  width: 0;
+  margin: 0 4px;
 }
 
 .cf-tool-wrap {
@@ -18380,6 +18382,7 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 /* 툴바 토글(휴지통 열림) 표시 */
 .cf-tool.on {
   background: var(--surface-2);
+  border-color: var(--text-sub);
 }
 
 /* ── 통화 컨트롤 — 마이크·카메라 = 타원 한 덩어리 (토글 + ˄ 장치 선택) ── */
