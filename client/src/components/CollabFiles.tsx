@@ -289,7 +289,8 @@ export default function CollabFiles({
   const active = files.find((f) => f.id === activeId) ?? null;
   const openedFiles = openedIds
     .map((id) => files.find((f) => f.id === id))
-    .filter((f): f is CollabFile => !!f && f.type !== 'folder' && !!f.room);
+    // 업로드 파일(type='file')은 room이 없어도 인플레이스 미리보기로 연다
+    .filter((f): f is CollabFile => !!f && f.type !== 'folder' && (!!f.room || f.type === 'file'));
 
   const canEdit = (f: CollabFile) => isHost || f.author === user?.username;
 
