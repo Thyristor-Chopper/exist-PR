@@ -10,7 +10,6 @@ import SlideEditor from './SlideEditor';
 import CanvasBoard from './CanvasBoard';
 import Marquee from './Marquee';
 import Avatar from './Avatar';
-import PillSeg from './PillSeg';
 import {
   FolderIcon,
   CodeIcon,
@@ -21,6 +20,7 @@ import {
   ChevronIcon,
   PlusIcon,
   UploadIcon,
+  GridIcon,
   CopyIcon,
   TrashIcon,
   ShareIcon,
@@ -138,6 +138,7 @@ export default function CollabFiles({
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [sortMenu, setSortMenu] = useState(false);
+  const [viewMenu, setViewMenu] = useState(false); // MS 탐색기식 "보기" 드롭다운
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('exist:cf-view') as ViewMode) || 'grid',
   );
@@ -1150,6 +1151,33 @@ export default function CollabFiles({
               </div>
             )}
           </div>
+          {/* 보기 — MS 탐색기식 드롭다운 (정렬 옆 짝) */}
+          <div className="cf-tool-wrap">
+            <button className="cf-tool labeled" onClick={() => setViewMenu((v) => !v)}>
+              <GridIcon size={13} /> 보기
+            </button>
+            {viewMenu && (
+              <div className="cf-type-menu">
+                {(
+                  [
+                    ['grid', '▦ 아이콘'],
+                    ['list', '☰ 목록'],
+                  ] as [ViewMode, string][]
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    onClick={() => {
+                      setView(k);
+                      localStorage.setItem('exist:cf-view', k);
+                      setViewMenu(false);
+                    }}
+                  >
+                    {view === k && <CheckMarkIcon size={12} />} {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <span className="cf-gsep" />
           <button
             className="cf-tool"
@@ -1161,7 +1189,7 @@ export default function CollabFiles({
             <UndoIcon size={15} />
           </button>
           </div>
-          {/* 휴지통 — 액션이 아니라 "장소(뷰)"라서 액션 바 밖, 보기 구역(오른쪽)으로 (8/2) */}
+          {/* 휴지통 — 액션이 아니라 "장소(뷰)"라서 액션 바 밖, 오른쪽으로 (8/2) */}
           <button
             className={`cf-tool cf-trash-toggle${trashOpen ? ' on' : ''}`}
             title="휴지통 열기/닫기"
@@ -1172,20 +1200,6 @@ export default function CollabFiles({
           >
             <TrashIcon size={14} /> 휴지통
           </button>
-          {/* 보기 전환 — 기록 탭과 같은 알약 토글 언어로 통일 (8/2) */}
-          <PillSeg
-            className="cf-view-seg"
-            ariaLabel="보기 방식"
-            options={[
-              { key: 'grid', label: '▦' },
-              { key: 'list', label: '☰' },
-            ]}
-            value={view}
-            onChange={(k) => {
-              setView(k as ViewMode);
-              localStorage.setItem('exist:cf-view', k);
-            }}
-          />
         </div>
 
         {/* 즐겨찾기 바 — 우클릭으로 추가한 항목 바로가기 */}

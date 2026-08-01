@@ -15727,17 +15727,6 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   flex-shrink: 0;
 }
 
-/* 공동편집 툴바의 보기 알약 — 툴바 공통 34px 높이 */
-.cf-view-seg {
-  flex-shrink: 0;
-  align-self: center;
-  height: 34px;
-  align-items: center;
-}
-.cf-view-seg button {
-  font-size: 12px;
-  padding: 4px 11px;
-}
 
 .ledger-hist {
   display: flex;
