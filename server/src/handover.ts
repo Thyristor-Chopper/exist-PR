@@ -423,10 +423,37 @@ async function echoCheck(handoverId: number, meetingId: number, userId: number, 
         nospace(note).includes(nospace(c.said).slice(0, 10)) &&
         !/(누락|언급하지 않|언급 안|생략|빠뜨|빠짐|없음)/.test(c.orig + c.said),
     );
-  const verdict = list.length > 0 ? 'mismatch' : 'ok';
+  // 2차 검증 — 후보 쌍마다 "동시에 참일 수 있는가?" 단답 질문 (추출보다 판별이 훨씬 정확)
+  const confirmed: typeof list = [];
+  for (const c of list.slice(0, 3)) {
+    try {
+      const v = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL_JUDGE || 'gpt-4o',
+        temperature: 0,
+        max_tokens: 60,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content:
+              '두 문장이 논리적으로 동시에 참일 수 있는지 판단한다. 서로 다른 측면을 말하는 것(예: 한쪽은 진행자, 한쪽은 참석 의사)은 동시에 참일 수 있다. 같은 속성(요일·시각·수치·업체·담당)에 다른 값을 말할 때만 동시에 참일 수 없다. 응답: {"compatible": true|false}',
+          },
+          { role: 'user', content: JSON.stringify({ 문장A: c.orig, 문장B: c.said }) },
+        ],
+      });
+      const vr = v.choices[0]?.message?.content ?? '';
+      const parsedV = JSON.parse(vr.slice(vr.indexOf('{'), vr.lastIndexOf('}') + 1)) as {
+        compatible?: unknown;
+      };
+      if (parsedV.compatible === false) confirmed.push(c);
+    } catch {
+      /* 검증 실패 시 그 쌍은 버림 — 오탐이 미탐보다 나쁘다 */
+    }
+  }
+  const verdict = confirmed.length > 0 ? 'mismatch' : 'ok';
   const reason =
     verdict === 'mismatch'
-      ? `"${list[0].said.slice(0, 40)}" ↔ 원본: ${list[0].orig.slice(0, 60)}`
+      ? `"${confirmed[0].said.slice(0, 40)}" ↔ 원본: ${confirmed[0].orig.slice(0, 60)}`
       : '';
   db.prepare(
     'UPDATE handover_acks SET echo_check = ?, echo_reason = ? WHERE handover_id = ? AND user_id = ?',
