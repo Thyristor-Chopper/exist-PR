@@ -18448,6 +18448,35 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   flex: none;
 }
 
+/* 접속 중 컬럼 — 목록 뷰에서 지금 이 파일을 보고 있는 사람 */
+.cf-listhead-online {
+  width: 130px;
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+.cf-entry-online {
+  width: 130px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.cf-online-names {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cf-online-none {
+  color: var(--text-sub);
+  opacity: 0.4;
+  font-size: 12px;
+}
+
 /* 즐겨찾기 바 */
 .cf-favbar {
   flex: none;

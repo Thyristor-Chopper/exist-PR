@@ -460,27 +460,62 @@ export default function CollabFiles({
         }
         resolve({ ok: false, error });
       };
-      xhr.onerror = () => resolve({ ok: false });
+      xhr.onerror = () =>
+        resolve({ ok: false, error: `"${file.name}"은 지원되지 않거나 전송이 끊긴 파일이에요` });
       xhr.send(file);
     });
   }
 
-  async function uploadFiles(list: FileList | File[], parentId: number | null) {
-    const arr = [...list];
-    if (!arr.length) return;
+  const MAX_UPLOAD_MB = 25; // 서버 제한과 동일 — 초과분은 보내기 전에 걸러 경고
+
+  // 업로드 큐 — 진행 중에 또 올리면 줄 뒤에 붙는다 (동시 호출이 진행 상태를 덮어쓰던 버그 방지)
+  const uploadQueueRef = useRef<{ file: File; parentId: number | null }[]>([]);
+  const uploadBusyRef = useRef(false);
+  const uploadDoneRef = useRef(0);
+
+  async function pumpUploads() {
+    if (uploadBusyRef.current) return;
+    uploadBusyRef.current = true;
     try {
-      for (let i = 0; i < arr.length; i++) {
-        const file = arr[i];
+      while (uploadQueueRef.current.length) {
+        const { file, parentId } = uploadQueueRef.current.shift()!;
+        uploadDoneRef.current++;
+        const idx = uploadDoneRef.current;
         const prog = (pct: number) =>
-          setUploadProg({ name: file.name, pct, idx: i + 1, total: arr.length });
+          setUploadProg({
+            name: file.name,
+            pct,
+            idx,
+            total: idx + uploadQueueRef.current.length,
+          });
         prog(0);
         const r = await uploadOne(file, parentId, prog);
         if (!r.ok) toast(r.error ?? `${file.name} 업로드 실패`);
+        load(); // 파일별 갱신 — 끝난 것부터 목록에 바로 보이게
       }
     } finally {
+      uploadBusyRef.current = false;
+      uploadDoneRef.current = 0;
       setUploadProg(null);
-      load();
     }
+  }
+
+  function uploadFiles(list: FileList | File[], parentId: number | null) {
+    const arr = [...list];
+    if (!arr.length) return;
+    for (const file of arr) {
+      // 올릴 수 없는 파일은 보내기 전에 경고 — 25MB 초과(서버 413과 동일 기준)·빈 파일
+      if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+        toast(`"${file.name}"은 올릴 수 없어요 — 파일은 ${MAX_UPLOAD_MB}MB까지 지원해요`);
+        continue;
+      }
+      if (file.size === 0) {
+        toast(`"${file.name}"은 빈 파일이라 올릴 수 없어요`);
+        continue;
+      }
+      uploadQueueRef.current.push({ file, parentId });
+    }
+    void pumpUploads();
   }
 
   // 미리보기 열람 신고 — "누가 지금 이 파일을 보고 있나" (편집 프레즌스의 미리보기판).
@@ -1388,6 +1423,8 @@ export default function CollabFiles({
               >
                 만든 사람{hdrInd('author')}
               </button>
+              {/* 접속 중 — 지금 이 파일을 편집·열람 중인 사람 (정렬 없음) */}
+              <span className="cf-listhead-online">접속 중</span>
             </div>
           )}
           {creating && (
@@ -1483,7 +1520,8 @@ export default function CollabFiles({
                 <span className={`cf-entry-icon cf-icon ${f.type}`}>
                   <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} />
                 </span>
-                <PresenceStack fileId={f.id} />
+                {/* 목록 뷰에선 접속 중 컬럼이 담당 — 아이콘 옆 스택은 그리드 전용 */}
+                {view !== 'list' && <PresenceStack fileId={f.id} />}
                 {renamingId === f.id ? (
                   <form onSubmit={(e) => renameEntry(f, e)} onClick={(e) => e.stopPropagation()}>
                     <input
@@ -1519,6 +1557,18 @@ export default function CollabFiles({
                       {f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]}
                     </span>
                     <span className="cf-entry-author">{dn(f.author)}</span>
+                    <span className="cf-entry-online">
+                      {(presence[f.id]?.length ?? 0) > 0 ? (
+                        <>
+                          <PresenceStack fileId={f.id} />
+                          <span className="cf-online-names">
+                            {presence[f.id].map((p) => dn(p.username)).join(', ')}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="cf-online-none">—</span>
+                      )}
+                    </span>
                   </>
                 )}
               </div>
