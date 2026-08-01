@@ -11698,7 +11698,8 @@ input:focus {
   gap: 2px;
   background: var(--surface-2);
   border-radius: 999px;
-  padding: 3px 6px;
+  padding: 0 6px;
+  height: 34px;
 }
 .cf-gbar .cf-tool {
   border: none;
@@ -11733,42 +11734,48 @@ input:focus {
   display: inline-flex;
 }
 
-/* 만들기·업로드 스플릿 캡슐 — 솔리드 초록 한 덩어리, 얇은 흰 구분선 */
+/* 만들기·업로드 스플릿 캡슐 — 주(만들기)·부(업로드) 투톤, 높이는 툴바 공통 34px */
 .cf-newgroup {
   display: inline-flex;
   align-items: stretch;
   border-radius: 999px;
   background: var(--green);
+  height: 34px;
+  /* overflow hidden 금지 — 새로 만들기 드롭다운이 잘린다. 라운드는 세그먼트별로 */
 }
 .cf-newgroup > * + * {
-  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  border-left: 1px solid rgba(255, 255, 255, 0.28);
 }
 .cf-newgroup .cf-tool.primary {
   border: none;
   background: none;
   border-radius: 0;
   color: #fff;
+  height: 100%;
+  padding: 0 14px;
 }
 .cf-newgroup > :first-child .cf-tool.primary {
   border-radius: 999px 0 0 999px;
-  padding-right: 12px;
 }
-.cf-newgroup > .cf-tool.primary:last-child {
+.cf-newgroup .cf-tool.primary.cf-upload {
+  background: rgba(0, 0, 0, 0.12); /* 반 톤 어둡게 — 스플릿 버튼의 부(sub) 세그먼트 */
+  padding: 0 13px;
   border-radius: 0 999px 999px 0;
-  padding-left: 12px;
 }
 .cf-newgroup .cf-tool.primary:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.2);
 }
 .cf-newgroup .cf-tool-wrap {
   display: inline-flex;
+  height: 100%;
 }
 
 /* 휴지통 — 오른쪽 보기 구역으로 (장소 전환은 액션 바 밖) */
 .cf-trash-toggle {
   margin-left: auto;
   font-size: 12px;
-  padding: 5px 12px;
+  padding: 0 13px;
+  height: 34px;
 }
 .cf-trash-toggle.on {
   background: color-mix(in srgb, var(--green) 14%, transparent);
@@ -15720,10 +15727,12 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   flex-shrink: 0;
 }
 
-/* 공동편집 툴바의 보기 알약 — 툴바 버튼 높이에 맞춘 컴팩트판 */
+/* 공동편집 툴바의 보기 알약 — 툴바 공통 34px 높이 */
 .cf-view-seg {
   flex-shrink: 0;
   align-self: center;
+  height: 34px;
+  align-items: center;
 }
 .cf-view-seg button {
   font-size: 12px;
