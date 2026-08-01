@@ -236,7 +236,7 @@ export default function DecisionLedger({ code }: { code: string }) {
         )
       ) : null}
 
-      {view === 'history' ? null : entries.length === 0 ? (
+      {view !== 'list' ? null : entries.length === 0 ? (
         <div className="ledger-empty">
           <SparklesIcon size={36} />
           <p>아직 기록된 결정이 없어요</p>
