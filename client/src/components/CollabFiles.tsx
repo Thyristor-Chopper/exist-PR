@@ -21,6 +21,7 @@ import {
   PlusIcon,
   UploadIcon,
   GridIcon,
+  DownloadIcon,
   CopyIcon,
   TrashIcon,
   ShareIcon,
@@ -90,6 +91,45 @@ function TypeIcon({ type, size = 15 }: { type: FileType; size?: number }) {
 
 type SortKey = 'name' | 'type' | 'author';
 type ViewMode = 'grid' | 'list';
+
+/* ── 업로드 파일 인앱 미리보기 — 이미지·PDF·영상·음성·텍스트는 앱 안에서 바로 연다 ── */
+type ViewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'other';
+function viewKindOf(name: string): ViewKind {
+  const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif', 'ico'].includes(ext)) return 'image';
+  if (ext === 'pdf') return 'pdf';
+  if (['mp4', 'webm', 'mov', 'm4v'].includes(ext)) return 'video';
+  if (['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac'].includes(ext)) return 'audio';
+  if (
+    ['txt', 'md', 'csv', 'log', 'json', 'js', 'ts', 'tsx', 'jsx', 'py', 'c', 'cpp', 'h', 'java', 'sql', 'yml', 'yaml', 'xml', 'html', 'css', 'sh', 'ini', 'conf', 'toml'].includes(ext)
+  )
+    return 'text';
+  return 'other';
+}
+
+/** 텍스트 파일 미리보기 — 200KB까지만 (거대 로그로 브라우저가 죽지 않게) */
+function TextPreview({ url }: { url: string }) {
+  const [text, setText] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(url)
+      .then((r) => r.text())
+      .then((t) => {
+        if (alive) setText(t.length > 200_000 ? t.slice(0, 200_000) + '\n\n… (미리보기는 여기까지 — 전체는 저장해서 확인)' : t);
+      })
+      .catch(() => {
+        if (alive) setText('불러오지 못했어요');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  return text === null ? (
+    <div className="cf-viewer-loading">불러오는 중…</div>
+  ) : (
+    <pre className="cf-viewer-text">{text}</pre>
+  );
+}
 
 /** 실행 취소 스택 항목 — 역연산 클로저 (삭제는 복구 불가라 스택에 안 쌓음) */
 interface UndoOp {
@@ -424,8 +464,22 @@ export default function CollabFiles({
     }
   }
 
-  /** 업로드 파일 열기 — 서버 URL 직접 (이미지·PDF는 새 탭 렌더, 저장 시 원본 파일명 유지) */
+  /** 업로드 파일 열기 — 볼 수 있는 형식(이미지·PDF·영상·음성·텍스트)은 인앱 뷰어, 나머지는 다운로드 */
+  const [viewer, setViewer] = useState<CollabFile | null>(null);
+  useEffect(() => {
+    if (!viewer) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setViewer(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [viewer]);
+
   function openBlobFile(f: CollabFile) {
+    if (viewKindOf(f.name) !== 'other') {
+      setViewer(f);
+      return;
+    }
     const url = `/api/meetings/${code}/files/${f.id}/download?token=${encodeURIComponent(token ?? '')}`;
     const win = window.open(url, '_blank');
     if (!win) {
@@ -1770,6 +1824,39 @@ export default function CollabFiles({
         }}
       />
       {uploading && <div className="cf-uploading">업로드 중…</div>}
+
+      {/* 업로드 파일 인앱 뷰어 — 이미지·PDF·영상·음성·텍스트 (Esc·바깥 클릭 닫기) */}
+      {viewer &&
+        (() => {
+          const vUrl = `/api/meetings/${code}/files/${viewer.id}/download?token=${encodeURIComponent(token ?? '')}`;
+          const kind = viewKindOf(viewer.name);
+          return (
+            <div className="cf-viewer-overlay" onClick={() => setViewer(null)}>
+              <div className="cf-viewer" onClick={(e) => e.stopPropagation()}>
+                <div className="cf-viewer-head">
+                  <span className="cf-viewer-name" title={viewer.name}>
+                    <TypeIcon type="file" size={14} /> {viewer.name}
+                  </span>
+                  <span className="cf-viewer-actions">
+                    <a className="cf-viewer-dl" href={vUrl} download={viewer.name}>
+                      <DownloadIcon size={13} /> 저장
+                    </a>
+                    <button className="cf-viewer-x" onClick={() => setViewer(null)} title="닫기 (Esc)">
+                      <CloseIcon size={15} />
+                    </button>
+                  </span>
+                </div>
+                <div className={`cf-viewer-body ${kind}`}>
+                  {kind === 'image' && <img src={vUrl} alt={viewer.name} />}
+                  {kind === 'pdf' && <iframe title={viewer.name} src={vUrl} />}
+                  {kind === 'video' && <video src={vUrl} controls />}
+                  {kind === 'audio' && <audio src={vUrl} controls />}
+                  {kind === 'text' && <TextPreview url={vUrl} />}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* 에디터 — 파일을 열면 전체 화면, ← 로 탐색기 복귀 */}
       <div
