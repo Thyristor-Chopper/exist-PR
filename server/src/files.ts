@@ -376,6 +376,8 @@ router.get('/:fileId/download', (req: AuthedRequest, res) => {
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: '파일이 사라졌어요' });
   res.setHeader('Content-Type', f.mime || 'application/octet-stream');
   res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(f.name)}`);
+  // 전역 X-Frame-Options: DENY가 같은 오리진 인앱 뷰어(iframe PDF)까지 막는다 — 이 라우트만 완화
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   fs.createReadStream(filePath).pipe(res);
 });
 
