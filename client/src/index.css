@@ -3224,6 +3224,11 @@ input:focus {
   flex-direction: column;
   gap: 14px;
 }
+/* 기록 탭 세그먼트로 임베드 — 제목·여백은 바깥 ledger-head가 담당 */
+.ho-wrap.embedded {
+  max-width: none;
+  padding: 4px 0 40px;
+}
 .ho-head {
   display: flex;
   align-items: flex-start;

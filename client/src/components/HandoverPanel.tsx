@@ -39,7 +39,14 @@ function timeLabel(ts: number): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function HandoverPanel({ code }: { code: string }) {
+export default function HandoverPanel({
+  code,
+  embedded = false,
+}: {
+  code: string;
+  /** 기록(결정) 탭 안에 세그먼트로 렌더 — 제목 헤더는 바깥(ledger-head)이 가지므로 숨김 */
+  embedded?: boolean;
+}) {
   const user = useAuthStore((s) => s.user);
   const dn = useDisplayName();
   const [list, setList] = useState<Handover[] | null>(null);
@@ -123,10 +130,10 @@ export default function HandoverPanel({ code }: { code: string }) {
   }
 
   return (
-    <div className="ho-wrap">
+    <div className={`ho-wrap${embedded ? ' embedded' : ''}`}>
       <div className="ho-head">
         <div>
-          <h3 className="ho-title">교대 인수인계</h3>
+          {!embedded && <h3 className="ho-title">교대 인수인계</h3>}
           <p className="ho-sub">
             이번 조의 기록에서 AI가 초안을 만들어요 — 다듬어 발행하면 다음 조가 작업 전에
             서명합니다

@@ -3,8 +3,9 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 import { getSocket } from '../lib/socket';
 import { useDisplayName } from '../names';
-import { CheckMarkIcon, SparklesIcon } from './Icons';
+import { CheckMarkIcon, SparklesIcon, RefreshIcon } from './Icons';
 import PillSeg from './PillSeg';
+import HandoverPanel from './HandoverPanel';
 
 /*
  * 결정 원장 — 이 그룹의 모든 통화 결정이 시간순으로 쌓이는 타임라인.
@@ -49,7 +50,15 @@ export default function DecisionLedger({ code }: { code: string }) {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [query, setQuery] = useState('');
   // 변경 이력 뷰 — 같은 주제 결정의 변천 (AI 그룹핑, 현직자 요구 "변경사항 이력 관리")
-  const [view, setView] = useState<'list' | 'history'>('list');
+  // handover = 교대 인수인계 — "조직의 기록은 한 탭"으로 결정과 병합 (8/2)
+  const [view, setView] = useState<'list' | 'history' | 'handover'>('list');
+
+  // 전역 검색·일정 다리의 인수인계 점프 — 기록 탭 진입 후 세그먼트를 인수인계로
+  useEffect(() => {
+    const open = () => setView('handover');
+    window.addEventListener('exist:open-handover', open);
+    return () => window.removeEventListener('exist:open-handover', open);
+  }, []);
   const [hist, setHist] = useState<DecisionHistory | null>(null);
   const [histLoading, setHistLoading] = useState(false);
 
@@ -146,10 +155,18 @@ export default function DecisionLedger({ code }: { code: string }) {
     <div className="ledger">
       <div className="ledger-head">
         <div className="ledger-title">
-          <CheckMarkIcon size={16} /> 결정 원장
-          <span className="ledger-count">{entries.length}</span>
+          {view === 'handover' ? (
+            <>
+              <RefreshIcon size={16} /> 교대 인수인계
+            </>
+          ) : (
+            <>
+              <CheckMarkIcon size={16} /> 결정 원장
+              <span className="ledger-count">{entries.length}</span>
+            </>
+          )}
         </div>
-        {/* 오른쪽 컨트롤 그룹 — [검색(목록 모드만)] [목록|변경 이력]. 토글은 항상 맨 오른쪽 고정 */}
+        {/* 오른쪽 컨트롤 그룹 — [검색(목록 모드만)] [원장|변경 이력|인수인계]. 토글은 항상 맨 오른쪽 고정 */}
         <div className="ledger-head-right">
           {view === 'list' && (
             <input
@@ -161,18 +178,23 @@ export default function DecisionLedger({ code }: { code: string }) {
           )}
           <PillSeg
             className="ledger-view-seg"
-            ariaLabel="결정 보기"
+            ariaLabel="기록 보기"
             options={[
-              { key: 'list', label: '목록' },
+              { key: 'list', label: '원장' },
               { key: 'history', label: '변경 이력' },
+              { key: 'handover', label: '인수인계' },
             ]}
             value={view}
-            onChange={(k) => (k === 'list' ? setView('list') : void openHistory())}
+            onChange={(k) =>
+              k === 'history' ? void openHistory() : setView(k as 'list' | 'handover')
+            }
           />
         </div>
       </div>
 
-      {view === 'history' ? (
+      {view === 'handover' ? (
+        <HandoverPanel code={code} embedded />
+      ) : view === 'history' ? (
         histLoading || !hist ? (
           <div className="ledger-empty">
             <SparklesIcon size={36} />

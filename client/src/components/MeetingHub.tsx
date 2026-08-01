@@ -13,7 +13,6 @@ import MeetingThumb from './MeetingThumb';
 import Marquee from './Marquee';
 import MeetingSchedule from './MeetingSchedule';
 import RecapPanel from './RecapPanel';
-import HandoverPanel from './HandoverPanel';
 import { DmWindow, type DmScope, type Thread } from './DirectMessages';
 import MentionInput, { type MentionCandidate } from './MentionInput';
 import { togglePin, isPinned, PINS_EVENT } from '../lib/pins';
@@ -39,7 +38,6 @@ import {
   PenIcon,
   CloseIcon,
   ChevronRightIcon,
-  RefreshIcon,
 } from './Icons';
 
 interface Participant {
@@ -207,7 +205,7 @@ function chatDateLabel(ts: number): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
 }
 
-type SubTab = 'dash' | 'call' | 'chat' | 'files' | 'decisions' | 'handover' | 'schedule' | 'settings';
+type SubTab = 'dash' | 'call' | 'chat' | 'files' | 'decisions' | 'schedule' | 'settings';
 
 interface Props {
   code: string;
@@ -636,7 +634,14 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
 
   // 최근회의 버튼 등에서 세부 탭 지정 → 해당 탭으로 이동
   useEffect(() => {
-    if (gotoTab?.tab) setSubtab(gotoTab.tab as SubTab);
+    if (!gotoTab?.tab) return;
+    if (gotoTab.tab === 'handover') {
+      // 인수인계는 기록 탭의 세그먼트로 병합됨 (8/2) — 탭 진입 후 세그먼트 전환 신호
+      setSubtab('decisions');
+      setTimeout(() => window.dispatchEvent(new CustomEvent('exist:open-handover')), 250);
+    } else {
+      setSubtab(gotoTab.tab as SubTab);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gotoTab?.ts]);
 
@@ -1222,13 +1227,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
           className={`hub-tab${subtab === 'decisions' ? ' active' : ''}`}
           onClick={() => setSubtab('decisions')}
         >
-          <CheckMarkIcon size={13} /> 결정
-        </button>
-        <button
-          className={`hub-tab${subtab === 'handover' ? ' active' : ''}`}
-          onClick={() => setSubtab('handover')}
-        >
-          <RefreshIcon size={13} /> 인수인계
+          <CheckMarkIcon size={13} /> 기록
         </button>
         <button
           className={`hub-tab${subtab === 'settings' ? ' active' : ''}`}
@@ -1323,10 +1322,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                     <FolderIcon size={19} /> 공동편집
                   </button>
                   <button className="hub-m-item" onClick={() => setSubtab('decisions')}>
-                    <CheckMarkIcon size={19} /> 결정
-                  </button>
-                  <button className="hub-m-item" onClick={() => setSubtab('handover')}>
-                    <RefreshIcon size={19} /> 인수인계
+                    <CheckMarkIcon size={19} /> 기록
                   </button>
                   <button className="hub-m-item" onClick={() => setSubtab('settings')}>
                     <GearIcon size={19} /> 설정
@@ -1816,8 +1812,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   call: '통화',
                   chat: '채팅',
                   files: '공동편집',
-                  decisions: '결정',
-                  handover: '인수인계',
+                  decisions: '기록',
                   settings: '설정',
                 }[subtab]
               }
@@ -2090,7 +2085,6 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
 
         {/* 결정 원장 — 그룹의 모든 통화 결정 타임라인 */}
         {subtab === 'decisions' && <DecisionLedger code={code} />}
-        {subtab === 'handover' && <HandoverPanel code={code} />}
 
         {/* 공동편집 — 파일시스템 (코드/문서/시트/발표/캔버스 파일 여러 개, 한 번 열면 마운트 유지) */}
         {filesMounted && (
