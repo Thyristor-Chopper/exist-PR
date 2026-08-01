@@ -671,6 +671,23 @@ db.exec(`
   );
 `);
 
+// 인수인계 반복 점검 체크리스트 — 매 교대 반복되는 정형 항목(설비 알람·파라미터 등)은
+// 자유 서술 대신 체크박스로 (형식 통일의 나머지 절반). 발행 시 스냅샷은 handovers.checks에
+db.exec(`
+  CREATE TABLE IF NOT EXISTS handover_checklist (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id),
+    label      TEXT NOT NULL,
+    created_by INTEGER NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+try {
+  db.exec(`ALTER TABLE handovers ADD COLUMN checks TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 마이그레이션: 인수인계 에스컬레이션 — 2시간 미서명자가 있으면 작성자에게 1회 알림 (침묵을 발신자에게 보이게)
 try {
   db.exec(`ALTER TABLE handovers ADD COLUMN escalated_at TEXT`);

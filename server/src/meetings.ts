@@ -27,7 +27,7 @@ import {
   setNotifyMode,
 } from './channels.js';
 import { generateAgenda, generateDecisionHistory, invalidateAgenda, ensureAgentUser } from './steward.js';
-import { draftHandover, publishHandover, listHandovers, ackHandover, reviewHandover } from './handover.js';
+import { draftHandover, publishHandover, listHandovers, ackHandover, reviewHandover, listChecklist, addChecklistItem, removeChecklistItem } from './handover.js';
 import filesRouter, { deleteMeetingFiles } from './files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1355,6 +1355,27 @@ router.post('/:code/handovers/draft', async (req: AuthedRequest, res) => {
   res.json(await draftHandover(r.meeting.id));
 });
 
+// ── 반복 점검 체크리스트 — 매 교대 반복되는 정형 항목 (참가자 누구나 관리) ──
+router.get('/:code/handovers/checklist', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json(listChecklist(r.meeting.id));
+});
+router.post('/:code/handovers/checklist', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const id = addChecklistItem(r.meeting.id, req.userId!, String(req.body?.label ?? ''));
+  if (id == null) return res.status(400).json({ error: '항목을 추가할 수 없어요 (최대 20개)' });
+  res.json({ id });
+});
+router.delete('/:code/handovers/checklist/:itemId', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  if (!removeChecklistItem(r.meeting.id, Number(req.params.itemId)))
+    return res.status(404).json({ error: '없는 항목이에요' });
+  res.json({ ok: true });
+});
+
 /** AI 부족분 점검 — 초안과 이번 조 기록 대조, 빠진 항목 제안 */
 router.post('/:code/handovers/review', async (req: AuthedRequest, res) => {
   const r = meetingForParticipant(req.params.code, req.userId!);
@@ -1374,6 +1395,7 @@ router.post('/:code/handovers', (req: AuthedRequest, res) => {
       String(req.body?.shiftLabel ?? '').trim(),
       req.body?.sections,
       String(req.body?.source ?? 'manual'),
+      req.body?.checks,
     );
     res.json({ id });
   } catch (err) {

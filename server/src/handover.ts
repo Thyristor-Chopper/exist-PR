@@ -31,6 +31,8 @@ export interface HandoverRow {
   author: string;
   shiftLabel: string;
   sections: HandoverSections;
+  /** 반복 점검 체크리스트 스냅샷 — 발행 시점의 항목·체크 상태 */
+  checks: { label: string; done: boolean }[];
   source: string;
   ts: number;
   acks: {
@@ -251,6 +253,40 @@ export async function reviewHandover(
   }
 }
 
+/** 반복 점검 체크리스트 — 그룹별 항목 관리 */
+export function listChecklist(meetingId: number): { id: number; label: string }[] {
+  return db
+    .prepare('SELECT id, label FROM handover_checklist WHERE meeting_id = ? ORDER BY id')
+    .all(meetingId) as { id: number; label: string }[];
+}
+export function addChecklistItem(meetingId: number, userId: number, label: string): number | null {
+  const clean = label.trim().slice(0, 80);
+  if (!clean) return null;
+  const count = (
+    db.prepare('SELECT COUNT(*) AS n FROM handover_checklist WHERE meeting_id = ?').get(meetingId) as { n: number }
+  ).n;
+  if (count >= 20) return null;
+  return db
+    .prepare('INSERT INTO handover_checklist (meeting_id, label, created_by) VALUES (?, ?, ?)')
+    .run(meetingId, clean, userId).lastInsertRowid as number;
+}
+export function removeChecklistItem(meetingId: number, itemId: number): boolean {
+  return (
+    db.prepare('DELETE FROM handover_checklist WHERE id = ? AND meeting_id = ?').run(itemId, meetingId)
+      .changes > 0
+  );
+}
+
+function sanitizeChecks(raw: unknown): { label: string; done: boolean }[] {
+  return (Array.isArray(raw) ? raw : [])
+    .map((c) => {
+      const o = c as { label?: unknown; done?: unknown };
+      return { label: String(o.label ?? '').trim().slice(0, 80), done: o.done === true };
+    })
+    .filter((c) => c.label)
+    .slice(0, 20);
+}
+
 /** 발행 — 저장 + 작성자 외 참가자에게 알림 (다음 조 서명 유도) */
 export function publishHandover(
   meetingId: number,
@@ -259,14 +295,17 @@ export function publishHandover(
   shiftLabel: string,
   sections: unknown,
   source: string,
+  checks?: unknown,
 ): number {
   const clean = sanitizeSections(sections);
-  const total = clean.issues.length + clean.changes.length + clean.pending.length + clean.notes.length;
+  const cleanChecks = sanitizeChecks(checks);
+  const total =
+    clean.issues.length + clean.changes.length + clean.pending.length + clean.notes.length + cleanChecks.length;
   if (total === 0) throw new Error('빈 인수인계는 발행할 수 없어요');
   const info = db
     .prepare(
-      `INSERT INTO handovers (meeting_id, author_id, shift_label, sections, source)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO handovers (meeting_id, author_id, shift_label, sections, source, checks)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .run(
       meetingId,
@@ -274,6 +313,7 @@ export function publishHandover(
       shiftLabel.slice(0, 40),
       JSON.stringify(clean),
       source === 'ai' ? 'ai' : source === 'rule' ? 'rule' : 'manual',
+      JSON.stringify(cleanChecks),
     );
   const id = info.lastInsertRowid as number;
   const author = db.prepare('SELECT username FROM users WHERE id = ?').get(authorId) as
@@ -334,7 +374,7 @@ export function sweepHandoverEscalations() {
 export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
   const rows = db
     .prepare(
-      `SELECT h.id, h.shift_label, h.sections, h.source, h.created_at, u.username AS author
+      `SELECT h.id, h.shift_label, h.sections, h.checks, h.source, h.created_at, u.username AS author
        FROM handovers h JOIN users u ON u.id = h.author_id
        WHERE h.meeting_id = ? ORDER BY h.id DESC LIMIT ?`,
     )
@@ -342,6 +382,7 @@ export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
     id: number;
     shift_label: string;
     sections: string;
+    checks: string | null;
     source: string;
     created_at: string;
     author: string;
@@ -358,11 +399,18 @@ export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
     } catch {
       sections = emptySections();
     }
+    let checks: { label: string; done: boolean }[] = [];
+    try {
+      checks = r.checks ? sanitizeChecks(JSON.parse(r.checks)) : [];
+    } catch {
+      checks = [];
+    }
     return {
       id: r.id,
       author: r.author,
       shiftLabel: r.shift_label,
       sections,
+      checks,
       source: r.source,
       ts: new Date(r.created_at + 'Z').getTime(),
       acks: (

@@ -23,6 +23,8 @@ interface Handover {
   author: string;
   shiftLabel: string;
   sections: Sections;
+  /** 반복 점검 체크리스트 스냅샷 (발행 시점) */
+  checks: { label: string; done: boolean }[];
   source: string;
   ts: number;
   acks: {
@@ -65,12 +67,36 @@ export default function HandoverPanel({
   // AI 부족분 점검 — "작성자 주관에 따라 상세함이 달라진다"의 해법: 표준 강제 대신 검토 제안
   const [review, setReview] = useState<null | 'loading' | { section: keyof Sections; text: string }[]>(null);
 
+  // 반복 점검 체크리스트 — 그룹별 정형 항목 (자유 서술과 달리 매 교대 반복되는 것)
+  const [checkItems, setCheckItems] = useState<{ id: number; label: string }[]>([]);
+  const [checkState, setCheckState] = useState<Record<number, boolean>>({});
+  const [newCheck, setNewCheck] = useState('');
+
   const load = useCallback(() => {
     void api<Handover[]>(`/api/meetings/${code}/handovers`)
       .then(setList)
       .catch(() => setList([]));
+    void api<{ id: number; label: string }[]>(`/api/meetings/${code}/handovers/checklist`, { silent: true })
+      .then(setCheckItems)
+      .catch(() => {});
   }, [code]);
   useEffect(load, [load]);
+
+  async function addCheckItem() {
+    const label = newCheck.trim();
+    if (!label) return;
+    setNewCheck('');
+    try {
+      await api(`/api/meetings/${code}/handovers/checklist`, { method: 'POST', body: { label } });
+      load();
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+  async function removeCheckItem(id: number) {
+    setCheckItems((prev) => prev.filter((c) => c.id !== id));
+    await api(`/api/meetings/${code}/handovers/checklist/${id}`, { method: 'DELETE' }).catch(() => load());
+  }
 
   async function startDraft() {
     setDrafting(true);
@@ -156,6 +182,7 @@ export default function HandoverPanel({
             pending: toArr(editing.sections.pending),
             notes: toArr(editing.sections.notes),
           },
+          checks: checkItems.map((it) => ({ label: it.label, done: !!checkState[it.id] })),
         },
       });
       setEditing(null);
@@ -235,6 +262,52 @@ export default function HandoverPanel({
             <span className="ho-src">
               {editing.source === 'ai' ? 'AI 초안 — 다듬어 주세요' : '기록 기반 초안'}
             </span>
+          </div>
+          {/* 반복 점검 체크리스트 — 매 교대 반복되는 정형 항목 (자주 나오는 건 서술 대신 체크) */}
+          <div className="ho-checklist">
+            <span className="ho-sec-label">
+              <ListIcon size={13} /> 반복 점검
+            </span>
+            {checkItems.length === 0 && (
+              <span className="ho-check-empty">
+                매 교대 반복되는 점검 항목을 등록해두세요 (예: 설비 알람 확인, 파라미터 확인)
+              </span>
+            )}
+            {checkItems.map((it) => (
+              <label key={it.id} className="ho-check-row">
+                <input
+                  type="checkbox"
+                  checked={!!checkState[it.id]}
+                  onChange={(e) => setCheckState((prev) => ({ ...prev, [it.id]: e.target.checked }))}
+                />
+                <span className="ho-check-label">{it.label}</span>
+                <button
+                  type="button"
+                  className="ho-check-del"
+                  title="항목 삭제 (그룹 공통)"
+                  onClick={() => void removeCheckItem(it.id)}
+                >
+                  ×
+                </button>
+              </label>
+            ))}
+            <form
+              className="ho-check-add"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void addCheckItem();
+              }}
+            >
+              <input
+                value={newCheck}
+                onChange={(e) => setNewCheck(e.target.value)}
+                placeholder="점검 항목 추가"
+                maxLength={80}
+              />
+              <button type="submit" disabled={!newCheck.trim()}>
+                추가
+              </button>
+            </form>
           </div>
           {SECTION_META.map(({ key, label, Icon }) => (
             <label key={key} className="ho-sec-edit">
@@ -322,6 +395,22 @@ export default function HandoverPanel({
                     {dn(h.author)} · {timeLabel(h.ts)}
                   </span>
                 </div>
+                {/* 반복 점검 결과 — 미점검이 한눈에 보이게 */}
+                {h.checks.length > 0 && (
+                  <div className="ho-sec">
+                    <div className="ho-sec-head">
+                      <ListIcon size={12} /> 반복 점검 (
+                      {h.checks.filter((c) => c.done).length}/{h.checks.length})
+                    </div>
+                    <div className="ho-check-grid">
+                      {h.checks.map((c, i) => (
+                        <span key={i} className={`ho-check-chip${c.done ? ' done' : ''}`}>
+                          {c.done ? '✓' : '○'} {c.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {SECTION_META.map(({ key, label, Icon }) =>
                   h.sections[key].length === 0 ? null : (
                     <div key={key} className="ho-sec">
