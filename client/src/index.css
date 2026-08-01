@@ -11668,11 +11668,16 @@ input:focus {
   cursor: default;
 }
 
+/* 새로 만들기 — 앱 공통 프라이머리 언어(솔리드 초록 알약: 참여·일정 추가·인수인계 작성과 동일) */
 .cf-tool.primary {
-  background: var(--green-soft);
+  background: var(--green);
   border-color: transparent;
-  color: var(--green-dark);
+  color: #fff;
   font-weight: 700;
+  padding: 6px 14px;
+}
+.cf-tool.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--green) 85%, #000);
 }
 
 .cf-tool.danger:hover:not(:disabled) {
