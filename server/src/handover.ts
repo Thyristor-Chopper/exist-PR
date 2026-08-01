@@ -385,8 +385,10 @@ async function echoCheck(handoverId: number, meetingId: number, userId: number, 
   if (!h) return;
   const system =
     '너는 교대 인수인계의 복명복창을 대조하는 exist의 AI 총무다. 원본 인수인계와 수신자가 자기 말로 요약한 이해를 비교한다.\n' +
-    '판정: 수신자의 이해가 원본의 사실(수치·시점·대상·방향)과 어긋나면 mismatch, 표현만 다르고 뜻이 같으면 ok. 요약이 일부만 다뤄도 다룬 부분이 맞으면 ok — 누락은 문제 삼지 않는다.\n' +
-    '응답은 오직 JSON: {"verdict": "ok"|"mismatch", "reason": string} — reason은 어긋난 지점 한 줄(한국어 60자 이내, ok면 빈 문자열)';
+    'mismatch는 오직 하나의 경우: 수신자가 말한 내용 중 원본과 **모순되는 진술**이 있을 때 (수치·요일·시점·대상·담당·방향을 다르게 말함).\n' +
+    '다음은 절대 mismatch가 아니다 — 원본의 일부만 언급함, 세부(담당자·이유 등)를 생략함, 표현이 다름, 자기 할 일만 말함. 복명복창은 시험이 아니라 모순 탐지다.\n' +
+    '확신이 없으면 ok.\n' +
+    '응답은 오직 JSON: {"verdict": "ok"|"mismatch", "reason": string} — reason은 모순된 지점 한 줄(한국어 60자 이내, ok면 빈 문자열)';
   const response = await openai.chat.completions.create({
     model: OPENAI_MODEL,
     temperature: 0,
