@@ -8,6 +8,7 @@ import { getUserContext } from './agent.js';
 import { attachYjs } from './ydoc.js';
 import { initNotifier, notifyUser, emitToUser } from './notify.js';
 import { setBlobViewing, clearBlobViewing } from './files.js';
+import { sweepHandoverEscalations } from './handover.js';
 import { ensureAgentUser } from './steward.js';
 import { runTodoReminders } from './todos.js';
 import { runDecisionReminders } from './recap.js';
@@ -47,6 +48,72 @@ attachSfu(io);
 attachYjs(server); // tldraw /sync 제거 — 캔버스는 Excalidraw가 /yjs 사용
 initNotifier(io); // orgs 등 라우터에서 notifyUser 사용 가능하게
 
+// 인수인계 미확인 에스컬레이션 — 10분마다 스윕 (기동 30초 뒤 1회 선실행)
+setTimeout(() => {
+  try {
+    sweepHandoverEscalations();
+  } catch (err) {
+    console.error('[handover] 에스컬레이션 스윕 실패:', err);
+  }
+}, 30_000);
+setInterval(() => {
+  try {
+    sweepHandoverEscalations();
+  } catch (err) {
+    console.error('[handover] 에스컬레이션 스윕 실패:', err);
+  }
+}, 10 * 60_000);
+
+/* ── 출근 브리핑 — 4시간 이상 자리를 비웠다 돌아오면(교대 출근의 신호) 밀린 확인거리를 한 번에.
+ * 교대 누락의 타이밍 해법: 자는 사람에게 낮에 쏜 알림은 묻힌다 — 출근 순간에 다시 모아준다 */
+const welcomedAt = new Map<number, number>();
+function sendShiftBriefing(userId: number) {
+  const recaps = db
+    .prepare(
+      `SELECT r.id, r.decisions FROM meeting_recaps r
+       JOIN meeting_participants mp ON mp.meeting_id = r.meeting_id
+       WHERE mp.user_id = ? AND r.created_at > datetime('now', '-3 days')`,
+    )
+    .all(userId) as { id: number; decisions: string }[];
+  const ackStmt = db.prepare(
+    'SELECT COUNT(DISTINCT decision_idx) AS n FROM decision_acks WHERE recap_id = ? AND user_id = ?',
+  );
+  let pendingDecisions = 0;
+  for (const r of recaps) {
+    let total = 0;
+    try {
+      total = (JSON.parse(r.decisions) as string[]).length;
+    } catch {
+      /* 구형 데이터 */
+    }
+    if (!total) continue;
+    pendingDecisions += Math.max(0, total - (ackStmt.get(r.id, userId) as { n: number }).n);
+  }
+  const pendingHandover = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM handovers h
+         JOIN meeting_participants mp ON mp.meeting_id = h.meeting_id
+         WHERE mp.user_id = ? AND h.author_id != ? AND h.created_at > datetime('now', '-3 days')
+           AND NOT EXISTS (SELECT 1 FROM handover_acks a WHERE a.handover_id = h.id AND a.user_id = ?)`,
+      )
+      .get(userId, userId, userId) as { n: number }
+  ).n;
+  if (pendingDecisions + pendingHandover === 0) return;
+  const parts = [
+    pendingDecisions ? `미확인 결정 ${pendingDecisions}건` : null,
+    pendingHandover ? `인수인계 ${pendingHandover}건` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  notifyUser(userId, {
+    from: 'exist AI',
+    text: `출근 브리핑 — 자리 비운 사이 ${parts}이 기다리고 있어요. 작업 전에 확인해 주세요.`,
+    kind: 'recap',
+    meetingCode: '',
+  });
+}
+
 // ── presence: 접속 중인 사용자 (exist의 존재감 레이어) ──
 const online = new Map<number, { username: string; count: number }>();
 
@@ -61,6 +128,28 @@ io.on('connection', (socket) => {
   if (entry) entry.count++;
   else online.set(userId, { username, count: 1 });
   broadcastPresence();
+
+  // 출근 브리핑 트리거 — 마지막 접속에서 4시간+ 지났고, 최근 4시간 내 브리핑한 적 없으면
+  try {
+    const last = db.prepare('SELECT last_seen_at FROM users WHERE id = ?').get(userId) as
+      | { last_seen_at: string | null }
+      | undefined;
+    const awayMs = last?.last_seen_at
+      ? Date.now() - new Date(last.last_seen_at + 'Z').getTime()
+      : 0;
+    if (awayMs >= 4 * 3600_000 && Date.now() - (welcomedAt.get(userId) ?? 0) >= 4 * 3600_000) {
+      welcomedAt.set(userId, Date.now());
+      setTimeout(() => {
+        try {
+          sendShiftBriefing(userId);
+        } catch (err) {
+          console.error('[brief] 출근 브리핑 실패:', err);
+        }
+      }, 2500);
+    }
+  } catch {
+    /* best effort */
+  }
 
   // DM 창 열람 상태 — 보고 있는 상대의 메시지는 알림(notifyUser) 생략용
   socket.on('dm:viewing', (p: { peerId?: number | null } | undefined) => {

@@ -671,6 +671,13 @@ db.exec(`
   );
 `);
 
+// 마이그레이션: 인수인계 에스컬레이션 — 2시간 미서명자가 있으면 작성자에게 1회 알림 (침묵을 발신자에게 보이게)
+try {
+  db.exec(`ALTER TABLE handovers ADD COLUMN escalated_at TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 마이그레이션: 인수인계 복명복창 — 서명에 "내가 이해한 내용 한 줄"(선택)을 곁들이면
 // AI가 원본과 의미 대조. echo_check: 'ok'|'mismatch', echo_reason: 어긋난 지점 한 줄
 try {

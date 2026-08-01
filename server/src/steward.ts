@@ -721,13 +721,111 @@ export function maybeSuggestDecision(
   io: Broadcaster,
   args: { meetingId: number; code: string; channelId: number; from: string; text: string },
 ): void {
-  if (!DECISION_RX.test(args.text)) return;
   if (AGENT_MENTION.test(args.text)) return; // @AI 질의는 답변 흐름이 따로 처리
+  if (!DECISION_RX.test(args.text)) {
+    maybeFlagStale(io, args); // 결정 선언이 아니면 — 옛 기준 언급인지 감시 (사후 누락 감지)
+    return;
+  }
   const last = decisionCooldown.get(args.meetingId) ?? 0;
   if (Date.now() - last < DECISION_COOLDOWN_MS) return;
   decisionCooldown.set(args.meetingId, Date.now());
   void handleDecisionCandidate(io, args).catch((err) =>
     console.error('[steward] 결정 감지 처리 실패:', err),
+  );
+}
+
+/* ── 사후 누락 감지 — 대화에서 "이미 바뀐 기준"이 언급되면 AI가 끼어든다.
+ * 전달이 새어나간 최후의 방어선: 야간조가 옛 기준으로 말하는 순간 원장이 반박한다.
+ * 게이트(수치·기준 어휘) + 3분 쿨다운 + 2차 양립 검증으로 오탐·비용 통제 */
+const staleCooldown = new Map<number, number>();
+const STALE_COOLDOWN_MS = 3 * 60 * 1000;
+const STALE_GATE = /(\d|기준|온도|사양|버전|일정|시각|납기|수량|부품|설정|파라미터|주기|업체)/;
+
+function maybeFlagStale(
+  io: Broadcaster,
+  args: { meetingId: number; code: string; channelId: number; from: string; text: string },
+): void {
+  if (!openai) return;
+  if (!STALE_GATE.test(args.text)) return;
+  const last = staleCooldown.get(args.meetingId) ?? 0;
+  if (Date.now() - last < STALE_COOLDOWN_MS) return;
+  staleCooldown.set(args.meetingId, Date.now());
+  void flagStaleCheck(io, args).catch((err) => console.error('[steward] 누락 감지 실패:', err));
+}
+
+/** 두 진술이 동시에 참일 수 있는가 — 모순 후보의 2차 검증 (복명복창과 같은 판별) */
+export async function verifyIncompatible(a: string, b: string): Promise<boolean> {
+  const v = await openai!.chat.completions.create({
+    model: process.env.OPENAI_MODEL_JUDGE || 'gpt-4o',
+    temperature: 0,
+    max_tokens: 60,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content:
+          '두 문장이 논리적으로 동시에 참일 수 있는지 판단한다. 같은 속성(수치·요일·시각·업체·담당·기준)에 다른 값을 말할 때만 동시에 참일 수 없다. 응답은 오직 JSON: {"compatible": true|false}',
+      },
+      { role: 'user', content: JSON.stringify({ 문장A: a, 문장B: b }) },
+    ],
+  });
+  const raw = v.choices[0]?.message?.content ?? '';
+  const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
+    compatible?: unknown;
+  };
+  return parsed.compatible === false;
+}
+
+async function flagStaleCheck(
+  io: Broadcaster,
+  args: { meetingId: number; code: string; channelId: number; from: string; text: string },
+): Promise<void> {
+  const recent = listDecisions(args.meetingId, 30).filter(
+    (d) => Date.now() - d.ts < 14 * 86_400_000,
+  );
+  if (!recent.length) return;
+  const response = await openai!.chat.completions.create({
+    model: OPENAI_MODEL,
+    temperature: 0,
+    max_tokens: 200,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content:
+          '너는 exist의 AI 총무다. 팀원의 발언이 최근 결정과 모순되는 값(수치·요일·업체·기준)을 말하는지 본다.\n' +
+          '모순일 때만: {"found": true, "message_part": 발언에서 모순된 부분 인용, "decision": 해당 결정 원문}\n' +
+          '아니면 {"found": false}. 결정을 언급 안 하거나 무관한 잡담이면 무조건 false. 응답은 오직 JSON.',
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          decisions: recent.map((d) => d.decision),
+          message: `${args.from}: ${args.text}`,
+        }),
+      },
+    ],
+  });
+  const raw = response.choices[0]?.message?.content ?? '';
+  const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
+    found?: unknown;
+    message_part?: unknown;
+    decision?: unknown;
+  };
+  if (parsed.found !== true) return;
+  const part = String(parsed.message_part ?? '').trim();
+  const decision = String(parsed.decision ?? '').trim();
+  // 인용 실재 + 결정 실재 + 2차 양립 검증 — 3중 필터 후에만 끼어든다 (AI가 자주 틀리면 신뢰가 죽는다)
+  if (!part || !decision) return;
+  if (!args.text.replace(/\s+/g, '').includes(part.replace(/\s+/g, '').slice(0, 8))) return;
+  if (!recent.some((d) => d.decision === decision)) return;
+  if (!(await verifyIncompatible(decision, part))) return;
+  postAgentChat(
+    io,
+    args.meetingId,
+    args.code,
+    args.channelId,
+    `⚠️ 방금 말씀이 기록과 어긋날 수 있어요 — 원장 결정: "${decision.slice(0, 80)}" · 말씀: "${part.slice(0, 60)}". 기준이 바뀌었는지 확인해 주세요.`,
   );
 }
 

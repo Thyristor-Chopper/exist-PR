@@ -191,6 +191,53 @@ async function aiRecap(msgs: ChatMsg[], participants: string[]): Promise<RecapRe
   return { summary, decisions, whys, alts, actions, nextMeeting, source: 'ai' };
 }
 
+/** 관련성 라우팅 — 결정이 작업에 직접 영향을 주는 참가자 추론 (실패·불확실 시 빈 집합 = 일반 톤) */
+async function inferAffected(
+  decisions: string[],
+  members: { id: number; username: string; position: string | null; department: string | null }[],
+): Promise<Set<number>> {
+  if (!openai || decisions.length === 0 || members.length < 2) return new Set();
+  try {
+    const response = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      temperature: 0,
+      max_tokens: 200,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content:
+            '너는 exist의 AI 총무다. 회의 결정 목록과 참가자(직무·부서)를 보고, 결정이 그 사람의 "작업 방식·기준을 직접 바꾸는" 참가자만 고른다.\n' +
+            '단순히 알아두면 좋은 정도는 제외. 직무 정보가 없거나 판단이 안 서면 고르지 않는다.\n' +
+            '응답은 오직 JSON: {"critical": [username]} — 없으면 빈 배열',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            decisions,
+            members: members.map((m) => ({
+              username: m.username,
+              position: m.position ?? '',
+              department: m.department ?? '',
+            })),
+          }),
+        },
+      ],
+    });
+    const raw = response.choices[0]?.message?.content ?? '';
+    const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
+      critical?: unknown;
+    };
+    const names = new Set(
+      (Array.isArray(parsed.critical) ? parsed.critical : []).map((n) => String(n)),
+    );
+    return new Set(members.filter((m) => names.has(m.username)).map((m) => m.id));
+  } catch (err) {
+    console.error('[recap] 관련성 추론 실패 — 일반 톤 폴백:', err);
+    return new Set();
+  }
+}
+
 /** 추출 (AI → 실패 시 규칙 폴백) */
 export async function extractRecap(msgs: ChatMsg[], participants: string[]): Promise<RecapResult> {
   if (openai) {
@@ -341,10 +388,10 @@ export async function runRecapForMeeting(
   // 회의 등록 참가자 전원 (배달 대상) — 참석/불참은 sessionUserIds로 구분
   const members = db
     .prepare(
-      `SELECT u.id, u.username FROM meeting_participants mp
+      `SELECT u.id, u.username, u.position, u.department FROM meeting_participants mp
        JOIN users u ON u.id = mp.user_id WHERE mp.meeting_id = ?`,
     )
-    .all(meeting.id) as { id: number; username: string }[];
+    .all(meeting.id) as { id: number; username: string; position: string | null; department: string | null }[];
   if (members.length === 0) return null;
 
   const recap = await extractRecap(
@@ -412,13 +459,18 @@ export async function runRecapForMeeting(
   ]
     .filter(Boolean)
     .join(' · ');
+  // 관련성 라우팅 — 결정이 작업 방식을 바꾸는 사람에게는 "작업 전 확인 필수" 등급으로 (알림 피로 방지의 역설계:
+  // 전원에게 같은 톤으로 뿌리면 중요한 것도 묻힌다. 직무·부서로 영향 범위를 추론해 톤을 가른다)
+  const critical = await inferAffected(recap.decisions, members);
+
   const what = trigger === 'manual' ? '기록' : '통화';
   for (const m of members) {
     const mine = assignedCount.get(m.id);
     const mineSuffix = mine ? ` — 내 할 일 ${mine}개 배정됨` : '';
+    const prefix = critical.has(m.id) ? '🔴 작업 전 확인 필수 — ' : '';
     const text = inCall.has(m.id)
-      ? `"${meeting.title}" ${what} 정리: ${recap.summary}${stats ? ` (${stats})` : ''}${mineSuffix}`
-      : `놓친 "${meeting.title}" ${what}의 결정이 도착했어요: ${recap.summary}${stats ? ` (${stats})` : ''}${mineSuffix}`;
+      ? `${prefix}"${meeting.title}" ${what} 정리: ${recap.summary}${stats ? ` (${stats})` : ''}${mineSuffix}`
+      : `${prefix}놓친 "${meeting.title}" ${what}의 결정이 도착했어요: ${recap.summary}${stats ? ` (${stats})` : ''}${mineSuffix}`;
     notifyUser(m.id, { from: 'exist AI', text, kind: 'recap', meetingCode: meeting.code });
     invalidateBrief(m.id);
   }

@@ -294,6 +294,43 @@ export function publishHandover(
   return id;
 }
 
+/** 미확인 에스컬레이션 스위퍼 — 발행 2시간 뒤에도 미서명자가 있으면 작성자에게 1회 알림.
+ *  "침묵의 비용을 발신자가 실시간으로 보게" — 리마인드(수신자 조르기)의 반대 방향 */
+export function sweepHandoverEscalations() {
+  const rows = db
+    .prepare(
+      `SELECT h.id, h.meeting_id, h.author_id, h.shift_label, m.code FROM handovers h
+       JOIN meetings m ON m.id = h.meeting_id
+       WHERE h.escalated_at IS NULL
+         AND h.created_at < datetime('now', '-2 hours')
+         AND h.created_at > datetime('now', '-3 days')`,
+    )
+    .all() as { id: number; meeting_id: number; author_id: number; shift_label: string; code: string }[];
+  for (const h of rows) {
+    const parts = db
+      .prepare(
+        `SELECT u.id, u.username FROM meeting_participants mp JOIN users u ON u.id = mp.user_id
+         WHERE mp.meeting_id = ? AND mp.user_id != ?`,
+      )
+      .all(h.meeting_id, h.author_id) as { id: number; username: string }[];
+    const acked = new Set(
+      (db.prepare('SELECT user_id FROM handover_acks WHERE handover_id = ?').all(h.id) as { user_id: number }[]).map(
+        (a) => a.user_id,
+      ),
+    );
+    const missing = parts.filter((p) => !acked.has(p.id));
+    db.prepare(`UPDATE handovers SET escalated_at = datetime('now') WHERE id = ?`).run(h.id);
+    if (missing.length === 0) continue;
+    notifyUser(h.author_id, {
+      from: 'exist AI',
+      text: `⚠️ ${h.shift_label ? `[${h.shift_label}] ` : ''}인수인계 발행 2시간 — 아직 ${missing.length}명이 확인하지 않았어요 (${missing.map((p) => p.username).join(', ')})`,
+      kind: 'recap',
+      meetingCode: h.code,
+    });
+    invalidateBrief(h.author_id);
+  }
+}
+
 export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
   const rows = db
     .prepare(
