@@ -6,7 +6,8 @@ import { startMediasoup, attachSfu } from './sfu.js';
 import { eventOccurrenceOnOrAfter } from './meetings.js';
 import { getUserContext } from './agent.js';
 import { attachYjs } from './ydoc.js';
-import { initNotifier, notifyUser } from './notify.js';
+import { initNotifier, notifyUser, emitToUser } from './notify.js';
+import { setBlobViewing, clearBlobViewing } from './files.js';
 import { ensureAgentUser } from './steward.js';
 import { runTodoReminders } from './todos.js';
 import { runDecisionReminders } from './recap.js';
@@ -73,6 +74,27 @@ io.on('connection', (socket) => {
     socket.data.chatViewing = p?.code ? String(p.code).toUpperCase() : null;
   });
 
+  // 업로드 파일 미리보기 열람 신고 — "누가 지금 이 파일을 보고 있나" (30초 심박, null=떠남)
+  socket.on('file:viewing', (p: { code?: string; fileId?: number | null } | undefined) => {
+    const code = p?.code ? String(p.code).toUpperCase() : null;
+    if (!code) return;
+    const meeting = db.prepare('SELECT id FROM meetings WHERE code = ?').get(code) as
+      | { id: number }
+      | undefined;
+    if (!meeting) return;
+    const isPart = db
+      .prepare('SELECT 1 FROM meeting_participants WHERE meeting_id = ? AND user_id = ?')
+      .get(meeting.id, userId);
+    if (!isPart) return;
+    const fid = Number(p?.fileId);
+    setBlobViewing(meeting.id, userId, Number.isInteger(fid) && fid > 0 ? fid : null);
+    // 참가자들에게 재조회 핑 — 편집 프레즌스(ydoc pingPresence)와 같은 채널
+    const parts = db
+      .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+      .all(meeting.id) as { user_id: number }[];
+    for (const q of parts) emitToUser(q.user_id, 'files:presence', { code });
+  });
+
   // 탭 가시성 — 접속 소켓이 있어도 전부 백그라운드면 웹푸시(OS 알림)를 쏘기 위한 신호.
   // 구버전 클라(신호 안 보냄)는 true로 남아 기존 동작(접속 중이면 푸시 생략) 유지
   socket.data.visible = true;
@@ -86,6 +108,7 @@ io.on('connection', (socket) => {
     e.count--;
     if (e.count <= 0) {
       online.delete(userId);
+      clearBlobViewing(userId); // 마지막 소켓까지 끊김 — 미리보기 시청 상태 정리
       // 마지막 소켓이 끊긴 시각 = "자리를 비운 시점" — P2 놓친 것 브리핑의 기준
       db.prepare(`UPDATE users SET last_seen_at = datetime('now') WHERE id = ?`).run(userId);
     }

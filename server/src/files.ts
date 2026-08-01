@@ -167,7 +167,23 @@ router.get('/', (req: AuthedRequest, res) => {
   res.json(rows);
 });
 
-/** 파일별 현재 편집자 — { fileId: [{username, avatar}] } (awareness 기반, 접속 중인 룸만) */
+/* ── 업로드 파일(blob) 미리보기 시청자 — yjs room이 없는 파일의 프레즌스 (소켓 신고 기반).
+ * 클라가 미리보기를 여는 동안 file:viewing을 30초 심박으로 보내고, 90초 무신호면 스테일 처리 ── */
+const blobViewers = new Map<number, Map<number, { fileId: number; ts: number }>>();
+export function setBlobViewing(meetingId: number, userId: number, fileId: number | null) {
+  let m = blobViewers.get(meetingId);
+  if (!m) {
+    m = new Map();
+    blobViewers.set(meetingId, m);
+  }
+  if (fileId == null) m.delete(userId);
+  else m.set(userId, { fileId, ts: Date.now() });
+}
+export function clearBlobViewing(userId: number) {
+  for (const m of blobViewers.values()) m.delete(userId);
+}
+
+/** 파일별 현재 편집자·시청자 — { fileId: [{username, avatar}] } (편집=awareness, 미리보기=소켓 신고) */
 router.get('/presence', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
@@ -176,14 +192,16 @@ router.get('/presence', (req: AuthedRequest, res) => {
     .all(r.meeting.id) as { id: number; room: string }[];
   const parts = db
     .prepare(
-      `SELECT u.username, u.name, u.avatar FROM meeting_participants mp
+      `SELECT u.id, u.username, u.name, u.avatar FROM meeting_participants mp
        JOIN users u ON u.id = mp.user_id WHERE mp.meeting_id = ?`,
     )
-    .all(r.meeting.id) as { username: string; name: string | null; avatar: string | null }[];
+    .all(r.meeting.id) as { id: number; username: string; name: string | null; avatar: string | null }[];
   const byKey = new Map<string, { username: string; avatar: string | null }>();
+  const byId = new Map<number, { username: string; avatar: string | null }>();
   for (const p of parts) {
     byKey.set(p.username, { username: p.username, avatar: p.avatar });
     if (p.name) byKey.set(p.name, { username: p.username, avatar: p.avatar });
+    byId.set(p.id, { username: p.username, avatar: p.avatar });
   }
   const out: Record<number, { username: string; avatar: string | null }[]> = {};
   for (const f of rows) {
@@ -198,6 +216,20 @@ router.get('/presence', (req: AuthedRequest, res) => {
       list.push(p);
     }
     if (list.length) out[f.id] = list;
+  }
+  // 미리보기 시청자 합류 (업로드 파일)
+  const viewers = blobViewers.get(r.meeting.id);
+  if (viewers) {
+    for (const [uid, v] of viewers) {
+      if (Date.now() - v.ts > 90_000) {
+        viewers.delete(uid); // 스테일 — 심박 끊김
+        continue;
+      }
+      const p = byId.get(uid);
+      if (!p) continue;
+      const list = (out[v.fileId] ??= []);
+      if (!list.some((x) => x.username === p.username)) list.push(p);
+    }
   }
   res.json(out);
 });

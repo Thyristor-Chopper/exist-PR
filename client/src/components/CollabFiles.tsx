@@ -465,6 +465,21 @@ export default function CollabFiles({
     }
   }
 
+  // 미리보기 열람 신고 — "누가 지금 이 파일을 보고 있나" (편집 프레즌스의 미리보기판).
+  // 열면 즉시 + 30초 심박, 떠나면 null (서버는 90초 무신호를 스테일 처리)
+  const activeBlobId = active?.type === 'file' ? active.id : null;
+  useEffect(() => {
+    if (!visible || activeBlobId == null) return;
+    const socket = getSocket();
+    const report = () => socket.emit('file:viewing', { code, fileId: activeBlobId });
+    report();
+    const heartbeat = setInterval(report, 30_000);
+    return () => {
+      clearInterval(heartbeat);
+      socket.emit('file:viewing', { code, fileId: null });
+    };
+  }, [activeBlobId, visible, code]);
+
   /** 볼 수 없는 형식의 업로드 파일 — 다운로드로 폴백 */
   function openBlobFile(f: CollabFile) {
     const url = `/api/meetings/${code}/files/${f.id}/download?token=${encodeURIComponent(token ?? '')}`;
