@@ -881,7 +881,37 @@ router.get('/search', (req: AuthedRequest, res) => {
     )
     .all(uid, like, ...sc.args) as { text: string; sub: string; code: string; title: string }[];
 
-  res.json({ groups, messages, decisions, todos, files, events });
+  // 인수인계 — 섹션 JSON에서 매칭 항목만 추출 (현직자 페인: 인수인계 기록은 검색이 안 된다)
+  const hoRows = db
+    .prepare(
+      `SELECT h.sections, h.shift_label, m.code, m.title, h.created_at AS ts FROM handovers h
+       JOIN meetings m ON m.id = h.meeting_id
+       JOIN meeting_participants mp ON mp.meeting_id = h.meeting_id AND mp.user_id = ?
+       WHERE h.sections LIKE ? ESCAPE '\\'${sc.sql}
+       ORDER BY h.id DESC LIMIT 20`,
+    )
+    .all(uid, like, ...sc.args) as { sections: string; shift_label: string; code: string; title: string; ts: string }[];
+  const handovers: { text: string; sub: string; code: string; title: string; ts: string }[] = [];
+  for (const r of hoRows) {
+    let sec: Record<string, string[]>;
+    try {
+      sec = JSON.parse(r.sections) as Record<string, string[]>;
+    } catch {
+      continue;
+    }
+    for (const items of Object.values(sec)) {
+      if (!Array.isArray(items)) continue;
+      for (const it of items) {
+        if (String(it).toLowerCase().includes(ql))
+          handovers.push({ text: String(it), sub: r.shift_label || '인수인계', code: r.code, title: r.title, ts: r.ts });
+        if (handovers.length >= 5) break;
+      }
+      if (handovers.length >= 5) break;
+    }
+    if (handovers.length >= 5) break;
+  }
+
+  res.json({ groups, messages, decisions, todos, files, events, handovers });
 });
 
 router.get('/overview', (req: AuthedRequest, res) => {

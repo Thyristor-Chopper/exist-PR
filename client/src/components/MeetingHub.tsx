@@ -13,6 +13,7 @@ import MeetingThumb from './MeetingThumb';
 import Marquee from './Marquee';
 import MeetingSchedule from './MeetingSchedule';
 import RecapPanel from './RecapPanel';
+import HandoverPanel from './HandoverPanel';
 import { DmWindow, type DmScope, type Thread } from './DirectMessages';
 import MentionInput, { type MentionCandidate } from './MentionInput';
 import { togglePin, isPinned, PINS_EVENT } from '../lib/pins';
@@ -38,6 +39,7 @@ import {
   PenIcon,
   CloseIcon,
   ChevronRightIcon,
+  RefreshIcon,
 } from './Icons';
 
 interface Participant {
@@ -205,7 +207,7 @@ function chatDateLabel(ts: number): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
 }
 
-type SubTab = 'dash' | 'call' | 'chat' | 'files' | 'decisions' | 'schedule' | 'settings';
+type SubTab = 'dash' | 'call' | 'chat' | 'files' | 'decisions' | 'handover' | 'schedule' | 'settings';
 
 interface Props {
   code: string;
@@ -1192,6 +1194,12 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
           <CheckMarkIcon size={13} /> 결정
         </button>
         <button
+          className={`hub-tab${subtab === 'handover' ? ' active' : ''}`}
+          onClick={() => setSubtab('handover')}
+        >
+          <RefreshIcon size={13} /> 인수인계
+        </button>
+        <button
           className={`hub-tab${subtab === 'settings' ? ' active' : ''}`}
           onClick={() => setSubtab('settings')}
         >
@@ -1285,6 +1293,9 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   </button>
                   <button className="hub-m-item" onClick={() => setSubtab('decisions')}>
                     <CheckMarkIcon size={19} /> 결정
+                  </button>
+                  <button className="hub-m-item" onClick={() => setSubtab('handover')}>
+                    <RefreshIcon size={19} /> 인수인계
                   </button>
                   <button className="hub-m-item" onClick={() => setSubtab('settings')}>
                     <GearIcon size={19} /> 설정
@@ -1775,6 +1786,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                   chat: '채팅',
                   files: '공동편집',
                   decisions: '결정',
+                  handover: '인수인계',
                   settings: '설정',
                 }[subtab]
               }
@@ -2047,6 +2059,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
 
         {/* 결정 원장 — 그룹의 모든 통화 결정 타임라인 */}
         {subtab === 'decisions' && <DecisionLedger code={code} />}
+        {subtab === 'handover' && <HandoverPanel code={code} />}
 
         {/* 공동편집 — 파일시스템 (코드/문서/시트/발표/캔버스 파일 여러 개, 한 번 열면 마운트 유지) */}
         {filesMounted && (

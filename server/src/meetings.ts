@@ -27,6 +27,7 @@ import {
   setNotifyMode,
 } from './channels.js';
 import { generateAgenda, generateDecisionHistory, invalidateAgenda, ensureAgentUser } from './steward.js';
+import { draftHandover, publishHandover, listHandovers, ackHandover } from './handover.js';
 import filesRouter, { deleteMeetingFiles } from './files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1336,6 +1337,50 @@ router.post('/:code/decisions/manual', (req: AuthedRequest, res) => {
     invalidateBrief(p.user_id);
   }
   res.json({ id: info.lastInsertRowid });
+});
+
+// ── 교대 인수인계 — AI 초안 → 발행 → 다음 조 서명 (참가자만) ──
+
+/** 인수인계 목록 (최신순, 서명 포함) */
+router.get('/:code/handovers', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json(listHandovers(r.meeting.id));
+});
+
+/** AI 초안 — 마지막 인수인계 이후 기록에서 4섹션 자동 추출 */
+router.post('/:code/handovers/draft', async (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json(await draftHandover(r.meeting.id));
+});
+
+/** 발행 — 작성자 외 참가자에게 알림 */
+router.post('/:code/handovers', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  try {
+    const id = publishHandover(
+      r.meeting.id,
+      String(req.params.code).toUpperCase(),
+      req.userId!,
+      String(req.body?.shiftLabel ?? '').trim(),
+      req.body?.sections,
+      String(req.body?.source ?? 'manual'),
+    );
+    res.json({ id });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : '발행 실패' });
+  }
+});
+
+/** 서명 — "작업 전에 확인했다" (멱등) */
+router.post('/:code/handovers/:id/ack', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  if (!ackHandover(Number(req.params.id), r.meeting.id, req.userId!))
+    return res.status(404).json({ error: '없는 인수인계예요' });
+  res.json({ ok: true });
 });
 
 /** AI 자동 기록 취소 — 채팅의 [취소] 버튼 (참가자 누구나, 사후 거부권). source='auto'만 지울 수 있다 */

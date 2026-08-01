@@ -10,6 +10,7 @@ import {
   UsersIcon,
   CloseIcon,
   SearchIcon,
+  RefreshIcon,
 } from './Icons';
 
 /*
@@ -33,6 +34,7 @@ interface SearchRes {
   todos: Hit[];
   files: Hit[];
   events: Hit[];
+  handovers?: Hit[];
 }
 
 export default function GlobalSearch() {
@@ -106,7 +108,8 @@ export default function GlobalSearch() {
       res.decisions.length +
       res.todos.length +
       res.files.length +
-      res.events.length
+      res.events.length +
+      (res.handovers?.length ?? 0)
     : 0;
 
   function section(
@@ -166,6 +169,7 @@ export default function GlobalSearch() {
                 (h) => go(h.code, h.text),
               )}
               {section('결정', CheckMarkIcon, res.decisions, (h) => go(h.code, h.title, 'decisions'))}
+              {section('인수인계', RefreshIcon, res.handovers ?? [], (h) => go(h.code, h.title, 'handover'))}
               {section('채팅', ChatIcon, res.messages, (h) => go(h.code, h.title, 'chat'))}
               {section('할 일', ListIcon, res.todos, (h) => go(h.code, h.title))}
               {section('파일', FolderIcon, res.files, (h) => go(h.code, h.title, 'files'))}

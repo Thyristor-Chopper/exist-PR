@@ -642,6 +642,27 @@ db.exec(`
   );
 `);
 
+// 교대 인수인계 — AI 초안(고정 4섹션) → 조장 발행 → 다음 조 서명(도달 증명).
+// 현직자 페인: 기록 형식 비통일·야간조 전달 누락·검색 불가 (교대 언급 6/7)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS handovers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id  INTEGER NOT NULL REFERENCES meetings(id),
+    author_id   INTEGER NOT NULL REFERENCES users(id),
+    shift_label TEXT NOT NULL DEFAULT '',
+    sections    TEXT NOT NULL,
+    source      TEXT NOT NULL DEFAULT 'ai',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_handovers ON handovers(meeting_id, id);
+  CREATE TABLE IF NOT EXISTS handover_acks (
+    handover_id INTEGER NOT NULL REFERENCES handovers(id),
+    user_id     INTEGER NOT NULL REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (handover_id, user_id)
+  );
+`);
+
 // 이월 안건 — 안건으로 올라갔지만 결론에 이르지 못한 것을 영속 추적.
 // 회의(recap)가 지나갈 때마다 rounds+1, 결론이 잡히면 resolved=1.
 // 목적: "같은 안건이 결론 없이 반복 논의된다"의 대응 — 미결이 최근 대화 창을 벗어나도 증발하지 않게.
