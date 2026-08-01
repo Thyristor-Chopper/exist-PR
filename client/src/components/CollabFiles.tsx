@@ -1029,22 +1029,25 @@ export default function CollabFiles({
 
         {/* 2줄 — 툴바: 이어진 알약 캡슐 (통화 [채팅|내보내기] 알약과 같은 언어) */}
         <div className="cf-toolbar">
-          <div className="cf-tool-wrap">
-            <button className="cf-tool primary" onClick={() => setTypeMenuFor('root')}>
-              <PlusIcon size={13} /> 새로 만들기
+          {/* 만들기·업로드 스플릿 캡슐 — 콘텐츠가 생기는 두 입구를 한 덩어리로 */}
+          <div className="cf-newgroup">
+            <div className="cf-tool-wrap">
+              <button className="cf-tool primary" onClick={() => setTypeMenuFor('root')}>
+                <PlusIcon size={13} /> 새로 만들기
+              </button>
+              {typeMenuFor === 'root' && <TypeMenu parentId={cwd} />}
+            </div>
+            <button
+              className="cf-tool primary cf-upload"
+              title="내 파일 업로드"
+              onClick={() => {
+                uploadParentRef.current = cwd;
+                uploadInputRef.current?.click();
+              }}
+            >
+              <UploadIcon size={14} /> 업로드
             </button>
-            {typeMenuFor === 'root' && <TypeMenu parentId={cwd} />}
           </div>
-          {/* 업로드 — 새로 만들기 메뉴에서 독립 (새 문서 만들기와 내 파일 올리기는 다른 행위) */}
-          <button
-            className="cf-tool cf-upload"
-            onClick={() => {
-              uploadParentRef.current = cwd;
-              uploadInputRef.current?.click();
-            }}
-          >
-            <UploadIcon size={14} /> 업로드
-          </button>
           {/* 구글 드라이브식 툴바 — 라운드 바 하나에 아이콘 버튼 + 얇은 구분선, 라벨은 툴팁 */}
           <div className="cf-gbar">
             <button
