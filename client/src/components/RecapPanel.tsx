@@ -126,8 +126,9 @@ export default function RecapPanel({
       }, 150);
       setTimeout(() => setFlashId(null), 2600);
     }
-    window.addEventListener('exist:goto-recap', onGoto);
-    return () => window.removeEventListener('exist:goto-recap', onGoto);
+    // MeetingHub가 탭 전환(마운트) 후 재전달하는 스크롤 신호를 받는다 (원 이벤트는 언마운트 상태에서 유실)
+    window.addEventListener('exist:goto-recap-scroll', onGoto);
+    return () => window.removeEventListener('exist:goto-recap-scroll', onGoto);
   }, [code, part]);
 
   // AI 겹침 시간 제안 (P1 ⑥ 업그레이드) — 명시적 합의가 없을 때 참가자 일정 기반 후보

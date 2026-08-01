@@ -342,8 +342,13 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   // 원장·일정의 "정리 보기" — 회의록은 대시보드(지난 회의)에 있으니 탭을 옮겨준다
   useEffect(() => {
     function onGotoRecap(e: Event) {
-      const d = (e as CustomEvent).detail as { code?: string } | undefined;
-      if (d?.code === code) setSubtab('dash');
+      const d = (e as CustomEvent).detail as { code?: string; recapId?: number } | undefined;
+      if (d?.code !== code) return;
+      setSubtab('dash');
+      // 대시보드가 방금 마운트되는 경우 RecapPanel이 원 이벤트를 놓침 — 마운트 뒤 스크롤 신호 재전달
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('exist:goto-recap-scroll', { detail: d }));
+      }, 300);
     }
     // 일정의 "AI 안건 보기" — ③ 다음 회의 카드로 스크롤 + 잠깐 하이라이트
     function onGotoAgenda(e: Event) {
