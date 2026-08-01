@@ -436,7 +436,7 @@ async function echoCheck(handoverId: number, meetingId: number, userId: number, 
           {
             role: 'system',
             content:
-              '두 문장이 논리적으로 동시에 참일 수 있는지 판단한다. 서로 다른 측면을 말하는 것(예: 한쪽은 진행자, 한쪽은 참석 의사)은 동시에 참일 수 있다. 같은 속성(요일·시각·수치·업체·담당)에 다른 값을 말할 때만 동시에 참일 수 없다. 응답: {"compatible": true|false}',
+              '두 문장이 논리적으로 동시에 참일 수 있는지 판단한다. 서로 다른 측면을 말하는 것(예: 한쪽은 진행자, 한쪽은 참석 의사)은 동시에 참일 수 있다. 같은 속성(요일·시각·수치·업체·담당)에 다른 값을 말할 때만 동시에 참일 수 없다. 응답은 오직 JSON: {"compatible": true|false}',
           },
           { role: 'user', content: JSON.stringify({ 문장A: c.orig, 문장B: c.said }) },
         ],
@@ -446,8 +446,8 @@ async function echoCheck(handoverId: number, meetingId: number, userId: number, 
         compatible?: unknown;
       };
       if (parsedV.compatible === false) confirmed.push(c);
-    } catch {
-      /* 검증 실패 시 그 쌍은 버림 — 오탐이 미탐보다 나쁘다 */
+    } catch (err) {
+      console.error('[handover] 복명복창 2차 검증 실패 — 쌍 폐기:', err);
     }
   }
   const verdict = confirmed.length > 0 ? 'mismatch' : 'ok';
