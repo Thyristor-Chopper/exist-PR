@@ -389,7 +389,8 @@ async function echoCheck(handoverId: number, meetingId: number, userId: number, 
     '수신자가 언급하지 않은 것은 모순이 될 수 없다 — receiver_said에 인용할 문장이 없으면 그 항목은 버려라.\n' +
     '응답은 오직 JSON: {"contradictions": [{"receiver_said": string(수신자 문장 그대로 인용), "original_says": string(원본의 해당 사실)}]} — 없으면 빈 배열';
   const response = await openai.chat.completions.create({
-    model: OPENAI_MODEL,
+    // 모순 판정은 mini가 오탐이 잦아 상위 모델 고정 (호출 빈도 낮음 — 복명복창 제출 시 1회)
+    model: process.env.OPENAI_MODEL_JUDGE || 'gpt-4o',
     temperature: 0,
     max_tokens: 300,
     response_format: { type: 'json_object' },
