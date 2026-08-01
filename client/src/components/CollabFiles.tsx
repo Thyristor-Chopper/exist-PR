@@ -1035,7 +1035,7 @@ export default function CollabFiles({
           />
         </div>
 
-        {/* 2줄 — 툴바 */}
+        {/* 2줄 — 툴바: 이어진 알약 캡슐 (통화 [채팅|내보내기] 알약과 같은 언어) */}
         <div className="cf-toolbar">
           <div className="cf-tool-wrap">
             <button className="cf-tool primary" onClick={() => setTypeMenuFor('root')}>
@@ -1043,37 +1043,44 @@ export default function CollabFiles({
             </button>
             {typeMenuFor === 'root' && <TypeMenu parentId={cwd} />}
           </div>
-          <span className="cf-tool-sep" />
-          <button
-            className="cf-tool"
-            disabled={cantTouch}
-            onClick={() => setClipboard({ op: 'cut', ids: editables.map((f) => f.id) })}
-          >
-            <ScissorsIcon size={13} /> 잘라내기
-          </button>
-          <button
-            className="cf-tool"
-            disabled={disabledSel}
-            onClick={() => setClipboard({ op: 'copy', ids: [...selectedIds] })}
-          >
-            <CopyIcon size={13} /> 복사
-          </button>
-          <button className="cf-tool" disabled={!clipboard} onClick={() => void paste()}>
-            <ClipboardIcon size={13} /> 붙여넣기
-          </button>
-          <button
-            className="cf-tool"
-            disabled={!selected || !canEdit(selected)}
-            onClick={() => selected && startRename(selected)}
-          >
-            <PenIcon size={12} /> 이름 바꾸기
-          </button>
-          <button className="cf-tool" disabled={!selected} onClick={() => selected && share(selected)}>
-            <ShareIcon size={13} /> 공유
-          </button>
-          <button className="cf-tool danger" disabled={cantTouch} onClick={() => void deleteSelection()}>
-            <TrashIcon size={13} /> 삭제
-          </button>
+          {/* 클립보드 캡슐 */}
+          <div className="cf-pillgroup">
+            <button
+              className="cf-tool"
+              disabled={cantTouch}
+              onClick={() => setClipboard({ op: 'cut', ids: editables.map((f) => f.id) })}
+            >
+              <ScissorsIcon size={13} /> 잘라내기
+            </button>
+            <button
+              className="cf-tool"
+              disabled={disabledSel}
+              onClick={() => setClipboard({ op: 'copy', ids: [...selectedIds] })}
+            >
+              <CopyIcon size={13} /> 복사
+            </button>
+            <button className="cf-tool" disabled={!clipboard} onClick={() => void paste()}>
+              <ClipboardIcon size={13} /> 붙여넣기
+            </button>
+          </div>
+          {/* 선택 항목 캡슐 */}
+          <div className="cf-pillgroup">
+            <button
+              className="cf-tool"
+              disabled={!selected || !canEdit(selected)}
+              onClick={() => selected && startRename(selected)}
+            >
+              <PenIcon size={12} /> 이름 바꾸기
+            </button>
+            <button className="cf-tool" disabled={!selected} onClick={() => selected && share(selected)}>
+              <ShareIcon size={13} /> 공유
+            </button>
+            <button className="cf-tool danger" disabled={cantTouch} onClick={() => void deleteSelection()}>
+              <TrashIcon size={13} /> 삭제
+            </button>
+          </div>
+          {/* 보기·정리 캡슐 */}
+          <div className="cf-pillgroup">
           <button
             className={`cf-tool${trashOpen ? ' on' : ''}`}
             onClick={() => {
@@ -1083,7 +1090,6 @@ export default function CollabFiles({
           >
             <TrashIcon size={13} /> 휴지통
           </button>
-          <span className="cf-tool-sep" />
           <div className="cf-tool-wrap">
             <button className="cf-tool" onClick={() => setSortMenu((v) => !v)}>
               <SortIcon size={13} /> 정렬
@@ -1128,6 +1134,15 @@ export default function CollabFiles({
               </div>
             )}
           </div>
+          <button
+            className="cf-tool"
+            disabled={undoStack.current.length === 0}
+            onClick={() => void undo()}
+            title={undoStack.current.at(-1)?.label ?? ''}
+          >
+            <UndoIcon size={13} /> 실행 취소
+          </button>
+          </div>
           {/* 보기 전환 — 기록 탭과 같은 알약 토글 언어로 통일 (8/2) */}
           <PillSeg
             className="cf-view-seg"
@@ -1142,14 +1157,6 @@ export default function CollabFiles({
               localStorage.setItem('exist:cf-view', k);
             }}
           />
-          <button
-            className="cf-tool"
-            disabled={undoStack.current.length === 0}
-            onClick={() => void undo()}
-            title={undoStack.current.at(-1)?.label ?? ''}
-          >
-            <UndoIcon size={13} /> 실행 취소
-          </button>
         </div>
 
         {/* 즐겨찾기 바 — 우클릭으로 추가한 항목 바로가기 */}
