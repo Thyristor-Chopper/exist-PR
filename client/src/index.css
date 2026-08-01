@@ -15628,6 +15628,16 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   flex-shrink: 0;
 }
 
+/* 공동편집 툴바의 보기 알약 — 툴바 버튼 높이에 맞춘 컴팩트판 */
+.cf-view-seg {
+  flex-shrink: 0;
+  align-self: center;
+}
+.cf-view-seg button {
+  font-size: 12px;
+  padding: 4px 11px;
+}
+
 .ledger-hist {
   display: flex;
   flex-direction: column;

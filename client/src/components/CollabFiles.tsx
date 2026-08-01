@@ -10,6 +10,7 @@ import SlideEditor from './SlideEditor';
 import CanvasBoard from './CanvasBoard';
 import Marquee from './Marquee';
 import Avatar from './Avatar';
+import PillSeg from './PillSeg';
 import {
   FolderIcon,
   CodeIcon,
@@ -1127,16 +1128,20 @@ export default function CollabFiles({
               </div>
             )}
           </div>
-          <button
-            className="cf-tool"
-            onClick={() => {
-              const next: ViewMode = view === 'grid' ? 'list' : 'grid';
-              setView(next);
-              localStorage.setItem('exist:cf-view', next);
+          {/* 보기 전환 — 기록 탭과 같은 알약 토글 언어로 통일 (8/2) */}
+          <PillSeg
+            className="cf-view-seg"
+            ariaLabel="보기 방식"
+            options={[
+              { key: 'grid', label: '▦ 아이콘' },
+              { key: 'list', label: '☰ 목록' },
+            ]}
+            value={view}
+            onChange={(k) => {
+              setView(k as ViewMode);
+              localStorage.setItem('exist:cf-view', k);
             }}
-          >
-            {view === 'grid' ? '☰ 목록 보기' : '▦ 아이콘 보기'}
-          </button>
+          />
           <button
             className="cf-tool"
             disabled={undoStack.current.length === 0}
