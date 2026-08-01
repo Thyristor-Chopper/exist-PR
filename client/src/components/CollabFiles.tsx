@@ -464,22 +464,8 @@ export default function CollabFiles({
     }
   }
 
-  /** 업로드 파일 열기 — 볼 수 있는 형식(이미지·PDF·영상·음성·텍스트)은 인앱 뷰어, 나머지는 다운로드 */
-  const [viewer, setViewer] = useState<CollabFile | null>(null);
-  useEffect(() => {
-    if (!viewer) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setViewer(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [viewer]);
-
+  /** 볼 수 없는 형식의 업로드 파일 — 다운로드로 폴백 */
   function openBlobFile(f: CollabFile) {
-    if (viewKindOf(f.name) !== 'other') {
-      setViewer(f);
-      return;
-    }
     const url = `/api/meetings/${code}/files/${f.id}/download?token=${encodeURIComponent(token ?? '')}`;
     const win = window.open(url, '_blank');
     if (!win) {
@@ -492,7 +478,8 @@ export default function CollabFiles({
 
   // ── 파일 열기 ──
   function openFile(f: CollabFile) {
-    if (f.type === 'file') {
+    if (f.type === 'file' && viewKindOf(f.name) === 'other') {
+      // 볼 수 없는 형식만 다운로드 — 이미지·PDF·영상·음성·텍스트는 에디터처럼 안쪽에서 연다
       openBlobFile(f);
       return;
     }
@@ -1825,39 +1812,6 @@ export default function CollabFiles({
       />
       {uploading && <div className="cf-uploading">업로드 중…</div>}
 
-      {/* 업로드 파일 인앱 뷰어 — 이미지·PDF·영상·음성·텍스트 (Esc·바깥 클릭 닫기) */}
-      {viewer &&
-        (() => {
-          const vUrl = `/api/meetings/${code}/files/${viewer.id}/download?token=${encodeURIComponent(token ?? '')}`;
-          const kind = viewKindOf(viewer.name);
-          return (
-            <div className="cf-viewer-overlay" onClick={() => setViewer(null)}>
-              <div className="cf-viewer" onClick={(e) => e.stopPropagation()}>
-                <div className="cf-viewer-head">
-                  <span className="cf-viewer-name" title={viewer.name}>
-                    <TypeIcon type="file" size={14} /> {viewer.name}
-                  </span>
-                  <span className="cf-viewer-actions">
-                    <a className="cf-viewer-dl" href={vUrl} download={viewer.name}>
-                      <DownloadIcon size={13} /> 저장
-                    </a>
-                    <button className="cf-viewer-x" onClick={() => setViewer(null)} title="닫기 (Esc)">
-                      <CloseIcon size={15} />
-                    </button>
-                  </span>
-                </div>
-                <div className={`cf-viewer-body ${kind}`}>
-                  {kind === 'image' && <img src={vUrl} alt={viewer.name} />}
-                  {kind === 'pdf' && <iframe title={viewer.name} src={vUrl} />}
-                  {kind === 'video' && <video src={vUrl} controls />}
-                  {kind === 'audio' && <audio src={vUrl} controls />}
-                  {kind === 'text' && <TextPreview url={vUrl} />}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
       {/* 에디터 — 파일을 열면 전체 화면, ← 로 탐색기 복귀 */}
       <div
         className={`cf-editor${editorFull && active ? ' full' : ''}`}
@@ -1932,6 +1886,28 @@ export default function CollabFiles({
             {f.type === 'sheet' && <SheetEditor roomId={f.room!} active={visible && f.id === activeId} />}
             {f.type === 'slide' && <SlideEditor roomId={f.room!} fileName={f.name} active={visible && f.id === activeId} />}
             {f.type === 'canvas' && <CanvasBoard roomId={f.room!} active={visible && f.id === activeId} />}
+            {/* 업로드 파일 — 에디터와 같은 자리에서 미리보기 (이미지·PDF·영상·음성·텍스트) */}
+            {f.type === 'file' &&
+              (() => {
+                const vUrl = `/api/meetings/${code}/files/${f.id}/download?token=${encodeURIComponent(token ?? '')}`;
+                const kind = viewKindOf(f.name);
+                return (
+                  <div className="cf-blobview">
+                    <div className="cf-blobview-bar">
+                      <a className="cf-viewer-dl" href={vUrl} download={f.name}>
+                        <DownloadIcon size={13} /> 저장
+                      </a>
+                    </div>
+                    <div className={`cf-viewer-body ${kind}`}>
+                      {kind === 'image' && <img src={vUrl} alt={f.name} />}
+                      {kind === 'pdf' && <iframe title={f.name} src={vUrl} />}
+                      {kind === 'video' && <video src={vUrl} controls />}
+                      {kind === 'audio' && <audio src={vUrl} controls />}
+                      {kind === 'text' && <TextPreview url={vUrl} />}
+                    </div>
+                  </div>
+                );
+              })()}
           </div>
         ))}
       </div>

@@ -11770,52 +11770,18 @@ input:focus {
   height: 100%;
 }
 
-/* ── 업로드 파일 인앱 뷰어 — 이미지·PDF·영상·음성·텍스트 ── */
-.cf-viewer-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 4300;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-.cf-viewer {
-  width: min(1000px, 96vw);
-  height: min(86dvh, 900px);
-  background: var(--surface, var(--bg));
-  border: 1px solid var(--border);
-  border-radius: 16px;
+/* ── 업로드 파일 인앱 미리보기 — 에디터와 같은 자리(인플레이스) ── */
+.cf-blobview {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
 }
-.cf-viewer-head {
+.cf-blobview-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
+  justify-content: flex-end;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.cf-viewer-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13.5px;
-  font-weight: 700;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cf-viewer-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   flex-shrink: 0;
 }
 .cf-viewer-dl {
@@ -11831,17 +11797,6 @@ input:focus {
   text-decoration: none;
 }
 .cf-viewer-dl:hover {
-  background: var(--surface-2);
-}
-.cf-viewer-x {
-  border: none;
-  background: none;
-  color: var(--text-sub);
-  border-radius: 999px;
-  padding: 6px;
-  display: inline-flex;
-}
-.cf-viewer-x:hover {
   background: var(--surface-2);
 }
 .cf-viewer-body {
