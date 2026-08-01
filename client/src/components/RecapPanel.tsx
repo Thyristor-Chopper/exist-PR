@@ -110,6 +110,26 @@ export default function RecapPanel({
     };
   }, [code, load]);
 
+  // 원장·일정의 "정리 보기" 점프 수신 — 대상 recap 카드로 스크롤 + 잠깐 하이라이트
+  const [flashId, setFlashId] = useState<number | null>(null);
+  useEffect(() => {
+    if (part === 'next') return; // 정리 목록은 past/all 인스턴스만 렌더
+    function onGoto(e: Event) {
+      const d = (e as CustomEvent).detail as { code?: string; recapId?: number } | undefined;
+      if (!d || d.code !== code || !d.recapId) return;
+      setExpanded(true);
+      setFlashId(d.recapId);
+      setTimeout(() => {
+        document
+          .querySelector(`[data-recap-id="${d.recapId}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+      setTimeout(() => setFlashId(null), 2600);
+    }
+    window.addEventListener('exist:goto-recap', onGoto);
+    return () => window.removeEventListener('exist:goto-recap', onGoto);
+  }, [code, part]);
+
   // AI 겹침 시간 제안 (P1 ⑥ 업그레이드) — 명시적 합의가 없을 때 참가자 일정 기반 후보
   const [slots, setSlots] = useState<{ date: string; time: string; free: number; busy: string[] }[] | null>(null);
   const [slotTotal, setSlotTotal] = useState(0);
@@ -269,7 +289,11 @@ export default function RecapPanel({
       ) : (
         <div className="hub-recap-list">
           {shown.map((r, idx) => (
-            <div key={r.id} className="hub-recap">
+            <div
+              key={r.id}
+              className={`hub-recap${flashId === r.id ? ' recap-flash' : ''}`}
+              data-recap-id={r.id}
+            >
               <div className="hub-recap-head">
                 <span className="hub-recap-summary">{r.summary}</span>
                 <span className="hub-recap-time">{relTime(r.ts)}</span>

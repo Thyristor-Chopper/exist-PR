@@ -339,6 +339,32 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
 
+  // 원장·일정의 "정리 보기" — 회의록은 대시보드(지난 회의)에 있으니 탭을 옮겨준다
+  useEffect(() => {
+    function onGotoRecap(e: Event) {
+      const d = (e as CustomEvent).detail as { code?: string } | undefined;
+      if (d?.code === code) setSubtab('dash');
+    }
+    // 일정의 "AI 안건 보기" — ③ 다음 회의 카드로 스크롤 + 잠깐 하이라이트
+    function onGotoAgenda(e: Event) {
+      const d = (e as CustomEvent).detail as { code?: string } | undefined;
+      if (d?.code !== code) return;
+      setSubtab('dash');
+      setTimeout(() => {
+        const el = document.querySelector('.pa-p3');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.classList.add('recap-flash');
+        setTimeout(() => el?.classList.remove('recap-flash'), 2400);
+      }, 250);
+    }
+    window.addEventListener('exist:goto-recap', onGotoRecap);
+    window.addEventListener('exist:goto-agenda', onGotoAgenda);
+    return () => {
+      window.removeEventListener('exist:goto-recap', onGotoRecap);
+      window.removeEventListener('exist:goto-agenda', onGotoAgenda);
+    };
+  }, [code]);
+
   // 모바일 — 서브 화면이 대시보드 위 오버레이로 뜨고, 드래그하면 아래 대시보드가 보인다
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
   useEffect(() => {

@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
-import { PhoneIcon, BellIcon, ListIcon, PlusIcon, CheckMarkIcon, PenIcon, CloseIcon, ChevronLeftIcon, ChevronRightIcon, PinIcon } from './Icons';
+import { PhoneIcon, BellIcon, ListIcon, PlusIcon, CheckMarkIcon, PenIcon, CloseIcon, ChevronLeftIcon, ChevronRightIcon, PinIcon, SparklesIcon } from './Icons';
 import Marquee from './Marquee';
 import PillSeg from './PillSeg';
 
@@ -267,6 +267,35 @@ export default function MeetingSchedule({
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
   }, [colorOpen]);
+
+  // 일정 ↔ 기록 연결 — 지난 이벤트 팝오버에 "이 회의의 기록(결정 N건)", 다가오는 이벤트엔 "AI 안건 N건".
+  // 일정 탭이 달력에서 회의의 입구(안건)·출구(기록)가 되게 하는 다리
+  interface RecapLink {
+    id: number;
+    eventId: number | null;
+    decisions: string[];
+    ts: number;
+  }
+  const [recapLinks, setRecapLinks] = useState<RecapLink[]>([]);
+  const [agendaCount, setAgendaCount] = useState(0);
+  useEffect(() => {
+    void api<RecapLink[]>(`/api/meetings/${code}/recaps`, { silent: true })
+      .then(setRecapLinks)
+      .catch(() => {});
+    void api<{ items: unknown[] }>(`/api/meetings/${code}/agenda`, { silent: true })
+      .then((a) => setAgendaCount(Array.isArray(a.items) ? a.items.length : 0))
+      .catch(() => {});
+  }, [code]);
+  /** 이벤트의 회의록 찾기 — event_id 정확 매칭 우선, 없으면 같은 날짜(구 데이터·즉석 매칭) */
+  function recapForEvent(evId: number, date: string): RecapLink | null {
+    const byId = recapLinks.find((r) => r.eventId === evId && r.decisions.length > 0);
+    if (byId) return byId;
+    return (
+      recapLinks.find(
+        (r) => r.decisions.length > 0 && ymd(new Date(r.ts)) === date,
+      ) ?? null
+    );
+  }
   const [people, setPeople] = useState<{ id: number; username: string }[]>([]); // 선택된 관련자
   const [pq, setPq] = useState(''); // 관련자 검색어
   const [pplOpen, setPplOpen] = useState(false);
@@ -1972,6 +2001,46 @@ export default function MeetingSchedule({
                     </span>
                   </div>
                 )}
+                {/* 일정 ↔ 기록 다리 — 지난 회의면 그 기록으로, 다가오는 회의면 AI 안건으로 */}
+                {(() => {
+                  const today = ymd(new Date());
+                  const link =
+                    popEv.date <= today ? recapForEvent(popBase?.id ?? popEv.id, popEv.date) : null;
+                  if (link)
+                    return (
+                      <button
+                        type="button"
+                        className="msched-pop-link"
+                        onClick={() => {
+                          setPop(null);
+                          window.dispatchEvent(
+                            new CustomEvent('exist:goto-recap', {
+                              detail: { code, recapId: link.id },
+                            }),
+                          );
+                        }}
+                      >
+                        <CheckMarkIcon size={12} /> 이 회의의 기록 — 결정 {link.decisions.length}건
+                        보기
+                      </button>
+                    );
+                  if (popEv.date >= today && agendaCount > 0)
+                    return (
+                      <button
+                        type="button"
+                        className="msched-pop-link"
+                        onClick={() => {
+                          setPop(null);
+                          window.dispatchEvent(
+                            new CustomEvent('exist:goto-agenda', { detail: { code } }),
+                          );
+                        }}
+                      >
+                        <SparklesIcon size={12} /> AI 안건 {agendaCount}건 준비됨 — 보기
+                      </button>
+                    );
+                  return null;
+                })()}
                 <div className="msched-pop-foot">
                   <span className="msched-pop-author">작성 {dn(popEv.author)}</span>
                   {popCanEdit && (

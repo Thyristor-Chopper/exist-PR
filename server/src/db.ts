@@ -632,6 +632,14 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: recap ↔ 일정 이벤트 연결 — "이 회의록이 어느 회의(일정)의 기록인가".
+// 일정→기록 점프의 데이터 기반 (없으면 클라가 날짜로 퍼지 매칭)
+try {
+  db.exec(`ALTER TABLE meeting_recaps ADD COLUMN event_id INTEGER`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 미확인 리마인드 발송 기록 — recap×사용자당 1회만 보챈다 (중복 알림 방지)
 db.exec(`
   CREATE TABLE IF NOT EXISTS decision_remind_sent (

@@ -216,6 +216,8 @@ export interface RecapRow {
   nextMeeting: NextMeeting | null;
   source: string;
   ts: number;
+  /** 이 기록이 열린 일정 이벤트 — 즉석 회의면 null */
+  eventId: number | null;
 }
 
 /** whys 컬럼 파싱 — 구 데이터(null)는 decisions 길이만큼 빈 문자열로 */
@@ -246,7 +248,7 @@ function parseAlts(raw: string | null, count: number): string[][] {
 export function listRecaps(meetingId: number, limit = 20): RecapRow[] {
   const rows = db
     .prepare(
-      `SELECT id, summary, decisions, whys, alts, actions, attendees, next_meeting, source, created_at
+      `SELECT id, summary, decisions, whys, alts, actions, attendees, next_meeting, source, created_at, event_id
        FROM meeting_recaps WHERE meeting_id = ? ORDER BY id DESC LIMIT ?`,
     )
     .all(meetingId, limit) as {
@@ -260,6 +262,7 @@ export function listRecaps(meetingId: number, limit = 20): RecapRow[] {
     next_meeting: string | null;
     source: string;
     created_at: string;
+    event_id: number | null;
   }[];
   return rows.map((r) => {
     const decisions = JSON.parse(r.decisions) as string[];
@@ -274,6 +277,7 @@ export function listRecaps(meetingId: number, limit = 20): RecapRow[] {
       nextMeeting: r.next_meeting ? (JSON.parse(r.next_meeting) as NextMeeting) : null,
       source: r.source,
       ts: new Date(r.created_at + 'Z').getTime(),
+      eventId: r.event_id ?? null,
     };
   });
 }
@@ -351,10 +355,23 @@ export async function runRecapForMeeting(
   const inCall = new Set(sessionUserIds);
   const attendees = members.filter((m) => inCall.has(m.id)).map((m) => m.username);
 
+  // 이 기록이 어느 일정(이벤트)의 회의였는지 — 오늘 날짜의 이벤트 중 현재 시각에 가장 가까운 것.
+  // 일정→기록 점프의 연결고리 (없으면 null — 즉석 회의)
+  const todayKst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  const nowHm = new Date().toLocaleTimeString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 5);
+  const todayEvents = db
+    .prepare('SELECT id, time FROM meeting_events WHERE meeting_id = ? AND date = ?')
+    .all(meeting.id, todayKst) as { id: number; time: string | null }[];
+  const toMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+  const eventId =
+    todayEvents
+      .map((e) => ({ id: e.id, diff: e.time ? Math.abs(toMin(e.time) - toMin(nowHm)) : 12 * 60 }))
+      .sort((a, b) => a.diff - b.diff)[0]?.id ?? null;
+
   const info = db
     .prepare(
-      `INSERT INTO meeting_recaps (meeting_id, summary, decisions, whys, alts, actions, attendees, next_meeting, source)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO meeting_recaps (meeting_id, summary, decisions, whys, alts, actions, attendees, next_meeting, source, event_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       meeting.id,
@@ -366,6 +383,7 @@ export async function runRecapForMeeting(
       JSON.stringify(attendees),
       recap.nextMeeting ? JSON.stringify(recap.nextMeeting) : null,
       recap.source,
+      eventId,
     );
   const recapId = info.lastInsertRowid as number;
 

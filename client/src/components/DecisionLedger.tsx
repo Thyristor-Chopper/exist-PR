@@ -271,6 +271,19 @@ export default function DecisionLedger({ code }: { code: string }) {
                             · 실행 {e.todos!.filter((t) => t.done).length}/{e.todos!.length}
                           </span>
                         )}
+                        {/* 출처 회의록 점프 — "이 결정 전후로 무슨 얘기가 있었는지"로 가는 길 */}
+                        <button
+                          className="ledger-src-link"
+                          onClick={() =>
+                            window.dispatchEvent(
+                              new CustomEvent('exist:goto-recap', {
+                                detail: { code, recapId: e.recapId },
+                              }),
+                            )
+                          }
+                        >
+                          정리 보기
+                        </button>
                       </div>
                       {/* 현장 피드백 — 확인에 딸린 한 줄 ("반영 완료"/"라인에선 어려움" 등) */}
                       {e.acks.some((a) => a.note) && (

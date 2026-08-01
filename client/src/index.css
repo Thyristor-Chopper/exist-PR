@@ -15782,6 +15782,50 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   padding-left: 2px;
 }
 
+/* 원장 → 출처 회의록 점프 */
+.ledger-src-link {
+  border: none;
+  background: none;
+  padding: 0;
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 점프 도착 하이라이트 — 어디로 왔는지 2초간 표시 */
+.recap-flash {
+  animation: recap-flash-anim 2.4s ease-out;
+  border-radius: 12px;
+}
+@keyframes recap-flash-anim {
+  0%,
+  55% {
+    box-shadow: 0 0 0 2px var(--green), 0 0 18px color-mix(in srgb, var(--green) 35%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* 일정 팝오버의 기록/안건 다리 버튼 */
+.msched-pop-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
+  border-radius: 9px;
+  padding: 6px 11px;
+  margin-top: 2px;
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 /* ── AI 겹침 시간 제안 — recap의 다음 회의 후보 슬롯 ── */
 .hub-recap-next.suggest {
   flex-wrap: wrap;
