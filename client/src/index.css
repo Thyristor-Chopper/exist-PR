@@ -15810,6 +15810,22 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   }
 }
 
+/* 일정 리스트 행의 기록/안건 다리 (월 뷰 우측 패널) */
+.msched-event-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  border: none;
+  border-radius: 7px;
+  padding: 3px 8px;
+  margin-top: 4px;
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+  color: var(--green);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
 /* 일정 팝오버의 기록/안건 다리 버튼 */
 .msched-pop-link {
   display: inline-flex;

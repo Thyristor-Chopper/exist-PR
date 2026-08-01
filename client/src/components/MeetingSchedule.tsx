@@ -1074,6 +1074,39 @@ export default function MeetingSchedule({
           {ev.memo && <span className="msched-event-memo">{ev.memo}</span>}
         </div>
       )}
+      {/* 일정 ↔ 기록 다리 — 지난 회의는 그 기록으로, 다가오는 회의는 AI 안건으로 (월 뷰 리스트에서도) */}
+      {!compact &&
+        (() => {
+          const today = ymd(new Date());
+          const link = ev.date <= today ? recapForEvent(ev.id, ev.date) : null;
+          if (link)
+            return (
+              <button
+                type="button"
+                className="msched-event-link"
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent('exist:goto-recap', { detail: { code, recapId: link.id } }),
+                  )
+                }
+              >
+                <CheckMarkIcon size={11} /> 이 회의의 기록 — 결정 {link.decisions.length}건
+              </button>
+            );
+          if (ev.date >= today && agendaCount > 0)
+            return (
+              <button
+                type="button"
+                className="msched-event-link"
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent('exist:goto-agenda', { detail: { code } }))
+                }
+              >
+                <SparklesIcon size={11} /> AI 안건 {agendaCount}건 준비됨
+              </button>
+            );
+          return null;
+        })()}
     </div>
   );
 
