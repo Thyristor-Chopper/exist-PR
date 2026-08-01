@@ -384,15 +384,14 @@ async function echoCheck(handoverId: number, meetingId: number, userId: number, 
     .get(handoverId) as { sections: string; shift_label: string; author_id: number } | undefined;
   if (!h) return;
   const system =
-    '너는 교대 인수인계의 복명복창을 대조하는 exist의 AI 총무다. 원본 인수인계와 수신자가 자기 말로 요약한 이해를 비교한다.\n' +
-    'mismatch는 오직 하나의 경우: 수신자가 말한 내용 중 원본과 **모순되는 진술**이 있을 때 (수치·요일·시점·대상·담당·방향을 다르게 말함).\n' +
-    '다음은 절대 mismatch가 아니다 — 원본의 일부만 언급함, 세부(담당자·이유 등)를 생략함, 표현이 다름, 자기 할 일만 말함. 복명복창은 시험이 아니라 모순 탐지다.\n' +
-    '확신이 없으면 ok.\n' +
-    '응답은 오직 JSON: {"verdict": "ok"|"mismatch", "reason": string} — reason은 모순된 지점 한 줄(한국어 60자 이내, ok면 빈 문자열)';
+    '너는 교대 인수인계의 복명복창을 대조하는 exist의 AI 총무다. 수신자의 요약에서 원본과 모순되는 "진술"만 찾는다.\n' +
+    '모순 = 수신자가 실제로 입에 올린 문장이 원본과 다른 값(수치·요일·시점·대상·담당·업체·방향)을 말함.\n' +
+    '수신자가 언급하지 않은 것은 모순이 될 수 없다 — receiver_said에 인용할 문장이 없으면 그 항목은 버려라.\n' +
+    '응답은 오직 JSON: {"contradictions": [{"receiver_said": string(수신자 문장 그대로 인용), "original_says": string(원본의 해당 사실)}]} — 없으면 빈 배열';
   const response = await openai.chat.completions.create({
     model: OPENAI_MODEL,
     temperature: 0,
-    max_tokens: 200,
+    max_tokens: 300,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: system },
@@ -401,11 +400,30 @@ async function echoCheck(handoverId: number, meetingId: number, userId: number, 
   });
   const raw = response.choices[0]?.message?.content ?? '';
   const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
-    verdict?: unknown;
-    reason?: unknown;
+    contradictions?: unknown;
   };
-  const verdict = parsed.verdict === 'mismatch' ? 'mismatch' : 'ok';
-  const reason = verdict === 'mismatch' ? String(parsed.reason ?? '').trim().slice(0, 120) : '';
+  // 서버 검증 — 인용이 실제 노트에 있어야 하고(모델이 "누락"을 모순으로 둔갑 못 하게),
+  // 사유에 누락·생략 계열 표현이 있으면 폐기 (복명복창은 시험이 아니라 모순 탐지)
+  const nospace = (s: string) => s.replace(/\s+/g, '');
+  const list = (Array.isArray(parsed.contradictions) ? parsed.contradictions : [])
+    .map((c) => {
+      const o = c as { receiver_said?: unknown; original_says?: unknown };
+      return {
+        said: String(o.receiver_said ?? '').trim(),
+        orig: String(o.original_says ?? '').trim(),
+      };
+    })
+    .filter(
+      (c) =>
+        c.said.length >= 4 &&
+        nospace(note).includes(nospace(c.said).slice(0, 10)) &&
+        !/(누락|언급하지 않|언급 안|생략|빠뜨|빠짐|없음)/.test(c.orig + c.said),
+    );
+  const verdict = list.length > 0 ? 'mismatch' : 'ok';
+  const reason =
+    verdict === 'mismatch'
+      ? `"${list[0].said.slice(0, 40)}" ↔ 원본: ${list[0].orig.slice(0, 60)}`
+      : '';
   db.prepare(
     'UPDATE handover_acks SET echo_check = ?, echo_reason = ? WHERE handover_id = ? AND user_id = ?',
   ).run(verdict, reason || null, handoverId, userId);
