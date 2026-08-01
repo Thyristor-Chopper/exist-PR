@@ -1101,16 +1101,6 @@ export default function CollabFiles({
               <TrashIcon size={15} />
             </button>
             <span className="cf-gsep" />
-            <button
-              className={`cf-tool labeled${trashOpen ? ' on' : ''}`}
-              title="휴지통 열기/닫기"
-              onClick={() => {
-                setTrashOpen((v) => !v);
-                if (!trashOpen) void loadTrash();
-              }}
-            >
-              <TrashIcon size={14} /> 휴지통
-            </button>
             <div className="cf-tool-wrap">
             <button className="cf-tool labeled" onClick={() => setSortMenu((v) => !v)}>
               <SortIcon size={13} /> 정렬
@@ -1166,6 +1156,17 @@ export default function CollabFiles({
             <UndoIcon size={15} />
           </button>
           </div>
+          {/* 휴지통 — 액션이 아니라 "장소(뷰)"라서 액션 바 밖, 보기 구역(오른쪽)으로 (8/2) */}
+          <button
+            className={`cf-tool cf-trash-toggle${trashOpen ? ' on' : ''}`}
+            title="휴지통 열기/닫기"
+            onClick={() => {
+              setTrashOpen((v) => !v);
+              if (!trashOpen) void loadTrash();
+            }}
+          >
+            <TrashIcon size={14} /> 휴지통
+          </button>
           {/* 보기 전환 — 기록 탭과 같은 알약 토글 언어로 통일 (8/2) */}
           <PillSeg
             className="cf-view-seg"

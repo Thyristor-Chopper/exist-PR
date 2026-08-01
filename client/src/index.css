@@ -11728,6 +11728,18 @@ input:focus {
   display: inline-flex;
 }
 
+/* 휴지통 — 오른쪽 보기 구역으로 (장소 전환은 액션 바 밖) */
+.cf-trash-toggle {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+.cf-trash-toggle.on {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  border-color: transparent;
+  color: var(--green-dark, var(--green));
+}
+
 .cf-tool-wrap {
   position: relative;
 }
