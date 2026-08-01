@@ -650,6 +650,15 @@ export function DownloadIcon({ size }: IconProps) {
   );
 }
 
+export function UploadIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M12 14V4m0 0L8 8m4-4l4 4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 17.5v1a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function SunIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

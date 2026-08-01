@@ -20,6 +20,7 @@ import {
   PenIcon,
   ChevronIcon,
   PlusIcon,
+  UploadIcon,
   CopyIcon,
   TrashIcon,
   ShareIcon,
@@ -832,15 +833,6 @@ export default function CollabFiles({
             <TypeIcon type={t} size={14} /> {t === 'folder' ? '폴더' : TYPE_LABEL[t]}
           </button>
         ))}
-        <button
-          onClick={() => {
-            uploadParentRef.current = parentId;
-            setTypeMenuFor(null);
-            uploadInputRef.current?.click();
-          }}
-        >
-          <BlobFileIcon size={14} /> 내 파일 업로드
-        </button>
       </div>
     );
   }
@@ -1043,6 +1035,16 @@ export default function CollabFiles({
             </button>
             {typeMenuFor === 'root' && <TypeMenu parentId={cwd} />}
           </div>
+          {/* 업로드 — 새로 만들기 메뉴에서 독립 (새 문서 만들기와 내 파일 올리기는 다른 행위) */}
+          <button
+            className="cf-tool cf-upload"
+            onClick={() => {
+              uploadParentRef.current = cwd;
+              uploadInputRef.current?.click();
+            }}
+          >
+            <UploadIcon size={14} /> 업로드
+          </button>
           {/* 구글 드라이브식 툴바 — 라운드 바 하나에 아이콘 버튼 + 얇은 구분선, 라벨은 툴팁 */}
           <div className="cf-gbar">
             <button

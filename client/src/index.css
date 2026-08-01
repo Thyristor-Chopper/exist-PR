@@ -11733,6 +11733,18 @@ input:focus {
   display: inline-flex;
 }
 
+/* 업로드 — 프라이머리 짝꿍 (솔리드 옆의 아웃라인 초록 알약) */
+.cf-upload {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 13px;
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 40%, transparent);
+}
+.cf-upload:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+}
+
 /* 휴지통 — 오른쪽 보기 구역으로 (장소 전환은 액션 바 밖) */
 .cf-trash-toggle {
   margin-left: auto;
