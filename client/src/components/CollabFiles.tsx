@@ -1894,11 +1894,14 @@ export default function CollabFiles({
                 const kind = viewKindOf(f.name);
                 return (
                   <div className="cf-blobview">
-                    <div className="cf-blobview-bar">
-                      <a className="cf-viewer-dl" href={vUrl} download={f.name}>
-                        <DownloadIcon size={13} /> 저장
-                      </a>
-                    </div>
+                    {/* PDF는 크롬 내장 뷰어에 다운로드가 있어 저장 바 생략 */}
+                    {kind !== 'pdf' && (
+                      <div className="cf-blobview-bar">
+                        <a className="cf-viewer-dl" href={vUrl} download={f.name}>
+                          <DownloadIcon size={13} /> 저장
+                        </a>
+                      </div>
+                    )}
                     <div className={`cf-viewer-body ${kind}`}>
                       {kind === 'image' && <img src={vUrl} alt={f.name} />}
                       {kind === 'pdf' && <iframe title={f.name} src={vUrl} />}
