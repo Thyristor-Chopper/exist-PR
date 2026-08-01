@@ -11686,36 +11686,46 @@ input:focus {
   margin: 0 2px;
 }
 
-/* 이어진 알약 캡슐 — 관련 도구가 한 덩어리 (통화 참가자 [채팅|내보내기] 알약과 같은 언어) */
-.cf-pillgroup {
+/* 구글 드라이브식 툴바 — 은은한 라운드 바 하나에 아이콘 버튼들 + 얇은 구분선 (라벨은 툴팁) */
+.cf-gbar {
   display: inline-flex;
-  align-items: stretch;
-  border: 1px solid var(--border);
+  align-items: center;
+  gap: 2px;
+  background: var(--surface-2);
   border-radius: 999px;
-  background: var(--bg);
+  padding: 3px 6px;
 }
-.cf-pillgroup > * + * {
-  border-left: 1px solid var(--border);
-}
-.cf-pillgroup .cf-tool {
+.cf-gbar .cf-tool {
   border: none;
   background: none;
-  border-radius: 0;
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: var(--text);
 }
-.cf-pillgroup > .cf-tool:first-child,
-.cf-pillgroup > :first-child .cf-tool {
-  border-radius: 999px 0 0 999px;
+.cf-gbar .cf-tool.labeled {
+  padding: 5px 12px;
+  font-size: 12px;
 }
-.cf-pillgroup > .cf-tool:last-child,
-.cf-pillgroup > :last-child .cf-tool {
-  border-radius: 0 999px 999px 0;
+.cf-gbar .cf-tool:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
 }
-.cf-pillgroup .cf-tool-wrap {
+.cf-gbar .cf-tool.on {
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  color: var(--green-dark, var(--green));
+}
+.cf-gbar .cf-tool.danger:hover:not(:disabled) {
+  background: rgba(230, 60, 60, 0.12);
+  color: #d33;
+}
+.cf-gsep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+.cf-gbar .cf-tool-wrap {
   display: inline-flex;
-}
-.cf-pillgroup .cf-tool.on {
-  background: var(--surface-2);
-  border-color: transparent;
 }
 
 .cf-tool-wrap {
