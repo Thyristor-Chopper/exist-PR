@@ -36,6 +36,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronUpIcon,
+  PanelLeftIcon,
 } from './Icons';
 
 /*
@@ -190,6 +191,10 @@ export default function CollabFiles({
   );
   // 휴지통 패널
   const [trashOpen, setTrashOpen] = useState(false);
+  // 세부 정보 창 토글 — 탐색기처럼 켜고 끌 수 있게, 선택 없으면 현재 폴더 정보
+  const [detailsOn, setDetailsOn] = useState<boolean>(
+    () => localStorage.getItem('exist:cf-details') !== '0',
+  );
   const [trashItems, setTrashItems] = useState<
     { id: number; name: string; type: FileType; deleted_at: string; author: string; children: number }[]
   >([]);
@@ -1326,6 +1331,21 @@ export default function CollabFiles({
           >
             <TrashIcon size={14} /> 휴지통
           </button>
+          <button
+            className={`cf-tool cf-details-toggle${detailsOn ? ' on' : ''}`}
+            title="세부 정보 창 켜기/끄기"
+            onClick={() =>
+              setDetailsOn((v) => {
+                localStorage.setItem('exist:cf-details', v ? '0' : '1');
+                return !v;
+              })
+            }
+          >
+            <span className="cf-flip-x">
+              <PanelLeftIcon size={14} />
+            </span>{' '}
+            세부정보
+          </button>
         </div>
 
         {/* 즐겨찾기 바 — 우클릭으로 추가한 항목 바로가기 */}
@@ -1639,8 +1659,38 @@ export default function CollabFiles({
           )}
         </div>
 
-        {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약 */}
-        {selCount > 1 && (
+        {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약, 선택 없으면 현재 폴더 (탐색기식) */}
+        {detailsOn && selCount === 0 && (
+          <aside className="cf-details">
+            <div className="cf-details-icon cf-icon folder">
+              <TypeIcon type="folder" size={42} />
+            </div>
+            <div className="cf-details-name">
+              {crumbs.length > 0 ? crumbs[crumbs.length - 1].name : '공동편집'}
+            </div>
+            <div className="cf-details-sub">현재 폴더</div>
+            <div className="cf-details-rows">
+              <div className="cf-details-row">
+                <span>위치</span>
+                <b>{['공동편집', ...crumbs.map((c) => c.name)].join(' › ')}</b>
+              </div>
+              <div className="cf-details-row">
+                <span>포함 항목</span>
+                <b>{items.length}개</b>
+              </div>
+              {items.length > 0 && (
+                <div className="cf-details-row">
+                  <span>구성</span>
+                  <b>
+                    폴더 {items.filter((f) => f.type === 'folder').length}개 · 파일{' '}
+                    {items.filter((f) => f.type !== 'folder').length}개
+                  </b>
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+        {detailsOn && selCount > 1 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon folder">
               <CopyIcon size={36} />
@@ -1652,7 +1702,7 @@ export default function CollabFiles({
             </div>
           </aside>
         )}
-        {selected && (
+        {detailsOn && selected && (
           <aside className="cf-details">
             <div className={`cf-details-icon cf-icon ${selected.type}`}>
               <TypeIcon type={selected.type} size={42} />
