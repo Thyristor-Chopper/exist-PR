@@ -12193,9 +12193,9 @@ input:focus {
   height: 34px;
 }
 .cf-trash-toggle.on {
-  background: var(--red-soft);
+  background: var(--red);
   border-color: transparent;
-  color: var(--red);
+  color: #fff;
 }
 
 .cf-tool-wrap {
