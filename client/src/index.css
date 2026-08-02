@@ -12195,9 +12195,11 @@ input:focus {
   color: #fff;
   font-weight: 700;
 }
+/* .cf-tool.on(19138, 범용 활성 회색)보다 특이도를 높여야 빨강이 유지된다 */
 .cf-trash-toggle:hover:not(:disabled),
-.cf-trash-toggle.on {
+.cf-tool.cf-trash-toggle.on {
   background: color-mix(in srgb, var(--red) 80%, #000);
+  border-color: transparent;
 }
 
 .cf-tool-wrap {
