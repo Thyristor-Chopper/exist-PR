@@ -42,7 +42,11 @@ export default function SignPad({
         className="ho-sign-canvas"
         style={{ width: 320, height: 110, touchAction: 'none' }}
         onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            /* 캡처 불가 환경(합성 이벤트 등) — 캡처 없이도 그리기는 동작 */
+          }
           drawing.current = true;
           const p = pos(e);
           const ctx = e.currentTarget.getContext('2d')!;

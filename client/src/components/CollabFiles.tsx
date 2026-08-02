@@ -10,6 +10,7 @@ import SlideEditor from './SlideEditor';
 import CanvasBoard from './CanvasBoard';
 import Marquee from './Marquee';
 import Avatar from './Avatar';
+import SignPad from './SignPad';
 import {
   FolderIcon,
   CodeIcon,
@@ -59,6 +60,16 @@ interface CollabFile {
   created_at?: string;
   mime?: string | null;
   size?: number | null;
+  /** 열람 서명 (회람 사인) — 요청 여부·서명 수·내 서명 여부 */
+  ack_required?: number;
+  ack_count?: number;
+  my_ack?: number;
+}
+
+interface FileAckStatus {
+  required: boolean;
+  total: number;
+  acks: { username: string; ack_at: string; signature: string | null }[];
 }
 
 const TYPE_LABEL: Record<Exclude<FileType, 'folder'>, string> = {
@@ -192,6 +203,9 @@ export default function CollabFiles({
   // 휴지통 패널
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashSel, setTrashSel] = useState(false); // 루트의 휴지통 항목이 단일 선택된 상태
+  // 문서 열람 서명 (회람 사인) — 선택 파일의 서명 현황 + SignPad 대상
+  const [ackStatus, setAckStatus] = useState<FileAckStatus | null>(null);
+  const [ackSignFor, setAckSignFor] = useState<number | null>(null);
   // 다중 드래그 고스트 — 네이티브 프리뷰 대신 포인터를 따라다니는 카드 스택 + 개수 배지
   const [dragGhost, setDragGhost] = useState<{
     count: number;
@@ -484,6 +498,16 @@ export default function CollabFiles({
     () => [...selectedIds].map((id) => byId.get(id)).filter((f): f is CollabFile => !!f),
     [selectedIds, byId],
   );
+
+  // 선택 파일의 열람 서명 현황 로드
+  useEffect(() => {
+    if (selected && selected.type !== 'folder' && selected.ack_required) {
+      void loadAcks(selected.id);
+    } else {
+      setAckStatus(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, selected?.ack_required]);
 
   // 전체화면 Esc 종료 — 입력 중이거나 발표 모드가 떠 있으면 양보
   useEffect(() => {
@@ -840,6 +864,44 @@ export default function CollabFiles({
     try {
       await api(`/api/meetings/${code}/files/trash/${id}`, { method: 'DELETE' });
       await loadTrash();
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
+  // ── 문서 열람 서명 (회람 사인) ──
+  async function loadAcks(fileId: number) {
+    try {
+      setAckStatus(await api<FileAckStatus>(`/api/meetings/${code}/files/${fileId}/acks`));
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
+  async function requestAck(f: CollabFile, on: boolean) {
+    try {
+      await api(`/api/meetings/${code}/files/${f.id}/ack-request`, {
+        method: 'POST',
+        body: { on },
+      });
+      load();
+      void loadAcks(f.id);
+      toast(on ? '열람 서명을 요청했어요 — 그룹원에게 알림이 가요' : '열람 서명 요청을 해제했어요');
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
+  async function signAck(fileId: number, signature: string) {
+    try {
+      await api(`/api/meetings/${code}/files/${fileId}/ack`, {
+        method: 'POST',
+        body: { signature },
+      });
+      setAckSignFor(null);
+      load();
+      void loadAcks(fileId);
+      toast('열람 확인 서명 완료');
     } catch {
       /* 전역 토스트 */
     }
@@ -1766,6 +1828,13 @@ export default function CollabFiles({
                 <span className={`cf-entry-icon cf-icon ${f.type}`}>
                   <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} />
                 </span>
+                {/* 열람 서명 배지 — 빨강: 내 서명 필요 / 초록: 서명 완료 */}
+                {!!f.ack_required && (
+                  <span
+                    className={`cf-ackdot${f.my_ack ? ' done' : ''}`}
+                    title={f.my_ack ? '열람 서명 완료' : '열람 서명 필요'}
+                  />
+                )}
                 {/* 목록 뷰에선 접속 중 컬럼이 담당 — 아이콘 옆 스택은 그리드 전용 */}
                 {view !== 'list' && <PresenceStack fileId={f.id} />}
                 {renamingId === f.id ? (
@@ -1944,6 +2013,65 @@ export default function CollabFiles({
                 </div>
               )}
             </div>
+            {/* 열람 서명 (회람 사인) — 요청·현황·서명 */}
+            {selected.type !== 'folder' && (
+              <div className="cf-ack">
+                {selected.ack_required ? (
+                  <>
+                    <div className="cf-ack-head">
+                      ✍ 열람 서명{' '}
+                      <b>
+                        {ackStatus ? `${ackStatus.acks.length}/${ackStatus.total}` : (selected.ack_count ?? 0)}
+                      </b>
+                    </div>
+                    {ackStatus && ackStatus.acks.length > 0 && (
+                      <div className="cf-ack-chips">
+                        {ackStatus.acks.map((a) =>
+                          a.signature ? (
+                            <span key={a.username} className="cf-ack-chip">
+                              <img src={a.signature} alt={`${dn(a.username)} 서명`} />
+                              <i>{dn(a.username)}</i>
+                            </span>
+                          ) : (
+                            <span key={a.username} className="cf-ack-chip plain">
+                              <i>{dn(a.username)}</i>
+                            </span>
+                          ),
+                        )}
+                      </div>
+                    )}
+                    {selected.my_ack ? (
+                      <div className="cf-ack-done">✓ 내 서명 완료</div>
+                    ) : (
+                      <button
+                        className="cf-details-open"
+                        onClick={() => {
+                          openFile(selected);
+                          setAckSignFor(null);
+                        }}
+                      >
+                        읽고 서명하기
+                      </button>
+                    )}
+                    {canEdit(selected) && (
+                      <button className="cf-ack-off" onClick={() => void requestAck(selected, false)}>
+                        서명 요청 해제
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  canEdit(selected) && (
+                    <button
+                      className="cf-ack-req"
+                      title="그룹원 전원이 이 문서를 읽고 손서명으로 확인하게 해요 — 회람 사인의 디지털판"
+                      onClick={() => void requestAck(selected, true)}
+                    >
+                      ✍ 열람 서명 요청
+                    </button>
+                  )
+                )}
+              </div>
+            )}
             {/* 미리보기 — 문서 안에 뭐가 들었는지 */}
             {preview && preview.id === selected.id && (preview.items.length > 0 || preview.count != null) && (
               <div className="cf-details-preview">
@@ -2262,6 +2390,31 @@ export default function CollabFiles({
                 {editorFull ? '⤡' : '⛶'}
               </button>
             </span>
+          </div>
+        )}
+        {/* 열람 서명 배너 — 서명이 필요한 문서를 열면 읽고 서명하도록 */}
+        {active && !!active.ack_required && !active.my_ack && (
+          <>
+            <div className="cf-ackbar">
+              <span>✍ 이 문서는 열람 확인이 필요해요 — 다 읽었으면 서명해 주세요</span>
+              <button onClick={() => setAckSignFor((v) => (v === active.id ? null : active.id))}>
+                서명하기
+              </button>
+            </div>
+            {ackSignFor === active.id && (
+              <div className="cf-ackbar-pad">
+                <SignPad
+                  title="열람 확인 서명 — 마우스나 손가락으로 이름을 적어주세요"
+                  onConfirm={(dataUrl) => void signAck(active.id, dataUrl)}
+                  onCancel={() => setAckSignFor(null)}
+                />
+              </div>
+            )}
+          </>
+        )}
+        {active && !!active.ack_required && !!active.my_ack && (
+          <div className="cf-ackbar done">
+            <span>✓ 열람 확인 서명 완료</span>
           </div>
         )}
         {openedFiles.map((f) => (

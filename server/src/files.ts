@@ -159,12 +159,114 @@ router.get('/', (req: AuthedRequest, res) => {
   ensureLegacyFiles(r.meeting.id, r.meeting.code, req.userId!);
   const rows = db
     .prepare(
-      `SELECT f.id, f.parent_id, f.name, f.type, f.room, f.mime, f.size, f.created_at, u.username AS author
+      `SELECT f.id, f.parent_id, f.name, f.type, f.room, f.mime, f.size, f.created_at, u.username AS author,
+              f.ack_required,
+              (SELECT COUNT(*) FROM file_acks a WHERE a.file_id = f.id) AS ack_count,
+              EXISTS(SELECT 1 FROM file_acks a WHERE a.file_id = f.id AND a.user_id = ?) AS my_ack
        FROM collab_files f JOIN users u ON u.id = f.created_by
        WHERE f.meeting_id = ? AND f.deleted_at IS NULL ORDER BY f.type = 'folder' DESC, f.name`,
     )
-    .all(r.meeting.id);
+    .all(req.userId!, r.meeting.id);
   res.json(rows);
+});
+
+/* ── 문서 열람 서명 — 회람 사인의 디지털판.
+ * 만든 사람·호스트가 요청을 켜면, 그룹원은 문서를 열람하고 손서명으로 확인한다.
+ * 결정 서명(decision_acks.signature)과 같은 도달 증명 계열 ── */
+
+/** 열람 서명 요청 켜기/끄기 — 만든 사람·호스트·조직 관리자 */
+router.post('/:fileId/ack-request', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare(
+      'SELECT id, name, type, created_by, ack_required FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+    )
+    .get(req.params.fileId, r.meeting.id) as
+    | (FileRow & { ack_required: number; name: string })
+    | undefined;
+  if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  if (f.type === 'folder') return res.status(400).json({ error: '폴더에는 열람 서명을 걸 수 없어요' });
+  if (!canManageFile(f, r.meeting, req.userId!)) {
+    return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 요청할 수 있어요' });
+  }
+  const on = (req.body as { on?: boolean })?.on !== false;
+  db.prepare('UPDATE collab_files SET ack_required = ? WHERE id = ?').run(on ? 1 : 0, f.id);
+  if (on) {
+    // 아직 서명 안 한 그룹원에게 알림
+    const members = db
+      .prepare(
+        `SELECT mp.user_id FROM meeting_participants mp
+         WHERE mp.meeting_id = ?
+           AND mp.user_id != ?
+           AND NOT EXISTS(SELECT 1 FROM file_acks a WHERE a.file_id = ? AND a.user_id = mp.user_id)`,
+      )
+      .all(r.meeting.id, req.userId!, f.id) as { user_id: number }[];
+    for (const m of members) {
+      notifyUser(m.user_id, {
+        from: req.username ?? '누군가',
+        text: `"${f.name}" 문서의 열람 확인 서명을 요청했어요`,
+        kind: 'file-ack',
+        meetingCode: r.meeting.code,
+      });
+    }
+  }
+  res.json({ ok: true, ack_required: on ? 1 : 0 });
+});
+
+/** 열람 서명 — 그룹원이 문서를 읽고 손서명으로 확인 */
+router.post('/:fileId/ack', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare(
+      'SELECT id, name, created_by, ack_required FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+    )
+    .get(req.params.fileId, r.meeting.id) as
+    | { id: number; name: string; created_by: number; ack_required: number }
+    | undefined;
+  if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  if (!f.ack_required) return res.status(400).json({ error: '열람 서명이 요청되지 않은 문서예요' });
+  const sig = typeof (req.body as { signature?: unknown })?.signature === 'string'
+    ? ((req.body as { signature: string }).signature.slice(0, 20000) || null)
+    : null;
+  db.prepare(
+    `INSERT INTO file_acks (file_id, user_id, signature) VALUES (?, ?, ?)
+     ON CONFLICT(file_id, user_id) DO UPDATE SET signature = excluded.signature, ack_at = datetime('now')`,
+  ).run(f.id, req.userId!, sig);
+  if (f.created_by !== req.userId) {
+    notifyUser(f.created_by, {
+      from: req.username ?? '누군가',
+      text: `"${f.name}" 문서를 열람 확인(서명)했어요`,
+      kind: 'file-ack',
+      meetingCode: r.meeting.code,
+    });
+  }
+  res.json({ ok: true });
+});
+
+/** 열람 서명 현황 — 서명자 목록(서명 이미지 포함) + 전체 인원 */
+router.get('/:fileId/acks', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare(
+      'SELECT id, ack_required FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+    )
+    .get(req.params.fileId, r.meeting.id) as { id: number; ack_required: number } | undefined;
+  if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  const acks = db
+    .prepare(
+      `SELECT u.username, a.ack_at, a.signature FROM file_acks a
+       JOIN users u ON u.id = a.user_id WHERE a.file_id = ? ORDER BY a.ack_at`,
+    )
+    .all(f.id);
+  const total = (
+    db
+      .prepare('SELECT COUNT(*) AS c FROM meeting_participants WHERE meeting_id = ?')
+      .get(r.meeting.id) as { c: number }
+  ).c;
+  res.json({ required: !!f.ack_required, total, acks });
 });
 
 /* ── 업로드 파일(blob) 미리보기 시청자 — yjs room이 없는 파일의 프레즌스 (소켓 신고 기반).

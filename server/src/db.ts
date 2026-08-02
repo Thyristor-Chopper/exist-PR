@@ -559,6 +559,25 @@ try {
   /* 이미 존재 */
 }
 
+/* 문서 열람 서명 — 회람 사인의 디지털판. ack_required가 켜진 문서는
+ * 그룹원이 열람 후 손서명으로 확인, 결정 서명과 같은 도달 증명 계열 */
+try {
+  db.exec(`ALTER TABLE collab_files ADD COLUMN ack_required INTEGER DEFAULT 0`);
+} catch {
+  /* 이미 존재 */
+}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS file_acks (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id   INTEGER NOT NULL REFERENCES collab_files(id),
+    user_id   INTEGER NOT NULL REFERENCES users(id),
+    ack_at    TEXT DEFAULT (datetime('now')),
+    signature TEXT,
+    UNIQUE(file_id, user_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_file_acks_file ON file_acks(file_id);
+`);
+
 
 /* 통화 음성 전사 — 각 참가자 브라우저의 STT(Web Speech) 결과.
  * recap·결정 원장·AI 총무의 근거로 채팅과 함께 쓰인다. */

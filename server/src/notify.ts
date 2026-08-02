@@ -25,7 +25,8 @@ export interface NotifyPayload {
     | 'mention'
     | 'dm'
     | 'todo'
-    | 'chat';
+    | 'chat'
+    | 'file-ack';
   /** 이 알림이 발생한 회의 코드 — 있으면 알림에 회의 썸네일 표시 + 클릭 시 열기 */
   meetingCode?: string;
 }
