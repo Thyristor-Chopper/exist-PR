@@ -1157,6 +1157,17 @@ export default function CollabFiles({
             onChange={(e) => setSearch(e.target.value)}
             placeholder={`${cwd === null ? '공동편집' : (byId.get(cwd)?.name ?? '')} 검색`}
           />
+          {/* 휴지통 — 장소(뷰)라서 이동·경로가 모인 내비 줄에 (8/2, 툴바 우측이 어색하다는 피드백) */}
+          <button
+            className={`cf-tool cf-trash-toggle${trashOpen ? ' on' : ''}`}
+            title="휴지통 열기/닫기"
+            onClick={() => {
+              setTrashOpen((v) => !v);
+              if (!trashOpen) void loadTrash();
+            }}
+          >
+            <TrashIcon size={14} /> 휴지통
+          </button>
         </div>
 
         {/* 2줄 — 툴바: 이어진 알약 캡슐 (통화 [채팅|내보내기] 알약과 같은 언어) */}
@@ -1320,17 +1331,6 @@ export default function CollabFiles({
             <UndoIcon size={15} />
           </button>
           </div>
-          {/* 휴지통 — 액션이 아니라 "장소(뷰)"라서 액션 바 밖, 오른쪽으로 (8/2) */}
-          <button
-            className={`cf-tool cf-trash-toggle${trashOpen ? ' on' : ''}`}
-            title="휴지통 열기/닫기"
-            onClick={() => {
-              setTrashOpen((v) => !v);
-              if (!trashOpen) void loadTrash();
-            }}
-          >
-            <TrashIcon size={14} /> 휴지통
-          </button>
           <button
             className={`cf-tool cf-details-toggle${detailsOn ? ' on' : ''}`}
             title="세부 정보 창 켜기/끄기"
