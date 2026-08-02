@@ -12858,7 +12858,6 @@ input:focus {
 /* 작업창 스크롤이 경계에 닿아도 바깥(패널·페이지)으로 새지 않게 */
 .cf-main,
 .cf-details,
-.cf-trash,
 .cf-viewer-body,
 .doc-editor-scroll,
 .sheet-scroll,
@@ -19088,35 +19087,39 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 }
 
 /* 휴지통 패널 */
-.cf-trash {
-  position: absolute;
-  right: 12px;
-  top: 84px;
-  width: 340px;
-  max-height: 60%;
-  overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-md);
-  padding: 10px;
-  z-index: 40;
-}
-
-.cf-trash-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* 휴지통 본문 뷰 — 팝오버가 아니라 목록 전체를 쓰는 장소 (8/2) */
+.cf-trashmain .cf-trash-row {
+  padding: 7px 10px;
   font-size: 13px;
-  margin-bottom: 6px;
+  gap: 10px;
 }
 
-.cf-trash-close {
-  border: none;
-  background: none;
-  color: var(--text-sub);
-  font-size: 16px;
-  cursor: pointer;
+.cf-trashmain .cf-trash-row:hover {
+  background: var(--surface-2);
+}
+
+.cf-trashmain .cf-trash-meta {
+  width: 110px;
+  font-size: 12px;
+}
+
+.cf-trashhead-name {
+  flex: 1;
+}
+
+.cf-trashhead-meta {
+  width: 110px;
+  flex: none;
+}
+
+.cf-trashhead-actions {
+  width: 132px;
+  flex: none;
+}
+
+.cf-crumb-trash {
+  color: var(--red);
+  font-weight: 700;
 }
 
 .cf-trash-row {

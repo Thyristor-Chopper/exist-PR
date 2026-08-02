@@ -354,8 +354,9 @@ export default function CollabFiles({
     }
   }
 
-  // ── 내비게이션 ──
+  // ── 내비게이션 ── (휴지통은 "장소" — 어디로든 이동하면 빠져나온다)
   function navigate(to: number | null) {
+    setTrashOpen(false);
     if (to === cwd) return;
     backStack.current.push(cwd);
     fwdStack.current = [];
@@ -366,6 +367,10 @@ export default function CollabFiles({
   }
 
   function goBack() {
+    if (trashOpen) {
+      setTrashOpen(false);
+      return;
+    }
     if (backStack.current.length === 0) return;
     fwdStack.current.push(cwd);
     setCwd(backStack.current.pop()!);
@@ -375,6 +380,7 @@ export default function CollabFiles({
 
   function goForward() {
     if (fwdStack.current.length === 0) return;
+    setTrashOpen(false);
     backStack.current.push(cwd);
     setCwd(fwdStack.current.pop()!);
     clearSel();
@@ -382,6 +388,10 @@ export default function CollabFiles({
   }
 
   function goUp() {
+    if (trashOpen) {
+      setTrashOpen(false);
+      return;
+    }
     if (cwd === null) return;
     navigate(byId.get(cwd)?.parent_id ?? null);
   }
@@ -1094,13 +1104,17 @@ export default function CollabFiles({
       >
         {/* 1줄 — 내비게이션 바 */}
         <div className="cf-nav">
-          <button title="뒤로" disabled={backStack.current.length === 0} onClick={goBack}>
+          <button
+            title="뒤로"
+            disabled={!trashOpen && backStack.current.length === 0}
+            onClick={goBack}
+          >
             <ChevronLeftIcon size={14} />
           </button>
           <button title="앞으로" disabled={fwdStack.current.length === 0} onClick={goForward}>
             <ChevronRightIcon size={14} />
           </button>
-          <button title="상위 폴더" disabled={cwd === null} onClick={goUp}>
+          <button title="상위 폴더" disabled={!trashOpen && cwd === null} onClick={goUp}>
             <ChevronUpIcon size={14} />
           </button>
           <button title="새로고침" onClick={load}>
@@ -1126,7 +1140,15 @@ export default function CollabFiles({
             >
               <FolderIcon size={13} /> 공동편집
             </button>
-            {crumbs.map((c) => (
+            {trashOpen && (
+              <span className="cf-crumb-seg">
+                <ChevronIcon size={11} />
+                <button className="cf-crumb cf-crumb-trash">
+                  <TrashIcon size={12} /> 휴지통
+                </button>
+              </span>
+            )}
+            {!trashOpen && crumbs.map((c) => (
               <span key={c.id} className="cf-crumb-seg">
                 <ChevronIcon size={11} />
                 <button
@@ -1163,7 +1185,10 @@ export default function CollabFiles({
             title="휴지통 열기/닫기"
             onClick={() => {
               setTrashOpen((v) => !v);
-              if (!trashOpen) void loadTrash();
+              if (!trashOpen) {
+                clearSel();
+                void loadTrash();
+              }
             }}
           >
             <TrashIcon size={14} /> 휴지통
@@ -1175,7 +1200,11 @@ export default function CollabFiles({
           {/* 만들기·업로드 스플릿 캡슐 — 콘텐츠가 생기는 두 입구를 한 덩어리로 */}
           <div className="cf-newgroup">
             <div className="cf-tool-wrap">
-              <button className="cf-tool primary" onClick={() => setTypeMenuFor('root')}>
+              <button
+                className="cf-tool primary"
+                disabled={trashOpen}
+                onClick={() => setTypeMenuFor('root')}
+              >
                 <PlusIcon size={13} /> 새로 만들기
               </button>
               {typeMenuFor === 'root' && <TypeMenu parentId={cwd} />}
@@ -1183,6 +1212,7 @@ export default function CollabFiles({
             <button
               className="cf-tool primary cf-upload"
               title="내 파일 업로드"
+              disabled={trashOpen}
               onClick={() => {
                 uploadParentRef.current = cwd;
                 uploadInputRef.current?.click();
@@ -1367,8 +1397,52 @@ export default function CollabFiles({
 
         {/* 본문 — 현재 폴더 내용 (+ 선택 시 오른쪽 세부 정보) */}
         <div className="cf-body">
+        {/* 휴지통 뷰 — 팝오버가 아니라 본문 전체를 쓰는 "장소" (8/2) */}
+        {trashOpen && (
+          <div className="cf-main list cf-trashmain">
+            {trashItems.length === 0 ? (
+              <div className="cf-empty">휴지통이 비어 있어요</div>
+            ) : (
+              <>
+                <div className="cf-listhead cf-trashhead-row">
+                  <span className="cf-trashhead-name">이름</span>
+                  <span className="cf-trashhead-meta">지운 사람</span>
+                  <span className="cf-trashhead-meta">지운 날짜</span>
+                  <span className="cf-trashhead-actions" />
+                </div>
+                {trashItems.map((t) => (
+                  <div key={t.id} className="cf-trash-row">
+                    <span className={`cf-icon ${t.type}`}>
+                      <TypeIcon type={t.type} size={15} />
+                    </span>
+                    <span className="cf-trash-name" title={t.name}>
+                      {t.name}
+                      {t.children > 0 ? ` (+${t.children})` : ''}
+                    </span>
+                    <span className="cf-trash-meta">{dn(t.author)}</span>
+                    <span className="cf-trash-meta">
+                      {new Date(t.deleted_at + 'Z').toLocaleString('ko-KR', {
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    <button className="cf-trash-restore" onClick={() => void restoreTrash(t.id)}>
+                      복원
+                    </button>
+                    <button className="danger" onClick={() => void purgeTrash(t.id)}>
+                      영구 삭제
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
         <div
           ref={mainRef}
+          style={{ display: trashOpen ? 'none' : undefined }}
           className={`cf-main ${view}`}
           onClick={() => {
             if (rubberMoved.current) {
@@ -1660,7 +1734,22 @@ export default function CollabFiles({
         </div>
 
         {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약, 선택 없으면 현재 폴더 (탐색기식) */}
-        {detailsOn && selCount === 0 && (
+        {detailsOn && trashOpen && (
+          <aside className="cf-details">
+            <div className="cf-details-icon cf-icon file">
+              <TrashIcon size={38} />
+            </div>
+            <div className="cf-details-name">휴지통</div>
+            <div className="cf-details-sub">지워진 항목 보관함</div>
+            <div className="cf-details-rows">
+              <div className="cf-details-row">
+                <span>항목</span>
+                <b>{trashItems.length}개</b>
+              </div>
+            </div>
+          </aside>
+        )}
+        {detailsOn && !trashOpen && selCount === 0 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon folder">
               <TypeIcon type="folder" size={42} />
@@ -1690,7 +1779,7 @@ export default function CollabFiles({
             </div>
           </aside>
         )}
-        {detailsOn && selCount > 1 && (
+        {detailsOn && !trashOpen && selCount > 1 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon folder">
               <CopyIcon size={36} />
@@ -1702,7 +1791,7 @@ export default function CollabFiles({
             </div>
           </aside>
         )}
-        {detailsOn && selected && (
+        {detailsOn && !trashOpen && selected && (
           <aside className="cf-details">
             <div className={`cf-details-icon cf-icon ${selected.type}`}>
               <TypeIcon type={selected.type} size={42} />
@@ -1782,9 +1871,15 @@ export default function CollabFiles({
 
         {/* 하단 상태바 — 윈도우식 */}
         <div className="cf-statusbar">
-          항목 {items.length}개
-          {selCount > 0 && ` · ${selCount}개 선택`}
-          {search.trim() !== '' && ' · 검색 결과'}
+          {trashOpen ? (
+            <>휴지통 항목 {trashItems.length}개</>
+          ) : (
+            <>
+              항목 {items.length}개
+              {selCount > 0 && ` · ${selCount}개 선택`}
+              {search.trim() !== '' && ' · 검색 결과'}
+            </>
+          )}
         </div>
 
         {/* 우클릭 컨텍스트 메뉴 */}
@@ -1916,36 +2011,6 @@ export default function CollabFiles({
         )}
 
         {/* 휴지통 패널 */}
-        {trashOpen && (
-          <div className="cf-trash">
-            <div className="cf-trash-head">
-              <b>♻ 휴지통</b>
-              <button className="cf-trash-close" onClick={() => setTrashOpen(false)}>
-                <CloseIcon size={12} />
-              </button>
-            </div>
-            {trashItems.length === 0 ? (
-              <div className="cf-empty">휴지통이 비어 있어요</div>
-            ) : (
-              trashItems.map((t) => (
-                <div key={t.id} className="cf-trash-row">
-                  <span className={`cf-icon ${t.type}`}>
-                    <TypeIcon type={t.type} size={15} />
-                  </span>
-                  <span className="cf-trash-name" title={t.name}>
-                    {t.name}
-                    {t.children > 0 ? ` (+${t.children})` : ''}
-                  </span>
-                  <span className="cf-trash-meta">{dn(t.author)}</span>
-                  <button onClick={() => void restoreTrash(t.id)}>복원</button>
-                  <button className="danger" onClick={() => void purgeTrash(t.id)}>
-                    영구 삭제
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
       </div>
     );
   }
