@@ -12185,33 +12185,14 @@ input:focus {
 }
 
 /* 휴지통 — 오른쪽 보기 구역으로 (장소 전환은 액션 바 밖) */
-.cf-trash-toggle {
-  flex: none;
-  font-size: 12px;
-  padding: 0 13px;
-  height: 30px;
-  background: var(--red);
-  border-color: transparent;
-  color: #fff;
-  font-weight: 700;
+/* 휴지통 — 루트에 파일처럼 놓인 항목 (윈도우 바탕화면식) */
+.cf-icon-trash {
+  color: var(--text-sub);
 }
-/* 내비 줄의 .cf-nav > button(너비 32·grid·15px·배경 없음)보다 우선 */
-.cf-nav > .cf-trash-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  width: auto;
-  font-size: 12px;
-  background: var(--red);
-  color: #fff;
-  border-radius: 999px;
-  padding: 0 13px;
-}
-/* .cf-tool.on(19138, 범용 활성 회색)보다 특이도를 높여야 빨강이 유지된다 */
-.cf-trash-toggle:hover:not(:disabled),
-.cf-tool.cf-trash-toggle.on {
-  background: color-mix(in srgb, var(--red) 80%, #000);
-  border-color: transparent;
+.cf-entry-trash.droptarget {
+  outline: 2px solid var(--red);
+  outline-offset: -2px;
+  border-radius: 10px;
 }
 
 /* 세부 정보 창 토글 — 툴바 우측 끝, 활성은 범용 .cf-tool.on 회색 */

@@ -191,6 +191,7 @@ export default function CollabFiles({
   );
   // 휴지통 패널
   const [trashOpen, setTrashOpen] = useState(false);
+  const [trashSel, setTrashSel] = useState(false); // 루트의 휴지통 항목이 단일 선택된 상태
   // 세부 정보 창 토글 — 탐색기처럼 켜고 끌 수 있게, 선택 없으면 현재 폴더 정보
   const [detailsOn, setDetailsOn] = useState<boolean>(
     () => localStorage.getItem('exist:cf-details') !== '0',
@@ -222,7 +223,7 @@ export default function CollabFiles({
   const rubberScrollRaf = useRef<number | null>(null);
   const entryRefs = useRef(new Map<number, HTMLElement>());
   const dragIdsRef = useRef<number[]>([]);
-  const [dropTarget, setDropTarget] = useState<number | 'root' | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | 'root' | 'trash' | null>(null);
   const renameTimerRef = useRef<number | null>(null); // 선택된 항목 이름 재클릭 → 지연 후 인라인 편집
 
   useEffect(
@@ -246,6 +247,11 @@ export default function CollabFiles({
   }, [code]);
 
   useEffect(load, [load]);
+  // 휴지통 항목 수 — 루트의 휴지통 아이콘 배지용으로 처음부터 로드
+  useEffect(() => {
+    void loadTrash();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
 
   // 파일별 편집 중인 사람 (awareness) — 서버가 입장/퇴장 시 소켓으로 알려주면 즉시 재조회, 폴링은 폴백
   const [presence, setPresence] = useState<Record<number, { username: string; avatar: string | null }[]>>({});
@@ -324,11 +330,13 @@ export default function CollabFiles({
   // ── 선택 ──
   function clearSel() {
     setSelectedIds(new Set());
+    setTrashSel(false);
     anchorRef.current = null;
   }
 
   function selectOnly(id: number) {
     setSelectedIds(new Set([id]));
+    setTrashSel(false);
     anchorRef.current = id;
   }
 
@@ -677,6 +685,7 @@ export default function CollabFiles({
     clearSel();
     setClipboard((c) => (c ? { ...c, ids: c.ids.filter((id) => !done.some((f) => f.id === id)) } : c));
     load();
+    void loadTrash(); // 휴지통 배지 갱신
   }
 
   async function paste() {
@@ -1179,20 +1188,6 @@ export default function CollabFiles({
             onChange={(e) => setSearch(e.target.value)}
             placeholder={`${cwd === null ? '공동편집' : (byId.get(cwd)?.name ?? '')} 검색`}
           />
-          {/* 휴지통 — 장소(뷰)라서 이동·경로가 모인 내비 줄에 (8/2, 툴바 우측이 어색하다는 피드백) */}
-          <button
-            className={`cf-tool cf-trash-toggle${trashOpen ? ' on' : ''}`}
-            title="휴지통 열기/닫기"
-            onClick={() => {
-              setTrashOpen((v) => !v);
-              if (!trashOpen) {
-                clearSel();
-                void loadTrash();
-              }
-            }}
-          >
-            <TrashIcon size={14} /> 휴지통
-          </button>
         </div>
 
         {/* 2줄 — 툴바: 이어진 알약 캡슐 (통화 [채팅|내보내기] 알약과 같은 언어) */}
@@ -1601,6 +1596,59 @@ export default function CollabFiles({
               />
             </form>
           )}
+          {/* 휴지통 — 루트에 파일처럼 놓인 항목 (윈도우 바탕화면식). 더블클릭 열기, 끌어다 놓으면 삭제 */}
+          {cwd === null && !search.trim() && (
+            <div
+              className={`cf-entry cf-entry-trash${trashSel ? ' selected' : ''}${
+                dropTarget === 'trash' ? ' droptarget' : ''
+              }`}
+              onDragOver={(e) => {
+                if (dragIdsRef.current.length === 0) return;
+                e.preventDefault();
+                setDropTarget('trash');
+              }}
+              onDragLeave={() => setDropTarget((t) => (t === 'trash' ? null : t))}
+              onDrop={(e) => {
+                e.preventDefault();
+                const ids = dragIdsRef.current;
+                dragIdsRef.current = [];
+                setDropTarget(null);
+                const targets = ids
+                  .map((id) => byId.get(id))
+                  .filter((f): f is CollabFile => !!f);
+                void deleteSelection(targets);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                clearSel();
+                setTrashSel(true);
+              }}
+              onDoubleClick={() => {
+                clearSel();
+                void loadTrash();
+                setTrashOpen(true);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              title={`휴지통 · 항목 ${trashItems.length}개`}
+            >
+              <span className="cf-entry-icon cf-icon cf-icon-trash">
+                <TrashIcon size={view === 'grid' ? 28 : 16} />
+              </span>
+              <span className="cf-entry-name">휴지통</span>
+              {view === 'list' && (
+                <>
+                  <span className="cf-entry-type">시스템</span>
+                  <span className="cf-entry-author">항목 {trashItems.length}개</span>
+                  <span className="cf-entry-online">
+                    <span className="cf-online-none">—</span>
+                  </span>
+                </>
+              )}
+            </div>
+          )}
           {items.length === 0 && !creating ? (
             <div className="cf-empty">
               {search ? '검색 결과가 없어요' : '비어 있는 폴더예요 — 새로 만들기로 시작해보세요'}
@@ -1734,7 +1782,7 @@ export default function CollabFiles({
         </div>
 
         {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약, 선택 없으면 현재 폴더 (탐색기식) */}
-        {detailsOn && trashOpen && (
+        {detailsOn && (trashOpen || trashSel) && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon file">
               <TrashIcon size={38} />
@@ -1747,9 +1795,21 @@ export default function CollabFiles({
                 <b>{trashItems.length}개</b>
               </div>
             </div>
+            {!trashOpen && (
+              <button
+                className="cf-details-open"
+                onClick={() => {
+                  clearSel();
+                  void loadTrash();
+                  setTrashOpen(true);
+                }}
+              >
+                휴지통 열기
+              </button>
+            )}
           </aside>
         )}
-        {detailsOn && !trashOpen && selCount === 0 && (
+        {detailsOn && !trashOpen && !trashSel && selCount === 0 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon folder">
               <TypeIcon type="folder" size={42} />
