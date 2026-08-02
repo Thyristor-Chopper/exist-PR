@@ -12266,6 +12266,26 @@ input:focus {
   }
 }
 
+/* Ctrl 복사 배지 — 드래그 중 Ctrl을 누르면 표시 */
+.cf-dragghost-plus {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: -18px;
+  transform: translateX(-50%);
+  background: var(--green);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 1px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.cf-dragghost.copy .cf-dragghost-plus {
+  display: block;
+}
+
 .cf-dragghost-count {
   position: absolute;
   right: -9px;
@@ -12492,6 +12512,264 @@ input:focus {
   background: var(--surface-2);
 }
 .cf-ack-off {
+  color: var(--text-sub);
+}
+
+/* 최근 항목 스트립 — 루트 상단 (드라이브식) */
+.cf-recent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: none;
+}
+.cf-recent-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  flex: none;
+}
+
+/* 이동 다이얼로그 — 폴더 픽커 */
+.cf-move-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 4500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cf-move-modal {
+  width: min(380px, calc(100vw - 40px));
+  max-height: min(480px, 80dvh);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cf-move-title {
+  padding: 14px 16px 10px;
+  font-size: 14px;
+  font-weight: 800;
+}
+.cf-move-tree {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+}
+.cf-move-tree button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.cf-move-tree button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.cf-move-tree button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.cf-move-empty {
+  padding: 10px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+.cf-move-cancel {
+  border: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 데스크탑 폴더 트리 — 탐색기 왼쪽 패널 */
+.cf-desktree {
+  width: 176px;
+  flex: none;
+  border-right: 1px solid var(--border);
+  padding: 8px 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cf-desktree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cf-desktree-item:hover {
+  background: var(--surface-2);
+}
+.cf-desktree-item.cur {
+  background: var(--green-soft);
+  color: var(--green);
+  font-weight: 700;
+}
+.cf-desktree-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 4px;
+}
+.cf-nav-active {
+  color: var(--green) !important;
+}
+
+/* 내용 검색 결과 — 문서 안 텍스트 일치 */
+.cf-contenthits {
+  width: 100%;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cf-contenthits-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  padding: 0 6px 4px;
+}
+.cf-contenthit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.cf-contenthit:hover {
+  background: var(--surface-2);
+}
+.cf-contenthit b {
+  flex: none;
+  font-weight: 700;
+}
+.cf-contenthit-snip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-sub);
+  font-size: 12px;
+}
+
+/* 버전 기록 — 세부정보 패널 */
+.cf-versions {
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cf-version-row {
+  font-size: 12px;
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.cf-version-row:hover {
+  background: var(--surface-2);
+}
+.cf-version-none {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.cf-dm-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex: none;
+}
+
+/* 이미지 썸네일 — 그리드는 카드, 목록은 작은 사각 */
+.cf-thumbwrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+  flex: none;
+}
+.cf-thumbwrap .cf-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cf-thumbwrap.sm {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+/* 목록 뷰 — 날짜·크기 컬럼 */
+.cf-main.list .cf-entry-date,
+.cf-listhead-date {
+  width: 110px;
+  flex: none;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.cf-main.list .cf-entry-size,
+.cf-listhead-size {
+  width: 64px;
+  flex: none;
+  font-size: 12px;
+  color: var(--text-sub);
+  text-align: right;
+}
+.cf-listhead-date,
+.cf-listhead-size {
   color: var(--text-sub);
 }
 

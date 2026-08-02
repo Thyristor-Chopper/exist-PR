@@ -583,6 +583,20 @@ try {
   /* 이미 존재 */
 }
 
+/* 업로드 파일 버전 기록 — 새 버전 업로드 시 이전 blob을 보관 (드라이브식) */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS file_versions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id     INTEGER NOT NULL REFERENCES collab_files(id),
+    blob_path   TEXT NOT NULL,
+    mime        TEXT,
+    size        INTEGER,
+    uploaded_by INTEGER REFERENCES users(id),
+    created_at  TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_file_versions ON file_versions(file_id);
+`);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS file_acks (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,

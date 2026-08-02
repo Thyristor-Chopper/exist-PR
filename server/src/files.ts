@@ -24,6 +24,7 @@ import {
 } from './importFile.js';
 import { notifyUser } from './notify.js';
 import { canManageMeeting } from './perm.js';
+import { sendDmCore } from './dm.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** 업로드 파일(blob) 저장소 — DATA_DIR/uploads-files */
@@ -102,6 +103,16 @@ export function deleteMeetingFiles(meetingId: number, meetingCode: string) {
     .prepare('SELECT blob_path FROM collab_files WHERE meeting_id = ? AND blob_path IS NOT NULL')
     .all(meetingId) as { blob_path: string }[];
   for (const b of blobs) deleteBlob(b.blob_path);
+  // 버전 blob도 정리
+  const vers = db
+    .prepare(
+      `SELECT v.blob_path FROM file_versions v JOIN collab_files f ON f.id = v.file_id WHERE f.meeting_id = ?`,
+    )
+    .all(meetingId) as { blob_path: string }[];
+  for (const v of vers) deleteBlob(v.blob_path);
+  db.prepare(
+    'DELETE FROM file_versions WHERE file_id IN (SELECT id FROM collab_files WHERE meeting_id = ?)',
+  ).run(meetingId);
   // 레거시 룸도 정리 (파일로 흡수 안 된 상태로 남았을 수 있음)
   for (const l of LEGACY) deleteYdoc(`${l.prefix}${meetingCode.toUpperCase()}`);
   deleteYdoc(`mt-${meetingCode.toUpperCase()}`); // 캔버스
@@ -766,6 +777,225 @@ router.delete('/:fileId', (req: AuthedRequest, res) => {
   res.json({ ok: true, trashed: ids.length });
 });
 
+/** 최근 항목 — 이 그룹에서 최근 열람·편집된 문서 (file_activity 재사용, 드라이브식) */
+router.get('/recent/list', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const rows = db
+    .prepare(
+      `SELECT f.id, f.name, f.type, MAX(fa.ts) AS last_ts
+       FROM file_activity fa JOIN collab_files f ON f.id = fa.file_id
+       WHERE fa.meeting_id = ? AND f.deleted_at IS NULL
+       GROUP BY f.id ORDER BY last_ts DESC LIMIT 8`,
+    )
+    .all(r.meeting.id);
+  res.json(rows);
+});
+
+/** 문서 내용 추출 — 내용 검색용. 에디터별 Yjs 공유 타입에서 텍스트만 긁는다 */
+function extractRoomText(room: string): string {
+  const doc = readYdocSnapshot(room);
+  if (!doc) return '';
+  const parts: string[] = [];
+  try {
+    // 코드 — files 맵 + file:{id} 텍스트
+    doc.getMap('files').forEach((v, k) => {
+      const meta = v as { name?: string; dir?: boolean } | undefined;
+      if (meta?.dir) return;
+      parts.push(String(meta?.name ?? ''), doc.getText(`file:${k}`).toString());
+    });
+    // 문서 — docs 맵 + doc:{id} XmlFragment (태그 제거)
+    doc.getMap('docs').forEach((v, k) => {
+      const meta = v as { name?: string } | undefined;
+      parts.push(
+        String(meta?.name ?? ''),
+        doc.getXmlFragment(`doc:${k}`).toString().replace(/<[^>]+>/g, ' '),
+      );
+    });
+    // 시트 — sheets 맵 + cellsKey 맵 값들
+    doc.getMap('sheets').forEach((v) => {
+      const meta = v as { cellsKey?: string } | undefined;
+      if (!meta?.cellsKey) return;
+      doc.getMap(meta.cellsKey).forEach((cv) => parts.push(String(cv ?? '')));
+    });
+    // 발표 — slide-els:{id} 요소들의 text
+    doc.getMap('slides').forEach((_v, k) => {
+      doc.getMap(`slide-els:${k}`).forEach((el) => {
+        const t = (el as { text?: unknown } | undefined)?.text;
+        if (t) parts.push(String(t));
+      });
+    });
+    // 캔버스 — elements 요소들의 text
+    doc.getMap('elements').forEach((el) => {
+      const t = (el as { text?: unknown } | undefined)?.text;
+      if (t) parts.push(String(t));
+    });
+  } catch {
+    /* 구조가 다른 룸 — 무시 */
+  }
+  return parts.join('\n');
+}
+
+/** 내용 검색 — 문서 안 텍스트까지 (드라이브식). 이름 검색은 클라가 담당 */
+router.get('/search/content', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const q = String(req.query.q ?? '').trim().toLowerCase();
+  if (q.length < 2) return res.json([]);
+  const rows = db
+    .prepare(
+      `SELECT id, name, type, room FROM collab_files
+       WHERE meeting_id = ? AND deleted_at IS NULL AND room IS NOT NULL AND type != 'folder' AND type != 'file'`,
+    )
+    .all(r.meeting.id) as { id: number; name: string; type: FileType; room: string }[];
+  const hits: { id: number; name: string; type: FileType; snippet: string }[] = [];
+  for (const f of rows) {
+    const text = extractRoomText(f.room);
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx < 0) continue;
+    const snippet = text
+      .slice(Math.max(0, idx - 30), idx + q.length + 60)
+      .replace(/\s+/g, ' ')
+      .trim();
+    hits.push({ id: f.id, name: f.name, type: f.type, snippet });
+    if (hits.length >= 12) break;
+  }
+  res.json(hits);
+});
+
+/** 그룹 멤버 목록 — DM 공유 대상 선택용 */
+router.get('/members/list', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const rows = db
+    .prepare(
+      `SELECT u.id, u.username, u.avatar FROM meeting_participants mp
+       JOIN users u ON u.id = mp.user_id WHERE mp.meeting_id = ? AND u.id != ?`,
+    )
+    .all(r.meeting.id, req.userId!);
+  res.json(rows);
+});
+
+/** 파일을 DM으로 콕 집어 보내기 — 개인 DM으로 파일명 + 그룹 링크 전송 */
+router.post('/:fileId/dm', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare('SELECT id, name FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
+    .get(req.params.fileId, r.meeting.id) as { id: number; name: string } | undefined;
+  if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  const to = Number((req.body as { userId?: unknown })?.userId);
+  if (!Number.isInteger(to) || to === req.userId) {
+    return res.status(400).json({ error: '잘못된 상대예요' });
+  }
+  const isMember = db
+    .prepare('SELECT 1 FROM meeting_participants WHERE meeting_id = ? AND user_id = ?')
+    .get(r.meeting.id, to);
+  if (!isMember) return res.status(404).json({ error: '이 그룹 참가자가 아니에요' });
+  const title = db.prepare('SELECT title FROM meetings WHERE id = ?').get(r.meeting.id) as
+    | { title: string }
+    | undefined;
+  sendDmCore(
+    null,
+    req.userId!,
+    req.username ?? '',
+    to,
+    `📄 "${f.name}" 파일을 공유했어요 — "${title?.title ?? r.meeting.code}" 그룹의 공동편집에서 열 수 있어요`,
+  );
+  res.json({ ok: true });
+});
+
+/* ── 업로드 파일 버전 기록 — 새 버전 업로드 시 이전 blob 보관 (드라이브식) ── */
+
+/** 새 버전 업로드 — 기존 blob을 file_versions로 내리고 교체 */
+router.post('/:fileId/upload-version', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare(
+      'SELECT id, name, type, mime, size, blob_path, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+    )
+    .get(req.params.fileId, r.meeting.id) as
+    | { id: number; name: string; type: FileType; mime: string | null; size: number | null; blob_path: string | null; created_by: number }
+    | undefined;
+  if (!f || f.type !== 'file' || !f.blob_path)
+    return res.status(400).json({ error: '업로드 파일에만 새 버전을 올릴 수 있어요' });
+
+  const mime = String(req.headers['content-type'] || 'application/octet-stream').split(';')[0];
+  const chunks: Buffer[] = [];
+  let size = 0;
+  let aborted = false;
+  req.on('data', (chunk: Buffer) => {
+    size += chunk.length;
+    if (size > MAX_UPLOAD && !aborted) {
+      aborted = true;
+      res.status(413).json({ error: '파일은 25MB까지 지원해요' });
+      req.destroy();
+      return;
+    }
+    if (!aborted) chunks.push(chunk);
+  });
+  req.on('end', () => {
+    if (aborted) return;
+    const buf = Buffer.concat(chunks);
+    if (buf.length === 0) return res.status(400).json({ error: '빈 파일이에요' });
+    // 이전 blob → 버전 보관
+    db.prepare(
+      'INSERT INTO file_versions (file_id, blob_path, mime, size, uploaded_by) VALUES (?, ?, ?, ?, ?)',
+    ).run(f.id, f.blob_path, f.mime, f.size, f.created_by);
+    const blobName = crypto.randomUUID();
+    fs.mkdirSync(BLOB_DIR, { recursive: true });
+    fs.writeFileSync(path.join(BLOB_DIR, blobName), buf);
+    db.prepare('UPDATE collab_files SET blob_path = ?, mime = ?, size = ?, created_by = ? WHERE id = ?').run(
+      blobName,
+      mime,
+      buf.length,
+      req.userId!,
+      f.id,
+    );
+    res.json({ ok: true, size: buf.length });
+  });
+  req.on('error', () => {
+    if (!aborted && !res.headersSent) res.status(500).json({ error: '업로드에 실패했어요' });
+  });
+});
+
+/** 버전 목록 */
+router.get('/:fileId/versions', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const rows = db
+    .prepare(
+      `SELECT v.id, v.size, v.created_at, u.username FROM file_versions v
+       LEFT JOIN users u ON u.id = v.uploaded_by
+       JOIN collab_files f ON f.id = v.file_id
+       WHERE v.file_id = ? AND f.meeting_id = ? ORDER BY v.id DESC LIMIT 20`,
+    )
+    .all(req.params.fileId, r.meeting.id);
+  res.json(rows);
+});
+
+/** 이전 버전 다운로드 */
+router.get('/:fileId/versions/:vid/download', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const v = db
+    .prepare(
+      `SELECT v.blob_path, v.mime, f.name FROM file_versions v
+       JOIN collab_files f ON f.id = v.file_id
+       WHERE v.id = ? AND v.file_id = ? AND f.meeting_id = ?`,
+    )
+    .get(req.params.vid, req.params.fileId, r.meeting.id) as
+    | { blob_path: string; mime: string | null; name: string }
+    | undefined;
+  if (!v) return res.status(404).json({ error: '버전이 없어요' });
+  const filePath = path.join(BLOB_DIR, v.blob_path);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: '파일이 사라졌어요' });
+  res.setHeader('Content-Type', v.mime || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(v.name)}`);
+  fs.createReadStream(filePath).pipe(res);
+});
+
 /** 휴지통 목록 — 삭제 묶음의 루트만 (하위 개수 포함) */
 router.get('/trash/list', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
@@ -843,6 +1073,16 @@ router.delete('/trash/:fileId', (req: AuthedRequest, res) => {
     .prepare('SELECT blob_path FROM collab_files WHERE deleted_root = ? AND blob_path IS NOT NULL')
     .all(f.id) as { blob_path: string }[];
   for (const row of blobs) deleteBlob(row.blob_path);
+  // 버전 blob도 함께 영구 삭제
+  const vers = db
+    .prepare(
+      'SELECT v.blob_path FROM file_versions v JOIN collab_files f2 ON f2.id = v.file_id WHERE f2.deleted_root = ?',
+    )
+    .all(f.id) as { blob_path: string }[];
+  for (const v of vers) deleteBlob(v.blob_path);
+  db.prepare(
+    'DELETE FROM file_versions WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
+  ).run(f.id);
   const info = db.prepare('DELETE FROM collab_files WHERE deleted_root = ?').run(f.id);
   res.json({ ok: true, purged: info.changes });
 });

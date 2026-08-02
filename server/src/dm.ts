@@ -266,6 +266,51 @@ router.post('/:scope/with/:userId/read', (req: AuthedRequest, res) => {
   res.json({ ok: true });
 });
 
+/** DM 전송 코어 — 저장 + 양쪽 소켓 푸시 + 브리핑 무효화 + 알림. 파일 공유(files.ts) 등에서 재사용 */
+export function sendDmCore(
+  orgId: number | null,
+  me: number,
+  myUsername: string,
+  peer: number,
+  text: string,
+) {
+  const info = db
+    .prepare('INSERT INTO dm_messages (org_id, from_id, to_id, text) VALUES (?, ?, ?, ?)')
+    .run(orgId, me, peer, text);
+  const id = info.lastInsertRowid as number;
+  const ts = Date.now();
+  const myAvatar = (
+    db.prepare('SELECT avatar FROM users WHERE id = ?').get(me) as { avatar: string | null }
+  )?.avatar;
+
+  const payload = {
+    id,
+    orgId, // 개인 DM이면 null
+    fromId: me,
+    toId: peer,
+    from: myUsername,
+    avatar: myAvatar ?? null,
+    text,
+    ts,
+  };
+  // 받는 사람 + 보낸 사람의 다른 탭 모두 동기화
+  emitToUser(peer, 'dm:message', payload);
+  emitToUser(me, 'dm:message', payload);
+  invalidateBrief(peer); // 받는 쪽 안읽음이 늘었다 — 브리핑 갱신
+
+  // 알림 센터·웹푸시 연결 — 메시지마다 알림, 단 이 DM 창을 보고 있는 중이면 생략 (7/27 버스트 억제 제거, 주호 결정)
+  // AI가 상대면 알림 불필요 (사람 아님)
+  const agentId = ensureAgentUser();
+  if (peer !== agentId && !isViewingDm(peer, me)) {
+    notifyUser(peer, {
+      from: myUsername,
+      text: text.length > 80 ? `${text.slice(0, 80)}…` : text,
+      kind: 'dm',
+    });
+  }
+  return payload;
+}
+
 /** 메시지 전송 — 저장 후 받는 사람·보낸 사람 모든 소켓에 dm:message 푸시 */
 router.post('/:scope/with/:userId', (req: AuthedRequest, res) => {
   const scope = resolveScope(req, res);
@@ -285,39 +330,7 @@ router.post('/:scope/with/:userId', (req: AuthedRequest, res) => {
   const text = String(req.body?.text ?? '').trim().slice(0, 2000);
   if (!text) return res.status(400).json({ error: '메시지를 입력하세요' });
 
-  const info = db
-    .prepare('INSERT INTO dm_messages (org_id, from_id, to_id, text) VALUES (?, ?, ?, ?)')
-    .run(orgId, me, peer, text);
-  const id = info.lastInsertRowid as number;
-  const ts = Date.now();
-  const myAvatar = (
-    db.prepare('SELECT avatar FROM users WHERE id = ?').get(me) as { avatar: string | null }
-  )?.avatar;
-
-  const payload = {
-    id,
-    orgId, // 개인 DM이면 null
-    fromId: me,
-    toId: peer,
-    from: req.username,
-    avatar: myAvatar ?? null,
-    text,
-    ts,
-  };
-  // 받는 사람 + 보낸 사람의 다른 탭 모두 동기화
-  emitToUser(peer, 'dm:message', payload);
-  emitToUser(me, 'dm:message', payload);
-  invalidateBrief(peer); // 받는 쪽 안읽음이 늘었다 — 브리핑 갱신
-
-  // 알림 센터·웹푸시 연결 — 메시지마다 알림, 단 이 DM 창을 보고 있는 중이면 생략 (7/27 버스트 억제 제거, 주호 결정)
-  // AI가 상대면 알림 불필요 (사람 아님)
-  if (peer !== agentId && !isViewingDm(peer, me)) {
-    notifyUser(peer, {
-      from: req.username!,
-      text: text.length > 80 ? `${text.slice(0, 80)}…` : text,
-      kind: 'dm',
-    });
-  }
+  const payload = sendDmCore(orgId, me, req.username ?? '', peer, text);
 
   res.json(payload);
 

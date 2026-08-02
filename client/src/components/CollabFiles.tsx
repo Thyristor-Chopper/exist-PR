@@ -39,6 +39,7 @@ import {
   ChevronUpIcon,
   PanelLeftIcon,
   FilterIcon,
+  ClockIcon,
 } from './Icons';
 
 /*
@@ -102,8 +103,30 @@ function TypeIcon({ type, size = 15 }: { type: FileType; size?: number }) {
   return <SlideIcon size={size} />;
 }
 
-type SortKey = 'name' | 'type' | 'author';
+type SortKey = 'name' | 'type' | 'author' | 'date' | 'size';
 type ViewMode = 'grid' | 'list';
+
+/** 자연 정렬 — "파일-2"가 "파일-10"보다 앞 (윈도우식) */
+function byNameNat(a: CollabFile, b: CollabFile): number {
+  return a.name.localeCompare(b.name, 'ko', { numeric: true, sensitivity: 'base' });
+}
+
+function fmtSize(size: number | null | undefined): string {
+  if (size == null) return '—';
+  if (size < 1024) return `${size}B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)}KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function fmtDate(iso: string | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso + 'Z');
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return sameYear
+    ? `${d.getMonth() + 1}. ${d.getDate()}. ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    : `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+}
 
 /* ── 업로드 파일 인앱 미리보기 — 이미지·PDF·영상·음성·텍스트·한글(hwpx)은 앱 안에서 바로 연다 ── */
 type ViewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'hwpx' | 'other';
@@ -313,6 +336,28 @@ export default function CollabFiles({
   // 문서 열람 서명 (회람 사인) — 선택 파일의 서명 현황 + SignPad 대상
   const [ackStatus, setAckStatus] = useState<FileAckStatus | null>(null);
   const [ackSignFor, setAckSignFor] = useState<number | null>(null);
+  // 최근 항목 — 그룹에서 최근 열람·편집된 문서 (루트 상단 스트립, 드라이브식)
+  const [recent, setRecent] = useState<{ id: number; name: string; type: FileType }[]>([]);
+  // 내용 검색 — 문서 안 텍스트 일치 (드라이브식, 디바운스)
+  const [contentHits, setContentHits] = useState<
+    { id: number; name: string; type: FileType; snippet: string }[]
+  >([]);
+  // 업로드 파일 버전 기록
+  const [fileVersions, setFileVersions] = useState<
+    { id: number; size: number | null; created_at: string; username: string | null }[] | null
+  >(null);
+  const versionInputRef = useRef<HTMLInputElement | null>(null);
+  // DM으로 파일 보내기 — 대상 파일 + 멤버 목록
+  const [dmPickFor, setDmPickFor] = useState<CollabFile | null>(null);
+  const [dmMembers, setDmMembers] = useState<
+    { id: number; username: string; avatar: string | null }[] | null
+  >(null);
+  // 이동 다이얼로그 — 우클릭 "이동…" 대상 id들
+  const [movePicker, setMovePicker] = useState<number[] | null>(null);
+  // 데스크탑 폴더 트리 사이드바
+  const [treeOn, setTreeOn] = useState<boolean>(
+    () => localStorage.getItem('exist:cf-tree') === '1',
+  );
   // 다중 드래그 고스트 — 네이티브 프리뷰 대신 포인터를 따라다니는 카드 스택 + 개수 배지
   const [dragGhost, setDragGhost] = useState<{
     count: number;
@@ -354,6 +399,9 @@ export default function CollabFiles({
     s0: number;
   } | null>(null);
   const rubberMoved = useRef(false);
+  // 타이핑 점프 — 목록에서 이름 첫 글자 입력으로 커서 이동 (윈도우식)
+  const typeJumpBuf = useRef('');
+  const typeJumpAt = useRef(0);
   const mainRef = useRef<HTMLDivElement | null>(null);
   const rubberScrollVel = useRef(0);
   const rubberScrollRaf = useRef<number | null>(null);
@@ -403,7 +451,10 @@ export default function CollabFiles({
     if (!dragGhost) return;
     const onOver = (e: DragEvent) => {
       const el = dragGhostRef.current;
-      if (el) el.style.transform = `translate(${e.clientX + 14}px, ${e.clientY + 16}px)`;
+      if (el) {
+        el.style.transform = `translate(${e.clientX + 14}px, ${e.clientY + 16}px)`;
+        el.classList.toggle('copy', e.ctrlKey); // Ctrl = 복사 배지
+      }
     };
     document.addEventListener('dragover', onOver);
     return () => document.removeEventListener('dragover', onOver);
@@ -428,6 +479,16 @@ export default function CollabFiles({
     void loadTrash();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
+  // 최근 항목 — 파일 목록이 갱신될 때마다 재조회 (활동이 있었을 확률이 높은 시점)
+  useEffect(() => {
+    void api<{ id: number; name: string; type: FileType }[]>(
+      `/api/meetings/${code}/files/recent/list`,
+      { silent: true },
+    )
+      .then(setRecent)
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, files]);
 
   // 파일별 편집 중인 사람 (awareness) — 서버가 입장/퇴장 시 소켓으로 알려주면 즉시 재조회, 폴링은 폴백
   const [presence, setPresence] = useState<Record<number, { username: string; avatar: string | null }[]>>({});
@@ -594,6 +655,34 @@ export default function CollabFiles({
     return list;
   }, [cwd, byId]);
 
+  // 폴더 트리 (이동 다이얼로그·데스크탑 사이드바 공용) — DFS 평탄화
+  const folderTree = useMemo(() => {
+    const out: { f: CollabFile; depth: number }[] = [];
+    const walk = (pid: number | null, depth: number) => {
+      const kids = (byParent.get(pid) ?? []).filter((x) => x.type === 'folder').sort(byNameNat);
+      for (const f of kids) {
+        out.push({ f, depth });
+        if (depth < 6) walk(f.id, depth + 1);
+      }
+    };
+    walk(null, 0);
+    return out;
+  }, [byParent]);
+
+  /** 이동 금지 대상 — 옮기는 폴더 자신과 그 하위 (자기 안으로 이동 방지) */
+  function moveExcluded(ids: number[]): Set<number> {
+    const ex = new Set<number>();
+    const addSub = (id: number) => {
+      ex.add(id);
+      for (const c of byParent.get(id) ?? []) if (c.type === 'folder') addSub(c.id);
+    };
+    for (const id of ids) {
+      const f = byId.get(id);
+      if (f?.type === 'folder') addSub(id);
+    }
+    return ex;
+  }
+
   // ── 목록 (검색·정렬 반영) ──
   const items = useMemo(() => {
     let list: CollabFile[];
@@ -616,9 +705,11 @@ export default function CollabFiles({
       list = byParent.get(cwd) ?? [];
     }
     const cmp: Record<SortKey, (a: CollabFile, b: CollabFile) => number> = {
-      name: (a, b) => a.name.localeCompare(b.name, 'ko'),
-      type: (a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name, 'ko'),
-      author: (a, b) => a.author.localeCompare(b.author, 'ko') || a.name.localeCompare(b.name, 'ko'),
+      name: byNameNat,
+      type: (a, b) => a.type.localeCompare(b.type) || byNameNat(a, b),
+      author: (a, b) => a.author.localeCompare(b.author, 'ko') || byNameNat(a, b),
+      date: (a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? '') || byNameNat(a, b),
+      size: (a, b) => (a.size ?? -1) - (b.size ?? -1) || byNameNat(a, b),
     };
     // 필터 — 종류 하나만 (폴더는 항상 표시해 탐색은 유지)
     if (typeFilter) list = list.filter((f) => f.type === typeFilter || f.type === 'folder');
@@ -646,6 +737,91 @@ export default function CollabFiles({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, selected?.ack_required]);
+
+  // 내용 검색 — 400ms 디바운스로 서버 질의 (2자 이상)
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2 || trashOpen) {
+      setContentHits([]);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      void api<{ id: number; name: string; type: FileType; snippet: string }[]>(
+        `/api/meetings/${code}/files/search/content?q=${encodeURIComponent(q)}`,
+        { silent: true },
+      )
+        .then(setContentHits)
+        .catch(() => {});
+    }, 400);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, code, trashOpen]);
+
+  // 선택된 업로드 파일의 버전 기록
+  useEffect(() => {
+    setFileVersions(null);
+    if (!selected || selected.type !== 'file') return;
+    void api<{ id: number; size: number | null; created_at: string; username: string | null }[]>(
+      `/api/meetings/${code}/files/${selected.id}/versions`,
+      { silent: true },
+    )
+      .then(setFileVersions)
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
+
+  // DM 보내기 모달 — 열릴 때 멤버 목록 로드
+  useEffect(() => {
+    if (!dmPickFor) {
+      setDmMembers(null);
+      return;
+    }
+    void api<{ id: number; username: string; avatar: string | null }[]>(
+      `/api/meetings/${code}/files/members/list`,
+    )
+      .then(setDmMembers)
+      .catch(() => setDmMembers([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dmPickFor?.id]);
+
+  async function uploadNewVersion(f: CollabFile, file: File) {
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      toast(`파일은 ${MAX_UPLOAD_MB}MB까지 지원해요`);
+      return;
+    }
+    try {
+      await fetch(`/api/meetings/${code}/files/${f.id}/upload-version`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+        body: file,
+      });
+      toast(`"${f.name}" 새 버전을 올렸어요 — 이전 버전은 보관됨`);
+      load();
+      const rows = await api<
+        { id: number; size: number | null; created_at: string; username: string | null }[]
+      >(`/api/meetings/${code}/files/${f.id}/versions`, { silent: true });
+      setFileVersions(rows);
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
+  async function sendFileDm(userId: number) {
+    if (!dmPickFor) return;
+    try {
+      await api(`/api/meetings/${code}/files/${dmPickFor.id}/dm`, {
+        method: 'POST',
+        body: { userId },
+      });
+      toast('DM으로 보냈어요');
+      setDmPickFor(null);
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
 
   // 선택 파일을 다룬 회의들 — 문서 → 회의 역링크
   const [fileMeetings, setFileMeetings] = useState<
@@ -763,6 +939,47 @@ export default function CollabFiles({
       uploadQueueRef.current.push({ file, parentId });
     }
     void pumpUploads();
+  }
+
+  /** 폴더째 드래그 업로드 — 구조를 유지하며 폴더 생성 + 파일 큐 적재 (윈도우·드라이브식).
+   * entries는 drop 핸들러 안에서 동기로 캡처해 넘겨야 함 (핸들러 밖에선 무효) */
+  async function uploadEntries(list: (FileSystemEntry | null)[], parentId: number | null) {
+    const entries = list.filter((e): e is FileSystemEntry => !!e);
+    const readAll = (dir: FileSystemDirectoryEntry): Promise<FileSystemEntry[]> =>
+      new Promise((resolve) => {
+        const reader = dir.createReader();
+        const acc: FileSystemEntry[] = [];
+        const step = () =>
+          reader.readEntries((batch) => {
+            if (batch.length === 0) return resolve(acc);
+            acc.push(...batch);
+            step();
+          }, () => resolve(acc));
+        step();
+      });
+    const walk = async (entry: FileSystemEntry, pid: number | null): Promise<void> => {
+      if (entry.isFile) {
+        const file = await new Promise<File | null>((resolve) =>
+          (entry as FileSystemFileEntry).file(resolve, () => resolve(null)),
+        );
+        if (file) uploadFiles([file], pid);
+      } else if (entry.isDirectory) {
+        try {
+          const created = await api<CollabFile>(`/api/meetings/${code}/files`, {
+            method: 'POST',
+            body: { name: entry.name, type: 'folder', parent_id: pid },
+          });
+          load();
+          for (const child of await readAll(entry as FileSystemDirectoryEntry)) {
+            await walk(child, created.id);
+          }
+        } catch {
+          /* 개수 제한 등 — 전역 토스트 */
+        }
+      }
+    };
+    for (const e of entries) await walk(e, parentId);
+    load();
   }
 
   // 미리보기 열람 신고 — "누가 지금 이 파일을 보고 있나" (편집 프레즌스의 미리보기판).
@@ -953,6 +1170,35 @@ export default function CollabFiles({
   }
 
   /** 드래그 앤 드롭 / 명령으로 여러 개를 폴더로 이동 */
+  /** Ctrl+드래그 복사 — 대상 폴더에 사본 생성 (이름 충돌은 서버가 "이름 (2)"로) */
+  async function copyMany(ids: number[], target: number | null) {
+    const copied: { id: number; name: string }[] = [];
+    for (const id of ids) {
+      const src = byId.get(id);
+      if (!src) continue;
+      try {
+        const r = await api<{ id: number }>(`/api/meetings/${code}/files/${id}/copy`, {
+          method: 'POST',
+          body: { parent_id: target },
+        });
+        copied.push({ id: r.id, name: src.name });
+      } catch {
+        /* 전역 토스트 */
+      }
+    }
+    if (copied.length > 0) {
+      pushUndo({
+        label: copied.length === 1 ? `"${copied[0].name}" 복사` : `${copied.length}개 복사`,
+        undo: async () => {
+          for (const c of copied) await api(`/api/meetings/${code}/files/${c.id}`, { method: 'DELETE' });
+          load();
+        },
+      });
+      toast(copied.length === 1 ? `"${copied[0].name}" 복사했어요` : `${copied.length}개 복사했어요`);
+    }
+    load();
+  }
+
   async function moveMany(ids: number[], target: number | null) {
     const moved: { id: number; from: number | null; name: string }[] = [];
     for (const id of ids) {
@@ -1171,6 +1417,19 @@ export default function CollabFiles({
       void deleteSelection();
       return;
     }
+    // 타이핑 점프 — 이름이 입력 문자로 시작하는 항목으로 (한글은 IME 특성상 완성 입력만 잡힘)
+    if (e.key.length === 1 && !ctrl && !e.altKey && e.key !== ' ') {
+      const now = Date.now();
+      if (now - typeJumpAt.current > 1000) typeJumpBuf.current = '';
+      typeJumpAt.current = now;
+      typeJumpBuf.current += e.key.toLowerCase();
+      const hit = items.find((f) => f.name.toLowerCase().startsWith(typeJumpBuf.current));
+      if (hit) {
+        selectOnly(hit.id);
+        entryRefs.current.get(hit.id)?.scrollIntoView({ block: 'nearest' });
+      }
+      return;
+    }
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault();
       if (items.length === 0) return;
@@ -1363,6 +1622,18 @@ export default function CollabFiles({
         {/* 1줄 — 내비게이션 바 */}
         <div className="cf-nav">
           <button
+            title="폴더 창 켜기/끄기"
+            className={treeOn ? 'cf-nav-active' : ''}
+            onClick={() =>
+              setTreeOn((v) => {
+                localStorage.setItem('exist:cf-tree', v ? '0' : '1');
+                return !v;
+              })
+            }
+          >
+            <PanelLeftIcon size={14} />
+          </button>
+          <button
             title="뒤로"
             disabled={!trashOpen && backStack.current.length === 0}
             onClick={goBack}
@@ -1393,7 +1664,8 @@ export default function CollabFiles({
                 const ids = dragIdsRef.current;
                 dragIdsRef.current = [];
                 setDropTarget(null);
-                void moveMany(ids, null);
+                if (e.ctrlKey) void copyMany(ids, null);
+                else void moveMany(ids, null);
               }}
             >
               <FolderIcon size={13} /> 공동편집
@@ -1534,6 +1806,8 @@ export default function CollabFiles({
                     ['name', '이름'],
                     ['type', '종류'],
                     ['author', '만든 사람'],
+                    ['date', '날짜'],
+                    ['size', '크기'],
                   ] as [SortKey, string][]
                 ).map(([k, label]) => (
                   <button
@@ -1721,8 +1995,62 @@ export default function CollabFiles({
           </div>
         )}
 
+        {/* 최근 항목 — 그룹에서 최근 열람·편집된 문서 (루트에서만, 드라이브식) */}
+        {cwd === null && !search.trim() && !trashOpen && recent.length > 0 && (
+          <div className="cf-recent">
+            <span className="cf-recent-label">
+              <ClockIcon size={12} /> 최근
+            </span>
+            {recent.map((rf) => (
+              <button
+                key={rf.id}
+                className="cf-fav-chip"
+                title={rf.name}
+                onClick={() => {
+                  const f = byId.get(rf.id);
+                  if (f) openFile(f);
+                }}
+              >
+                <TypeIcon type={rf.type} size={12} /> {rf.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* 본문 — 현재 폴더 내용 (+ 선택 시 오른쪽 세부 정보) */}
         <div className="cf-body">
+        {/* 데스크탑 폴더 트리 — 윈도우 탐색기 왼쪽 패널 */}
+        {treeOn && (
+          <aside className="cf-desktree">
+            <button
+              className={`cf-desktree-item${cwd === null && !trashOpen ? ' cur' : ''}`}
+              onClick={() => navigate(null)}
+            >
+              <FolderIcon size={13} /> 공동편집
+            </button>
+            {folderTree.map(({ f, depth }) => (
+              <button
+                key={f.id}
+                className={`cf-desktree-item${cwd === f.id && !trashOpen ? ' cur' : ''}`}
+                style={{ paddingLeft: 10 + depth * 14 }}
+                onClick={() => navigate(f.id)}
+              >
+                <FolderIcon size={13} /> {f.name}
+              </button>
+            ))}
+            <div className="cf-desktree-sep" />
+            <button
+              className={`cf-desktree-item${trashOpen ? ' cur' : ''}`}
+              onClick={() => {
+                clearSel();
+                void loadTrash();
+                setTrashOpen(true);
+              }}
+            >
+              <TrashIcon size={13} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
+            </button>
+          </aside>
+        )}
         {/* 휴지통 뷰 — 팝오버가 아니라 본문 전체를 쓰는 "장소" (8/2) */}
         {trashOpen && (
           <div className="cf-main list cf-trashmain">
@@ -1786,7 +2114,12 @@ export default function CollabFiles({
           onDrop={(e) => {
             if (e.dataTransfer.files.length > 0 && dragIdsRef.current.length === 0) {
               e.preventDefault();
-              void uploadFiles(e.dataTransfer.files, cwd);
+              // entry는 핸들러 안에서 동기 캡처 (밖에선 무효) — 폴더가 섞이면 구조 유지 업로드
+              const entries = [...e.dataTransfer.items].map(
+                (it) => (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null),
+              );
+              if (entries.some((en) => en?.isDirectory)) void uploadEntries(entries, cwd);
+              else void uploadFiles(e.dataTransfer.files, cwd);
             }
           }}
           onContextMenu={(e) => {
@@ -1908,6 +2241,24 @@ export default function CollabFiles({
               >
                 만든 사람{hdrInd('author')}
               </button>
+              <button
+                className="cf-listhead-date"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  hdrClick('date');
+                }}
+              >
+                날짜{hdrInd('date')}
+              </button>
+              <button
+                className="cf-listhead-size"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  hdrClick('size');
+                }}
+              >
+                크기{hdrInd('size')}
+              </button>
               {/* 접속 중 — 지금 이 파일을 편집·열람 중인 사람 (정렬 없음) */}
               <span className="cf-listhead-online">접속 중</span>
             </div>
@@ -2009,7 +2360,7 @@ export default function CollabFiles({
                     return x && canEdit(x);
                   });
                   dragIdsRef.current = ids;
-                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.effectAllowed = 'copyMove'; // Ctrl 누르고 놓으면 복사
                   e.dataTransfer.setData('text/plain', '');
                   // 여러 개 들었으면 네이티브 프리뷰 대신 커스텀 고스트 (개수 배지 + 애니메이션)
                   if (ids.length > 1 && dragEmptyImg.current) {
@@ -2035,7 +2386,7 @@ export default function CollabFiles({
                   )
                     return;
                   e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
+                  e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
                   setDropTarget(f.id);
                 }}
                 onDragLeave={() => setDropTarget((t) => (t === f.id ? null : t))}
@@ -2045,7 +2396,8 @@ export default function CollabFiles({
                   const ids = dragIdsRef.current;
                   dragIdsRef.current = [];
                   setDropTarget(null);
-                  void moveMany(ids, f.id);
+                  if (e.ctrlKey) void copyMany(ids, f.id);
+                  else void moveMany(ids, f.id);
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -2066,9 +2418,22 @@ export default function CollabFiles({
                 }}
                 title={`${f.name} · ${f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]} · ${dn(f.author)}`}
               >
-                <span className={`cf-entry-icon cf-icon ${f.type}`}>
-                  <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} />
-                </span>
+                {f.type === 'file' && viewKindOf(f.name) === 'image' ? (
+                  /* 이미지 썸네일 — 현장 사진을 아이콘이 아니라 실물로 (지연 로드) */
+                  <span className={`cf-entry-icon cf-thumbwrap${view === 'list' ? ' sm' : ''}`}>
+                    <img
+                      className="cf-thumb"
+                      loading="lazy"
+                      draggable={false}
+                      src={`/api/meetings/${code}/files/${f.id}/download?token=${encodeURIComponent(token ?? '')}`}
+                      alt=""
+                    />
+                  </span>
+                ) : (
+                  <span className={`cf-entry-icon cf-icon ${f.type}`}>
+                    <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} />
+                  </span>
+                )}
                 {/* 열람 서명 배지 — 빨강: 내 서명 필요 / 초록: 서명 완료 */}
                 {!!f.ack_required && (
                   <span
@@ -2113,6 +2478,10 @@ export default function CollabFiles({
                       {f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]}
                     </span>
                     <span className="cf-entry-author">{dn(f.author)}</span>
+                    <span className="cf-entry-date">{fmtDate(f.created_at)}</span>
+                    <span className="cf-entry-size">
+                      {f.type === 'file' ? fmtSize(f.size) : '—'}
+                    </span>
                     <span className="cf-entry-online">
                       {(presence[f.id]?.length ?? 0) > 0 ? (
                         <>
@@ -2131,6 +2500,35 @@ export default function CollabFiles({
               );
             })
           )}
+          {/* 내용 일치 — 문서 안 텍스트에서 찾은 것 (이름 일치 목록과 별도 섹션) */}
+          {search.trim().length >= 2 &&
+            (() => {
+              const shown = new Set(items.map((f) => f.id));
+              const extra = contentHits.filter((h) => !shown.has(h.id));
+              if (extra.length === 0) return null;
+              return (
+                <div className="cf-contenthits">
+                  <div className="cf-contenthits-label">문서 내용 일치</div>
+                  {extra.map((h) => (
+                    <button
+                      key={h.id}
+                      className="cf-contenthit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const f = byId.get(h.id);
+                        if (f) openFile(f);
+                      }}
+                    >
+                      <span className={`cf-icon ${h.type}`}>
+                        <TypeIcon type={h.type} size={14} />
+                      </span>
+                      <b>{h.name}</b>
+                      <span className="cf-contenthit-snip">…{h.snippet}…</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
         </div>
 
         {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약, 선택 없으면 현재 폴더 (탐색기식) */}
@@ -2281,6 +2679,33 @@ export default function CollabFiles({
                 ))}
               </div>
             )}
+            {/* 업로드 파일 버전 기록 — 새 버전 업로드 + 이전 버전 다운로드 */}
+            {selected.type === 'file' && (
+              <div className="cf-versions">
+                <div className="cf-ack-head">🕘 버전 기록</div>
+                {(fileVersions?.length ?? 0) > 0 &&
+                  fileVersions!.map((v) => (
+                    <a
+                      key={v.id}
+                      className="cf-version-row"
+                      href={`/api/meetings/${code}/files/${selected.id}/versions/${v.id}/download?token=${encodeURIComponent(token ?? '')}`}
+                    >
+                      {fmtDate(v.created_at)} · {fmtSize(v.size)}
+                      {v.username ? ` · ${dn(v.username)}` : ''}
+                    </a>
+                  ))}
+                {(fileVersions?.length ?? 0) === 0 && (
+                  <div className="cf-version-none">이전 버전 없음</div>
+                )}
+                <button className="cf-ack-req" onClick={() => versionInputRef.current?.click()}>
+                  새 버전 업로드
+                </button>
+              </div>
+            )}
+            {/* DM으로 콕 집어 보내기 */}
+            <button className="cf-ack-req" onClick={() => setDmPickFor(selected)}>
+              ✉ DM으로 보내기
+            </button>
             {/* 열람 서명 (회람 사인) — 요청·현황·서명 */}
             {selected.type !== 'folder' && (
               <div className="cf-ack">
@@ -2369,6 +2794,51 @@ export default function CollabFiles({
         </div>
 
         {/* 하단 상태바 — 윈도우식 */}
+        {/* 이동 다이얼로그 — 드라이브식 폴더 픽커 */}
+        {movePicker && (
+          <div className="cf-move-overlay" onClick={() => setMovePicker(null)}>
+            <div className="cf-move-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="cf-move-title">
+                {movePicker.length === 1
+                  ? `"${byId.get(movePicker[0])?.name ?? ''}" 이동`
+                  : `${movePicker.length}개 항목 이동`}
+              </div>
+              <div className="cf-move-tree">
+                <button
+                  onClick={() => {
+                    void moveMany(movePicker, null);
+                    setMovePicker(null);
+                  }}
+                >
+                  <FolderIcon size={14} /> 공동편집 (루트)
+                </button>
+                {(() => {
+                  const ex = moveExcluded(movePicker);
+                  return folderTree.map(({ f, depth }) => (
+                    <button
+                      key={f.id}
+                      style={{ paddingLeft: 14 + depth * 18 }}
+                      disabled={ex.has(f.id)}
+                      onClick={() => {
+                        void moveMany(movePicker, f.id);
+                        setMovePicker(null);
+                      }}
+                    >
+                      <FolderIcon size={14} /> {f.name}
+                    </button>
+                  ));
+                })()}
+                {folderTree.length === 0 && (
+                  <div className="cf-move-empty">폴더가 없어요 — 루트로만 이동할 수 있어요</div>
+                )}
+              </div>
+              <button className="cf-move-cancel" onClick={() => setMovePicker(null)}>
+                취소
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 다중 드래그 고스트 — 포인터 옆 카드 스택 + 개수 배지 */}
         {dragGhost && (
           <div
@@ -2389,6 +2859,7 @@ export default function CollabFiles({
                 ))}
               </div>
               <span className="cf-dragghost-count">{dragGhost.count}</span>
+              <span className="cf-dragghost-plus">＋복사</span>
             </div>
           </div>
         )}
@@ -2449,6 +2920,20 @@ export default function CollabFiles({
                   복사
                 </button>
                 <button
+                  disabled={!ctxEditable}
+                  onClick={() => {
+                    setMovePicker(
+                      ctxIds.filter((id) => {
+                        const x = byId.get(id);
+                        return x && canEdit(x);
+                      }),
+                    );
+                    setCtxMenu(null);
+                  }}
+                >
+                  이동…
+                </button>
+                <button
                   disabled={!canEdit(ctxTarget) || ctxIds.length > 1}
                   onClick={() => {
                     startRename(ctxTarget);
@@ -2456,6 +2941,14 @@ export default function CollabFiles({
                   }}
                 >
                   이름 바꾸기
+                </button>
+                <button
+                  onClick={() => {
+                    setDmPickFor(ctxTarget);
+                    setCtxMenu(null);
+                  }}
+                >
+                  DM으로 보내기
                 </button>
                 <button
                   onClick={() => {
@@ -2595,6 +3088,40 @@ export default function CollabFiles({
           e.target.value = '';
         }}
       />
+      {/* 새 버전 업로드 입력 — 세부정보 패널의 버전 기록에서 사용 */}
+      <input
+        ref={versionInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const target = selected;
+          if (file && target && target.type === 'file') void uploadNewVersion(target, file);
+          e.target.value = '';
+        }}
+      />
+      {/* DM으로 파일 보내기 — 멤버 픽커 */}
+      {dmPickFor && (
+        <div className="cf-move-overlay" onClick={() => setDmPickFor(null)}>
+          <div className="cf-move-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cf-move-title">"{dmPickFor.name}" DM으로 보내기</div>
+            <div className="cf-move-tree">
+              {dmMembers === null && <div className="cf-move-empty">불러오는 중…</div>}
+              {dmMembers?.length === 0 && (
+                <div className="cf-move-empty">보낼 사람이 없어요 — 그룹에 다른 멤버가 없어요</div>
+              )}
+              {dmMembers?.map((m) => (
+                <button key={m.id} onClick={() => void sendFileDm(m.id)}>
+                  <Avatar value={m.avatar} className="cf-dm-avatar" /> {dn(m.username)}
+                </button>
+              ))}
+            </div>
+            <button className="cf-move-cancel" onClick={() => setDmPickFor(null)}>
+              취소
+            </button>
+          </div>
+        </div>
+      )}
       {/* 업로드 진행률 토스트 — 얼마나 됐는지 보이게 (freeze 체감 방지) */}
       {uploadProg && (
         <div className="cf-upload-toast">
