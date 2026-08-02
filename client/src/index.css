@@ -12851,6 +12851,30 @@ input:focus {
   color: var(--green);
 }
 
+/* ⋯ 더보기 메뉴 — 탐색기식 (실행 취소·선택 3종) */
+.cf-more-menu {
+  min-width: 176px;
+  white-space: nowrap;
+}
+.cf-more-menu button {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cf-more-menu button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cf-more-menu button:disabled:hover {
+  background: none;
+  color: var(--text);
+}
+.cf-more-menu .cf-menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
 .cf-tree {
   flex: 1;
   overflow-y: auto;

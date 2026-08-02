@@ -191,6 +191,7 @@ export default function CollabFiles({
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [sortMenu, setSortMenu] = useState(false);
   const [viewMenu, setViewMenu] = useState(false); // MS 탐색기식 "보기" 드롭다운
+  const [moreMenu, setMoreMenu] = useState(false); // ⋯ 더보기 (실행 취소·선택 3종)
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('exist:cf-view') as ViewMode) || 'grid',
   );
@@ -1088,16 +1089,17 @@ export default function CollabFiles({
 
   // 정렬·새로 만들기 드롭다운 — 바깥 클릭으로 닫기
   useEffect(() => {
-    if (!sortMenu && typeMenuFor === null) return;
+    if (!sortMenu && !moreMenu && typeMenuFor === null) return;
     function onDown(e: PointerEvent) {
       if (!(e.target as HTMLElement).closest('.cf-type-menu, .cf-tool-wrap, .cf-actions')) {
         setSortMenu(false);
+        setMoreMenu(false);
         setTypeMenuFor(null);
       }
     }
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [sortMenu, typeMenuFor]);
+  }, [sortMenu, moreMenu, typeMenuFor]);
 
   function share(f: CollabFile) {
     const link = `${location.origin}/meeting/${code}`;
@@ -1484,15 +1486,61 @@ export default function CollabFiles({
             )}
           </div>
           <span className="cf-gsep" />
-          <button
-            className="cf-tool"
-            disabled={undoStack.current.length === 0}
-            onClick={() => void undo()}
-            title={`실행 취소${undoStack.current.at(-1) ? ` — ${undoStack.current.at(-1)!.label}` : ''}`}
-            aria-label="실행 취소"
-          >
-            <UndoIcon size={15} />
-          </button>
+          {/* ⋯ 더보기 — 윈도우 탐색기식 (실행 취소·선택 3종) */}
+          <div className="cf-tool-wrap">
+            <button
+              className="cf-tool"
+              title="더 보기"
+              aria-label="더 보기"
+              onClick={() => setMoreMenu((v) => !v)}
+            >
+              ⋯
+            </button>
+            {moreMenu && (
+              <div className="cf-type-menu cf-more-menu">
+                <button
+                  disabled={undoStack.current.length === 0}
+                  onClick={() => {
+                    void undo();
+                    setMoreMenu(false);
+                  }}
+                >
+                  <UndoIcon size={13} /> 실행 취소
+                  {undoStack.current.at(-1) ? ` — ${undoStack.current.at(-1)!.label}` : ''}
+                </button>
+                <div className="cf-menu-sep" />
+                <button
+                  disabled={items.length === 0}
+                  onClick={() => {
+                    setSelectedIds(new Set(items.map((f) => f.id)));
+                    setTrashSel(false);
+                    setMoreMenu(false);
+                  }}
+                >
+                  모두 선택
+                </button>
+                <button
+                  disabled={selCount === 0}
+                  onClick={() => {
+                    clearSel();
+                    setMoreMenu(false);
+                  }}
+                >
+                  선택 안 함
+                </button>
+                <button
+                  disabled={items.length === 0}
+                  onClick={() => {
+                    setSelectedIds(new Set(items.filter((f) => !selectedIds.has(f.id)).map((f) => f.id)));
+                    setTrashSel(false);
+                    setMoreMenu(false);
+                  }}
+                >
+                  선택 영역 반전
+                </button>
+              </div>
+            )}
+          </div>
           </div>
           <button
             className={`cf-tool cf-details-toggle${detailsOn ? ' on' : ''}`}
