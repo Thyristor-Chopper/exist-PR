@@ -38,6 +38,7 @@ import {
   ChevronRightIcon,
   ChevronUpIcon,
   PanelLeftIcon,
+  FilterIcon,
 } from './Icons';
 
 /*
@@ -192,6 +193,8 @@ export default function CollabFiles({
   const [sortMenu, setSortMenu] = useState(false);
   const [viewMenu, setViewMenu] = useState(false); // MS 탐색기식 "보기" 드롭다운
   const [moreMenu, setMoreMenu] = useState(false); // ⋯ 더보기 (실행 취소·선택 3종)
+  const [filterMenu, setFilterMenu] = useState(false); // 필터 드롭다운 (탐색기식)
+  const [typeFilter, setTypeFilter] = useState<FileType | null>(null); // null = 전체
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('exist:cf-view') as ViewMode) || 'grid',
   );
@@ -514,13 +517,15 @@ export default function CollabFiles({
       type: (a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name, 'ko'),
       author: (a, b) => a.author.localeCompare(b.author, 'ko') || a.name.localeCompare(b.name, 'ko'),
     };
+    // 필터 — 종류 하나만 (폴더는 항상 표시해 탐색은 유지)
+    if (typeFilter) list = list.filter((f) => f.type === typeFilter || f.type === 'folder');
     const dir = sortDir === 'asc' ? 1 : -1;
     return [...list].sort((a, b) => {
       // 폴더 먼저 (윈도우식)
       if ((a.type === 'folder') !== (b.type === 'folder')) return a.type === 'folder' ? -1 : 1;
       return cmp[sortKey](a, b) * dir;
     });
-  }, [files, byParent, cwd, search, sortKey, sortDir]);
+  }, [files, byParent, cwd, search, sortKey, sortDir, typeFilter]);
 
   /** 단일 선택일 때만 상세 패널 대상 */
   const selected = selectedIds.size === 1 ? (byId.get([...selectedIds][0]) ?? null) : null;
@@ -1089,17 +1094,18 @@ export default function CollabFiles({
 
   // 정렬·새로 만들기 드롭다운 — 바깥 클릭으로 닫기
   useEffect(() => {
-    if (!sortMenu && !moreMenu && typeMenuFor === null) return;
+    if (!sortMenu && !moreMenu && !filterMenu && typeMenuFor === null) return;
     function onDown(e: PointerEvent) {
       if (!(e.target as HTMLElement).closest('.cf-type-menu, .cf-tool-wrap, .cf-actions')) {
         setSortMenu(false);
         setMoreMenu(false);
+        setFilterMenu(false);
         setTypeMenuFor(null);
       }
     }
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [sortMenu, moreMenu, typeMenuFor]);
+  }, [sortMenu, moreMenu, filterMenu, typeMenuFor]);
 
   function share(f: CollabFile) {
     const link = `${location.origin}/meeting/${code}`;
@@ -1482,6 +1488,42 @@ export default function CollabFiles({
                     {view === k && <CheckMarkIcon size={12} />} {label}
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+          {/* 필터 — 종류로 좁혀 보기 (탐색기식) */}
+          <div className="cf-tool-wrap">
+            <button
+              className={`cf-tool labeled${typeFilter ? ' on' : ''}`}
+              onClick={() => setFilterMenu((v) => !v)}
+            >
+              <FilterIcon size={13} /> 필터
+            </button>
+            {filterMenu && (
+              <div className="cf-type-menu cf-more-menu">
+                <button
+                  onClick={() => {
+                    setTypeFilter(null);
+                    setFilterMenu(false);
+                  }}
+                >
+                  {typeFilter === null && <CheckMarkIcon size={12} />} 전체
+                </button>
+                <div className="cf-menu-sep" />
+                {(['doc', 'code', 'sheet', 'slide', 'canvas', 'file', 'folder'] as FileType[]).map(
+                  (t) => (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        setTypeFilter(t);
+                        setFilterMenu(false);
+                      }}
+                    >
+                      {typeFilter === t && <CheckMarkIcon size={12} />} <TypeIcon type={t} size={13} />{' '}
+                      {t === 'folder' ? '폴더' : TYPE_LABEL[t]}
+                    </button>
+                  ),
+                )}
               </div>
             )}
           </div>

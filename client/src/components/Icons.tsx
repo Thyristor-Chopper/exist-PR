@@ -509,6 +509,19 @@ export function GridIcon({ size }: IconProps) {
   );
 }
 
+export function FilterIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path
+        d="M4 5h16l-6.2 7.3V19l-3.6-1.8v-4.9L4 5z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function PenIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
