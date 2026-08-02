@@ -105,14 +105,15 @@ function TypeIcon({ type, size = 15 }: { type: FileType; size?: number }) {
 type SortKey = 'name' | 'type' | 'author';
 type ViewMode = 'grid' | 'list';
 
-/* ── 업로드 파일 인앱 미리보기 — 이미지·PDF·영상·음성·텍스트는 앱 안에서 바로 연다 ── */
-type ViewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'other';
+/* ── 업로드 파일 인앱 미리보기 — 이미지·PDF·영상·음성·텍스트·한글(hwpx)은 앱 안에서 바로 연다 ── */
+type ViewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'hwpx' | 'other';
 function viewKindOf(name: string): ViewKind {
   const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif', 'ico'].includes(ext)) return 'image';
   if (ext === 'pdf') return 'pdf';
-  if (['mp4', 'webm', 'mov', 'm4v'].includes(ext)) return 'video';
+  if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'ogv'].includes(ext)) return 'video';
   if (['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac'].includes(ext)) return 'audio';
+  if (ext === 'hwpx') return 'hwpx';
   if (
     ['txt', 'md', 'csv', 'log', 'json', 'js', 'ts', 'tsx', 'jsx', 'py', 'c', 'cpp', 'h', 'java', 'sql', 'yml', 'yaml', 'xml', 'html', 'css', 'sh', 'ini', 'conf', 'toml'].includes(ext)
   )
@@ -141,6 +142,108 @@ function TextPreview({ url }: { url: string }) {
     <div className="cf-viewer-loading">불러오는 중…</div>
   ) : (
     <pre className="cf-viewer-text">{text}</pre>
+  );
+}
+
+/* ── 한글(hwpx) 미리보기 — OWPML zip에서 문단·표를 추출해 읽기 전용 렌더.
+ * 제조 현업 격차 대응: 품의서·공문류가 hwp로 도는 환경. 구형 .hwp(바이너리)는 미지원 ── */
+type HwpxBlock = { kind: 'p'; text: string } | { kind: 'table'; rows: string[][] };
+
+function hwpxWalkPara(p: Element, blocks: HwpxBlock[]) {
+  let buf = '';
+  const flush = () => {
+    if (buf.trim()) blocks.push({ kind: 'p', text: buf });
+    buf = '';
+  };
+  for (const run of [...p.children]) {
+    for (const child of [...run.children]) {
+      if (child.localName === 't') {
+        buf += child.textContent ?? '';
+      } else if (child.localName === 'tbl') {
+        flush();
+        const rows: string[][] = [];
+        for (const tr of [...child.getElementsByTagNameNS('*', 'tr')]) {
+          const row: string[] = [];
+          for (const tc of [...tr.children].filter((e) => e.localName === 'tc')) {
+            row.push(
+              [...tc.getElementsByTagNameNS('*', 't')]
+                .map((t) => t.textContent ?? '')
+                .join(' ')
+                .trim(),
+            );
+          }
+          if (row.length > 0) rows.push(row);
+        }
+        if (rows.length > 0) blocks.push({ kind: 'table', rows });
+      }
+    }
+    // 문단 직속 텍스트(런 없이 오는 변형)도 수용
+    if (run.localName === 't') buf += run.textContent ?? '';
+  }
+  flush();
+}
+
+function HwpxPreview({ url }: { url: string }) {
+  const [state, setState] = useState<'loading' | 'error' | HwpxBlock[]>('loading');
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const buf = await (await fetch(url)).arrayBuffer();
+        const { default: JSZip } = await import('jszip');
+        const zip = await JSZip.loadAsync(buf);
+        const sections = Object.keys(zip.files)
+          .filter((n) => /^Contents\/section\d+\.xml$/i.test(n))
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+          .slice(0, 20);
+        if (sections.length === 0) throw new Error('no sections');
+        const blocks: HwpxBlock[] = [];
+        const parser = new DOMParser();
+        for (const name of sections) {
+          const xml = parser.parseFromString(await zip.files[name].async('text'), 'application/xml');
+          for (const p of [...xml.documentElement.children].filter((el) => el.localName === 'p')) {
+            hwpxWalkPara(p, blocks);
+            if (blocks.length > 3000) break;
+          }
+          if (blocks.length > 3000) break;
+        }
+        if (!alive) return;
+        setState(blocks);
+      } catch {
+        if (alive) setState('error');
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  if (state === 'loading') return <div className="cf-viewer-loading">불러오는 중…</div>;
+  if (state === 'error' || state.length === 0)
+    return (
+      <div className="cf-viewer-loading">
+        내용을 추출하지 못했어요 — 구형 .hwp이거나 지원하지 않는 구조예요. 다운로드로 확인해주세요.
+      </div>
+    );
+  return (
+    <div className="cf-hwpx">
+      {state.map((b, i) =>
+        b.kind === 'p' ? (
+          <p key={i}>{b.text}</p>
+        ) : (
+          <table key={i}>
+            <tbody>
+              {b.rows.map((r, ri) => (
+                <tr key={ri}>
+                  {r.map((c, ci) => (
+                    <td key={ci}>{c}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ),
+      )}
+    </div>
   );
 }
 
@@ -2630,6 +2733,7 @@ export default function CollabFiles({
                       {kind === 'video' && <video src={vUrl} controls />}
                       {kind === 'audio' && <audio src={vUrl} controls />}
                       {kind === 'text' && <TextPreview url={vUrl} />}
+                      {kind === 'hwpx' && <HwpxPreview url={vUrl} />}
                     </div>
                   </div>
                 );

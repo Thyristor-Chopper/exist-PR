@@ -12169,6 +12169,44 @@ input:focus {
   overflow: auto;
   background: var(--bg);
 }
+/* 한글(hwpx) 미리보기 — 종이 느낌의 읽기 전용 문서 */
+.cf-viewer-body.hwpx {
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: auto;
+  background: var(--bg);
+}
+.cf-hwpx {
+  max-width: 820px;
+  margin: 18px auto;
+  padding: 40px 48px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text);
+}
+.cf-hwpx p {
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cf-hwpx table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+  font-size: 13px;
+}
+.cf-hwpx td {
+  border: 1px solid var(--border);
+  padding: 6px 9px;
+  vertical-align: top;
+}
+.cf-hwpx tr:first-child td {
+  background: var(--surface-2);
+  font-weight: 600;
+}
 .cf-viewer-text {
   margin: 0;
   padding: 18px 20px;
