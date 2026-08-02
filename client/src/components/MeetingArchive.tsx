@@ -56,6 +56,35 @@ export default function MeetingArchive({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [flashId, setFlashId] = useState<number | null>(null);
+  // 원문(모든 발언) — recapId별 로드 상태: undefined=닫힘, 'loading', items
+  const [sources, setSources] = useState<
+    Record<number, 'loading' | { from: string; text: string; ts: number; kind: 'chat' | 'voice' }[]>
+  >({});
+
+  async function toggleSource(recapId: number) {
+    if (sources[recapId] && sources[recapId] !== 'loading') {
+      // 닫기
+      setSources((prev) => {
+        const next = { ...prev };
+        delete next[recapId];
+        return next;
+      });
+      return;
+    }
+    setSources((prev) => ({ ...prev, [recapId]: 'loading' }));
+    try {
+      const r = await api<{ items: { from: string; text: string; ts: number; kind: 'chat' | 'voice' }[] }>(
+        `/api/meetings/${code}/recaps/${recapId}/source`,
+      );
+      setSources((prev) => ({ ...prev, [recapId]: r.items }));
+    } catch {
+      setSources((prev) => {
+        const next = { ...prev };
+        delete next[recapId];
+        return next;
+      });
+    }
+  }
 
   const load = useCallback(() => {
     void api<Recap[]>(`/api/meetings/${code}/recaps`)
@@ -200,7 +229,38 @@ export default function MeetingArchive({
                         )}
                         <div className="ma-foot">
                           참석 {r.attendees.length ? r.attendees.map((a) => dn(a)).join(', ') : '기록 없음'}
+                          {/* 원문 — 이 정리의 재료가 된 발언 전부 (1건짜리 수동·자동 기록은 창이 없어 미제공) */}
+                          {(r.source === 'ai' || r.source === 'rule') && (
+                            <button className="ma-src-btn" onClick={() => void toggleSource(r.id)}>
+                              {sources[r.id] && sources[r.id] !== 'loading'
+                                ? '원문 닫기'
+                                : sources[r.id] === 'loading'
+                                  ? '불러오는 중…'
+                                  : '원문 보기 — 모든 발언'}
+                            </button>
+                          )}
                         </div>
+                        {Array.isArray(sources[r.id]) && (
+                          <div className="ma-source">
+                            {(sources[r.id] as { from: string; text: string; ts: number; kind: string }[]).length ===
+                            0 ? (
+                              <div className="ma-source-empty">남은 발언이 없어요</div>
+                            ) : (
+                              (sources[r.id] as { from: string; text: string; ts: number; kind: string }[]).map(
+                                (m, i) => (
+                                  <div key={i} className="ma-source-row">
+                                    <span className="ma-source-time">{timeLabel(m.ts)}</span>
+                                    <b>
+                                      {m.kind === 'voice' ? '🎙 ' : ''}
+                                      {dn(m.from)}
+                                    </b>
+                                    <span className="ma-source-text">{m.text}</span>
+                                  </div>
+                                ),
+                              )
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

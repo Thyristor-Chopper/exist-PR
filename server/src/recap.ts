@@ -594,6 +594,54 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
   return out;
 }
 
+/** 회의 원문 — 이 recap의 재료가 된 발언 전부 (채팅+음성 전사, 시간순).
+ *  창 재구성: 직전 실제 recap의 call_ended_at ~ 이 recap의 call_ended_at (생성 때와 같은 기준).
+ *  1건짜리 수동/자동 기록은 원문 창 개념이 없어 null */
+export function getRecapSource(
+  meetingId: number,
+  recapId: number,
+): { items: { from: string; text: string; ts: number; kind: 'chat' | 'voice' }[] } | null {
+  const cur = db
+    .prepare('SELECT call_ended_at, source FROM meeting_recaps WHERE id = ? AND meeting_id = ?')
+    .get(recapId, meetingId) as { call_ended_at: string; source: string } | undefined;
+  if (!cur || cur.source === 'manual' || cur.source === 'auto') return null;
+  const prev = db
+    .prepare(
+      `SELECT MAX(call_ended_at) AS t FROM meeting_recaps
+       WHERE meeting_id = ? AND call_ended_at < ? AND source NOT IN ('manual', 'auto')`,
+    )
+    .get(meetingId, cur.call_ended_at) as { t: string | null };
+  const since =
+    prev.t ??
+    new Date(new Date(cur.call_ended_at + 'Z').getTime() - 24 * 3600_000)
+      .toISOString()
+      .replace('T', ' ')
+      .slice(0, 19);
+  const agentId = ensureAgentUser();
+  const chat = db
+    .prepare(
+      `SELECT u.username AS "from", m.text, m.created_at AS at FROM messages m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.meeting_id = ? AND m.user_id != ? AND m.text != ''
+         AND m.created_at > ? AND m.created_at <= ?
+       ORDER BY m.id ASC LIMIT 500`,
+    )
+    .all(meetingId, agentId, since, cur.call_ended_at) as { from: string; text: string; at: string }[];
+  const voice = db
+    .prepare(
+      `SELECT u.username AS "from", t.text, t.created_at AS at FROM call_transcripts t
+       JOIN users u ON u.id = t.user_id
+       WHERE t.meeting_id = ? AND t.created_at > ? AND t.created_at <= ?
+       ORDER BY t.id ASC LIMIT 800`,
+    )
+    .all(meetingId, since, cur.call_ended_at) as { from: string; text: string; at: string }[];
+  const items = [
+    ...chat.map((m) => ({ from: m.from, text: m.text, ts: new Date(m.at + 'Z').getTime(), kind: 'chat' as const })),
+    ...voice.map((m) => ({ from: m.from, text: m.text, ts: new Date(m.at + 'Z').getTime(), kind: 'voice' as const })),
+  ].sort((a, b) => a.ts - b.ts);
+  return { items };
+}
+
 /** 다음 회의 제안을 "등록됨"으로 표시 — 실제 일정 등록은 클라가 기존 events API로 하고,
  *  이 플래그는 RecapPanel 버튼 상태(중복 등록 방지)용. 참가자 검증은 라우트에서 */
 export function markNextMeetingRegistered(recapId: number, meetingId: number): boolean {

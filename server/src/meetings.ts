@@ -17,6 +17,7 @@ import {
   ackDecision,
   markNextMeetingRegistered,
   runRecapForMeeting,
+  getRecapSource,
 } from './recap.js';
 import {
   listChannels,
@@ -1439,6 +1440,15 @@ router.delete('/:code/decisions/auto/:recapId', (req: AuthedRequest, res) => {
     .all(r.meeting.id) as { user_id: number }[];
   for (const p of parts) invalidateBrief(p.user_id);
   res.json({ ok: true });
+});
+
+/** 회의 원문 — 이 recap의 재료가 된 발언 전부 (참가자만) */
+router.get('/:code/recaps/:recapId/source', (req: AuthedRequest, res) => {
+  const r = meetingForParticipant(req.params.code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const src = getRecapSource(r.meeting.id, Number(req.params.recapId));
+  if (!src) return res.status(404).json({ error: '원문이 없는 기록이에요 (1건짜리 수동·자동 기록)' });
+  res.json(src);
 });
 
 /** recap의 다음 회의 제안을 등록됨으로 표시 — 클라가 events POST 성공 후 호출 (참가자만) */
