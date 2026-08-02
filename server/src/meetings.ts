@@ -1407,7 +1407,15 @@ router.post('/:code/handovers', (req: AuthedRequest, res) => {
 router.post('/:code/handovers/:id/ack', (req: AuthedRequest, res) => {
   const r = meetingForParticipant(req.params.code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
-  if (!ackHandover(Number(req.params.id), r.meeting.id, req.userId!, String(req.body?.note ?? '')))
+  if (
+    !ackHandover(
+      Number(req.params.id),
+      r.meeting.id,
+      req.userId!,
+      String(req.body?.note ?? ''),
+      typeof req.body?.signature === 'string' ? req.body.signature : undefined,
+    )
+  )
     return res.status(404).json({ error: '없는 인수인계예요' });
   res.json({ ok: true });
 });

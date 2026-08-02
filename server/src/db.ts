@@ -712,6 +712,12 @@ try {
 } catch {
   /* 이미 존재 */
 }
+// 손 서명 — 종이 회람판의 디지털화. 클릭보다 무거운 의사표시 (PNG dataURL, ~수 KB)
+try {
+  db.exec(`ALTER TABLE handover_acks ADD COLUMN signature TEXT`);
+} catch {
+  /* 이미 존재 */
+}
 
 // 이월 안건 — 안건으로 올라갔지만 결론에 이르지 못한 것을 영속 추적.
 // 회의(recap)가 지나갈 때마다 rounds+1, 결론이 잡히면 resolved=1.

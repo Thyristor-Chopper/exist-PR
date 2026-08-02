@@ -44,6 +44,8 @@ export interface HandoverRow {
     echoCheck: 'ok' | 'mismatch' | null;
     /** mismatch일 때 어긋난 지점 한 줄 */
     echoReason: string | null;
+    /** 손 서명 PNG dataURL — 없으면 null (구 데이터·버튼 서명) */
+    signature: string | null;
   }[];
 }
 
@@ -388,7 +390,7 @@ export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
     author: string;
   }[];
   const ackStmt = db.prepare(
-    `SELECT u.username, a.created_at, a.note, a.echo_check, a.echo_reason
+    `SELECT u.username, a.created_at, a.note, a.echo_check, a.echo_reason, a.signature
      FROM handover_acks a JOIN users u ON u.id = a.user_id
      WHERE a.handover_id = ? ORDER BY a.rowid`,
   );
@@ -420,6 +422,7 @@ export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
           note: string | null;
           echo_check: string | null;
           echo_reason: string | null;
+          signature: string | null;
         }[]
       ).map((a) => ({
         username: a.username,
@@ -427,17 +430,20 @@ export function listHandovers(meetingId: number, limit = 20): HandoverRow[] {
         note: a.note ?? null,
         echoCheck: a.echo_check === 'ok' || a.echo_check === 'mismatch' ? a.echo_check : null,
         echoReason: a.echo_reason ?? null,
+        signature: a.signature ?? null,
       })),
     };
   });
 }
 
-/** 서명 — "작업 전에 확인했다"의 기록. 멱등, 노트만 나중에 추가/갱신 가능 */
+/** 서명 — "작업 전에 확인했다"의 기록. 멱등, 노트만 나중에 추가/갱신 가능.
+ *  signature = 손 서명 PNG dataURL (종이 회람판의 디지털화 — 클릭보다 무거운 의사표시) */
 export function ackHandover(
   handoverId: number,
   meetingId: number,
   userId: number,
   note?: string,
+  signature?: string,
 ): boolean {
   const row = db
     .prepare('SELECT 1 FROM handovers WHERE id = ? AND meeting_id = ?')
@@ -447,6 +453,17 @@ export function ackHandover(
     handoverId,
     userId,
   );
+  if (
+    typeof signature === 'string' &&
+    signature.startsWith('data:image/png;base64,') &&
+    signature.length < 40_000
+  ) {
+    db.prepare('UPDATE handover_acks SET signature = ? WHERE handover_id = ? AND user_id = ?').run(
+      signature,
+      handoverId,
+      userId,
+    );
+  }
   const clean = (note ?? '').trim().slice(0, 200);
   if (clean) {
     db.prepare(

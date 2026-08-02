@@ -3603,6 +3603,70 @@ input:focus {
   color: var(--green);
 }
 
+/* 손 서명 — 패드(작성) + 칩(회람판) */
+.ho-signpad {
+  border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: color-mix(in srgb, var(--green) 4%, transparent);
+}
+.ho-signpad-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--green);
+}
+.ho-sign-canvas {
+  background: #fff;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  cursor: crosshair;
+  max-width: 100%;
+}
+.ho-signpad-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ho-sign-clear {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ho-signs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+.ho-sign-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px 8px 3px;
+}
+.ho-sign-chip img {
+  width: 96px;
+  height: 33px;
+  object-fit: contain;
+}
+.ho-sign-chip i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: #6b7280; /* 칩 배경이 흰색 고정이라 색도 고정 */
+}
+
 /* 복명복창 — 수신자의 이해 한 줄 + AI 대조 배지 */
 .ho-echoes {
   display: flex;

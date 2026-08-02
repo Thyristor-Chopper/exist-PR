@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
@@ -33,7 +33,99 @@ interface Handover {
     note: string | null;
     echoCheck: 'ok' | 'mismatch' | null;
     echoReason: string | null;
+    /** 손 서명 PNG dataURL */
+    signature: string | null;
   }[];
+}
+
+/** 손 서명 패드 — 종이 회람판의 디지털화. 클릭보다 무거운 의사표시 (마우스·터치) */
+function SignPad({ onConfirm, onCancel }: { onConfirm: (dataUrl: string) => void; onCancel: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = 320 * dpr;
+    canvas.height = 110 * dpr;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1f2937'; // 잉크색 고정 — 서명 칩은 양 테마 모두 밝은 배경
+  }, []);
+
+  function pos(e: React.PointerEvent<HTMLCanvasElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  return (
+    <div className="ho-signpad">
+      <div className="ho-signpad-title">서명 — 마우스나 손가락으로 이름을 적어주세요</div>
+      <canvas
+        ref={canvasRef}
+        className="ho-sign-canvas"
+        style={{ width: 320, height: 110, touchAction: 'none' }}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          drawing.current = true;
+          const p = pos(e);
+          const ctx = e.currentTarget.getContext('2d')!;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+        }}
+        onPointerMove={(e) => {
+          if (!drawing.current) return;
+          const p = pos(e);
+          const ctx = e.currentTarget.getContext('2d')!;
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+          if (!dirty) setDirty(true);
+        }}
+        onPointerUp={() => {
+          drawing.current = false;
+        }}
+      />
+      <div className="ho-signpad-actions">
+        <button
+          type="button"
+          className="ho-sign-clear"
+          onClick={() => {
+            const canvas = canvasRef.current!;
+            const ctx = canvas.getContext('2d')!;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            setDirty(false);
+          }}
+        >
+          다시 쓰기
+        </button>
+        <span style={{ flex: 1 }} />
+        <button type="button" className="ho-cancel" onClick={onCancel}>
+          취소
+        </button>
+        <button
+          type="button"
+          className="ho-publish"
+          disabled={!dirty}
+          onClick={() => {
+            // 저장 크기 절약 — 절반 해상도로 축소해서 내보냄 (~2-5KB)
+            const src = canvasRef.current!;
+            const out = document.createElement('canvas');
+            out.width = 240;
+            out.height = 82;
+            out.getContext('2d')!.drawImage(src, 0, 0, out.width, out.height);
+            onConfirm(out.toDataURL('image/png'));
+          }}
+        >
+          서명 완료
+        </button>
+      </div>
+    </div>
+  );
 }
 
 const SECTION_META: { key: keyof Sections; label: string; Icon: typeof AlertIcon }[] = [
@@ -198,8 +290,11 @@ export default function HandoverPanel({
   // 복명복창 — 서명 직후 "내가 이해한 내용 한 줄"(선택) 입력, AI가 원본과 대조
   const [echoFor, setEchoFor] = useState<number | null>(null);
   const [echoText, setEchoText] = useState('');
+  // 손 서명 패드 — 인수인계는 중요도가 높아 클릭 대신 실제 서명 (중요도에 비례한 마찰)
+  const [signFor, setSignFor] = useState<number | null>(null);
 
-  async function ack(h: Handover) {
+  async function ackWithSignature(h: Handover, signature: string) {
+    setSignFor(null);
     setList((prev) =>
       (prev ?? []).map((x) =>
         x.id === h.id
@@ -207,7 +302,14 @@ export default function HandoverPanel({
               ...x,
               acks: [
                 ...x.acks,
-                { username: user?.username ?? '', ts: Date.now(), note: null, echoCheck: null, echoReason: null },
+                {
+                  username: user?.username ?? '',
+                  ts: Date.now(),
+                  note: null,
+                  echoCheck: null,
+                  echoReason: null,
+                  signature,
+                },
               ],
             }
           : x,
@@ -215,9 +317,10 @@ export default function HandoverPanel({
     );
     setEchoFor(h.id);
     setEchoText('');
-    await api(`/api/meetings/${code}/handovers/${h.id}/ack`, { method: 'POST', body: {} }).catch(
-      () => load(),
-    );
+    await api(`/api/meetings/${code}/handovers/${h.id}/ack`, {
+      method: 'POST',
+      body: { signature },
+    }).catch(() => load());
   }
 
   /** 복명복창 저장 — 같은 ack 엔드포인트 재호출 (멱등 + 노트 갱신), AI 대조는 서버가 비동기로 */
@@ -447,6 +550,12 @@ export default function HandoverPanel({
                       ))}
                   </div>
                 )}
+                {signFor === h.id && (
+                  <SignPad
+                    onConfirm={(dataUrl) => void ackWithSignature(h, dataUrl)}
+                    onCancel={() => setSignFor(null)}
+                  />
+                )}
                 {echoFor === h.id && (
                   <form
                     className="ho-echo-form"
@@ -465,6 +574,19 @@ export default function HandoverPanel({
                     <button type="submit">{echoText.trim() ? '남기기' : '건너뛰기'}</button>
                   </form>
                 )}
+                {/* 손 서명 스트립 — 종이 회람판처럼 서명이 쌓인다 */}
+                {h.acks.some((a) => a.signature) && (
+                  <div className="ho-signs">
+                    {h.acks
+                      .filter((a) => a.signature)
+                      .map((a) => (
+                        <span key={a.username} className="ho-sign-chip" title={dn(a.username)}>
+                          <img src={a.signature!} alt={`${dn(a.username)} 서명`} />
+                          <i>{dn(a.username)}</i>
+                        </span>
+                      ))}
+                  </div>
+                )}
                 <div className="ho-card-foot">
                   <span className="ho-acks" title={h.acks.map((a) => dn(a.username)).join(', ')}>
                     <CheckMarkIcon size={12} /> 확인 {h.acks.length}명
@@ -476,7 +598,7 @@ export default function HandoverPanel({
                     )}
                   </span>
                   {!mine && !isAuthor && (
-                    <button className="ho-ack-btn" onClick={() => void ack(h)}>
+                    <button className="ho-ack-btn" onClick={() => setSignFor(h.id)}>
                       확인했어요 — 작업 전 서명
                     </button>
                   )}
