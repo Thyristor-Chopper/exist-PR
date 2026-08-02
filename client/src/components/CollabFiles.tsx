@@ -192,6 +192,21 @@ export default function CollabFiles({
   // 휴지통 패널
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashSel, setTrashSel] = useState(false); // 루트의 휴지통 항목이 단일 선택된 상태
+  // 다중 드래그 고스트 — 네이티브 프리뷰 대신 포인터를 따라다니는 카드 스택 + 개수 배지
+  const [dragGhost, setDragGhost] = useState<{
+    count: number;
+    types: FileType[];
+    x: number;
+    y: number;
+  } | null>(null);
+  const dragGhostRef = useRef<HTMLDivElement | null>(null);
+  const dragEmptyImg = useRef<HTMLImageElement | null>(null);
+  if (!dragEmptyImg.current && typeof Image !== 'undefined') {
+    const img = new Image();
+    img.src =
+      'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    dragEmptyImg.current = img;
+  }
   // 세부 정보 창 토글 — 탐색기처럼 켜고 끌 수 있게, 선택 없으면 현재 폴더 정보
   const [detailsOn, setDetailsOn] = useState<boolean>(
     () => localStorage.getItem('exist:cf-details') !== '0',
@@ -232,6 +247,17 @@ export default function CollabFiles({
     },
     [],
   );
+
+  // 드래그 고스트가 포인터를 따라다니게 — dragover 좌표로 직접 이동 (리렌더 없이)
+  useEffect(() => {
+    if (!dragGhost) return;
+    const onOver = (e: DragEvent) => {
+      const el = dragGhostRef.current;
+      if (el) el.style.transform = `translate(${e.clientX + 14}px, ${e.clientY + 16}px)`;
+    };
+    document.addEventListener('dragover', onOver);
+    return () => document.removeEventListener('dragover', onOver);
+  }, [dragGhost]);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -1682,10 +1708,21 @@ export default function CollabFiles({
                   dragIdsRef.current = ids;
                   e.dataTransfer.effectAllowed = 'move';
                   e.dataTransfer.setData('text/plain', '');
+                  // 여러 개 들었으면 네이티브 프리뷰 대신 커스텀 고스트 (개수 배지 + 애니메이션)
+                  if (ids.length > 1 && dragEmptyImg.current) {
+                    e.dataTransfer.setDragImage(dragEmptyImg.current, 0, 0);
+                    setDragGhost({
+                      count: ids.length,
+                      types: ids.slice(0, 3).map((id) => byId.get(id)?.type ?? 'doc'),
+                      x: e.clientX,
+                      y: e.clientY,
+                    });
+                  }
                 }}
                 onDragEnd={() => {
                   dragIdsRef.current = [];
                   setDropTarget(null);
+                  setDragGhost(null);
                 }}
                 onDragOver={(e) => {
                   if (
@@ -1936,6 +1973,30 @@ export default function CollabFiles({
         </div>
 
         {/* 하단 상태바 — 윈도우식 */}
+        {/* 다중 드래그 고스트 — 포인터 옆 카드 스택 + 개수 배지 */}
+        {dragGhost && (
+          <div
+            className="cf-dragghost"
+            ref={dragGhostRef}
+            style={{ transform: `translate(${dragGhost.x + 14}px, ${dragGhost.y + 16}px)` }}
+          >
+            <div className="cf-dragghost-inner">
+              <div className="cf-dragghost-stack">
+                {dragGhost.types.map((tp, i) => (
+                  <span
+                    key={i}
+                    className={`cf-dragghost-card cf-icon ${tp}`}
+                    style={{ '--i': i } as React.CSSProperties}
+                  >
+                    <TypeIcon type={tp} size={17} />
+                  </span>
+                ))}
+              </div>
+              <span className="cf-dragghost-count">{dragGhost.count}</span>
+            </div>
+          </div>
+        )}
+
         <div className="cf-statusbar">
           {trashOpen ? (
             <>휴지통 항목 {trashItems.length}개</>
