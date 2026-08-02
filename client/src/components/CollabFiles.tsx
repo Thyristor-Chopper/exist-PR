@@ -342,6 +342,7 @@ export default function CollabFiles({
 
   /** 클릭 선택 — 윈도우식 (Ctrl 토글, Shift 범위, 그냥 클릭은 단일) */
   function clickSelect(f: CollabFile, e: React.MouseEvent) {
+    setTrashSel(false); // 파일 선택이 시작되면 휴지통 선택은 해제 (세부정보 패널 중복 방지)
     if (e.ctrlKey || e.metaKey) {
       setSelectedIds((prev) => {
         const next = new Set(prev);
@@ -897,6 +898,7 @@ export default function CollabFiles({
     if (ctrl && (e.key === 'a' || e.key === 'A')) {
       e.preventDefault();
       setSelectedIds(new Set(items.map((f) => f.id)));
+      setTrashSel(false);
       return;
     }
     if (ctrl && (e.key === 'c' || e.key === 'C')) {
@@ -1508,6 +1510,7 @@ export default function CollabFiles({
                 rubberScrollRaf.current = requestAnimationFrame(step);
               }
             }
+            setTrashSel(false); // 러버밴드 선택 시작 — 휴지통 선택 해제
             const y0e = host ? nr.y0 - (host.scrollTop - nr.s0) : nr.y0;
             const [lx, hx] = nr.x0 < nr.x1 ? [nr.x0, nr.x1] : [nr.x1, nr.x0];
             const [ly, hy] = y0e < nr.y1 ? [y0e, nr.y1] : [nr.y1, y0e];
@@ -1784,7 +1787,8 @@ export default function CollabFiles({
         </div>
 
         {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약, 선택 없으면 현재 폴더 (탐색기식) */}
-        {detailsOn && (trashOpen || trashSel) && (
+        {/* 우선순위: 파일 선택 > 휴지통 선택 — 어떤 상태 조합에서도 패널은 하나만 */}
+        {detailsOn && (trashOpen || (trashSel && selCount === 0)) && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon file">
               <TrashIcon size={38} />
@@ -2054,6 +2058,7 @@ export default function CollabFiles({
                 <button
                   onClick={() => {
                     setSelectedIds(new Set(items.map((f) => f.id)));
+                    setTrashSel(false);
                     setCtxMenu(null);
                   }}
                 >
