@@ -19141,6 +19141,29 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   color: #e5484d;
 }
 
+/* 복원·영구삭제 — 새로만들기·업로드와 같은 이어진 알약 한 덩어리 */
+.cf-trash-actions {
+  display: inline-flex;
+  align-items: stretch;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.cf-trash-actions button {
+  border: none;
+  border-radius: 0;
+  background: none;
+  padding: 4px 11px;
+}
+.cf-trash-actions button + button {
+  border-left: 1px solid var(--border);
+}
+.cf-trash-actions button:hover {
+  background: var(--surface-2);
+}
+
 /* 탐색기 포커스 아웃라인 제거 (키보드 조작용 tabIndex) */
 .cf-explorer:focus {
   outline: none;

@@ -1423,12 +1423,14 @@ export default function CollabFiles({
                         minute: '2-digit',
                       })}
                     </span>
-                    <button className="cf-trash-restore" onClick={() => void restoreTrash(t.id)}>
-                      복원
-                    </button>
-                    <button className="danger" onClick={() => void purgeTrash(t.id)}>
-                      영구 삭제
-                    </button>
+                    <span className="cf-trash-actions">
+                      <button className="cf-trash-restore" onClick={() => void restoreTrash(t.id)}>
+                        복원
+                      </button>
+                      <button className="danger" onClick={() => void purgeTrash(t.id)}>
+                        영구 삭제
+                      </button>
+                    </span>
                   </div>
                 ))}
               </>
