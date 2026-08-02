@@ -111,8 +111,8 @@ function viewKindOf(name: string): ViewKind {
   const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif', 'ico'].includes(ext)) return 'image';
   if (ext === 'pdf') return 'pdf';
-  if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'ogv'].includes(ext)) return 'video';
-  if (['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac'].includes(ext)) return 'audio';
+  if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'ogv', '3gp'].includes(ext)) return 'video';
+  if (['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'opus', 'weba', 'oga'].includes(ext)) return 'audio';
   if (ext === 'hwpx') return 'hwpx';
   if (
     ['txt', 'md', 'csv', 'log', 'json', 'js', 'ts', 'tsx', 'jsx', 'py', 'c', 'cpp', 'h', 'java', 'sql', 'yml', 'yaml', 'xml', 'html', 'css', 'sh', 'ini', 'conf', 'toml'].includes(ext)
