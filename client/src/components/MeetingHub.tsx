@@ -342,10 +342,10 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     function onGotoRecap(e: Event) {
       const d = (e as CustomEvent).detail as { code?: string; recapId?: number } | undefined;
       if (d?.code !== code) return;
-      setSubtab('dash');
-      // 대시보드가 방금 마운트되는 경우 RecapPanel이 원 이벤트를 놓침 — 마운트 뒤 스크롤 신호 재전달
+      // 착지 = 기록 탭 > 회의 아카이브 (기록에서 기록으로). 탭 마운트 뒤 포커스 신호 재전달
+      setSubtab('decisions');
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('exist:goto-recap-scroll', { detail: d }));
+        window.dispatchEvent(new CustomEvent('exist:archive-focus', { detail: d }));
       }, 300);
     }
     // 일정의 "AI 안건 보기" — ③ 다음 회의 카드로 스크롤 + 잠깐 하이라이트

@@ -6,6 +6,7 @@ import { useDisplayName } from '../names';
 import { CheckMarkIcon, SparklesIcon, RefreshIcon } from './Icons';
 import PillSeg from './PillSeg';
 import HandoverPanel from './HandoverPanel';
+import MeetingArchive from './MeetingArchive';
 import SignPad from './SignPad';
 
 /*
@@ -53,15 +54,28 @@ export default function DecisionLedger({ code }: { code: string }) {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [query, setQuery] = useState('');
   // 변경 이력 뷰 — 같은 주제 결정의 변천 (AI 그룹핑, 현직자 요구 "변경사항 이력 관리")
-  // handover = 교대 인수인계 — "조직의 기록은 한 탭"으로 결정과 병합 (8/2)
-  const [view, setView] = useState<'list' | 'history' | 'handover'>('list');
+  // handover = 교대 인수인계, meetings = 회의 기록 아카이브 — "조직의 기록은 한 탭" (8/2)
+  const [view, setView] = useState<'list' | 'history' | 'meetings' | 'handover'>('list');
+  // 원장·일정의 "정리 보기" 점프 착지 — 회의 아카이브의 해당 카드
+  const [focusRecapId, setFocusRecapId] = useState<number | null>(null);
 
   // 전역 검색·일정 다리의 인수인계 점프 — 기록 탭 진입 후 세그먼트를 인수인계로
   useEffect(() => {
     const open = () => setView('handover');
     window.addEventListener('exist:open-handover', open);
-    return () => window.removeEventListener('exist:open-handover', open);
-  }, []);
+    // "정리 보기" — 회의 아카이브 세그먼트로 전환 + 대상 카드 포커스
+    const focus = (e: Event) => {
+      const d = (e as CustomEvent).detail as { code?: string; recapId?: number } | undefined;
+      if (!d || d.code !== code || !d.recapId) return;
+      setView('meetings');
+      setFocusRecapId(d.recapId);
+    };
+    window.addEventListener('exist:archive-focus', focus);
+    return () => {
+      window.removeEventListener('exist:open-handover', open);
+      window.removeEventListener('exist:archive-focus', focus);
+    };
+  }, [code]);
   const [hist, setHist] = useState<DecisionHistory | null>(null);
   const [histLoading, setHistLoading] = useState(false);
 
@@ -176,6 +190,10 @@ export default function DecisionLedger({ code }: { code: string }) {
             <>
               <RefreshIcon size={16} /> 교대 인수인계
             </>
+          ) : view === 'meetings' ? (
+            <>
+              <SparklesIcon size={16} /> 회의 기록
+            </>
           ) : (
             <>
               <CheckMarkIcon size={16} /> 결정 원장
@@ -199,11 +217,12 @@ export default function DecisionLedger({ code }: { code: string }) {
             options={[
               { key: 'list', label: '원장' },
               { key: 'history', label: '변경 이력' },
+              { key: 'meetings', label: '회의' },
               { key: 'handover', label: '인수인계' },
             ]}
             value={view}
             onChange={(k) =>
-              k === 'history' ? void openHistory() : setView(k as 'list' | 'handover')
+              k === 'history' ? void openHistory() : setView(k as 'list' | 'meetings' | 'handover')
             }
           />
         </div>
@@ -211,6 +230,12 @@ export default function DecisionLedger({ code }: { code: string }) {
 
       {view === 'handover' ? (
         <HandoverPanel code={code} embedded />
+      ) : view === 'meetings' ? (
+        <MeetingArchive
+          code={code}
+          focusRecapId={focusRecapId}
+          onFocusHandled={() => setFocusRecapId(null)}
+        />
       ) : view === 'history' ? (
         histLoading || !hist ? (
           <div className="ledger-empty">
