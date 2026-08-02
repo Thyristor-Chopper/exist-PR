@@ -191,30 +191,33 @@ async function aiRecap(msgs: ChatMsg[], participants: string[]): Promise<RecapRe
   return { summary, decisions, whys, alts, actions, nextMeeting, source: 'ai' };
 }
 
-/** 관련성 라우팅 — 결정이 작업에 직접 영향을 주는 참가자 추론 (실패·불확실 시 빈 집합 = 일반 톤) */
-async function inferAffected(
+/** 관련성 추론 — ①작업 기준을 직접 바꾸는 🔴 결정(인덱스) ②그 영향을 받는 참가자.
+ *  실패·불확실 시 빈 집합 = 일반 톤 (오탐이 미탐보다 나쁘다) */
+async function inferCritical(
   decisions: string[],
   members: { id: number; username: string; position: string | null; department: string | null }[],
-): Promise<Set<number>> {
-  if (!openai || decisions.length === 0 || members.length < 2) return new Set();
+): Promise<{ userIds: Set<number>; decisionIdx: Set<number> }> {
+  const empty = { userIds: new Set<number>(), decisionIdx: new Set<number>() };
+  if (!openai || decisions.length === 0) return empty;
   try {
     const response = await openai.chat.completions.create({
       model: OPENAI_MODEL,
       temperature: 0,
-      max_tokens: 200,
+      max_tokens: 250,
       response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
           content:
-            '너는 exist의 AI 총무다. 회의 결정 목록과 참가자(직무·부서)를 보고, 결정이 그 사람의 "작업 방식·기준을 직접 바꾸는" 참가자만 고른다.\n' +
-            '단순히 알아두면 좋은 정도는 제외. 직무 정보가 없거나 판단이 안 서면 고르지 않는다.\n' +
-            '응답은 오직 JSON: {"critical": [username]} — 없으면 빈 배열',
+            '너는 exist의 AI 총무다. 회의 결정 목록을 보고 두 가지를 고른다.\n' +
+            '1) critical_decisions: 현장의 작업 방식·기준·수치·설비 조건·안전을 직접 바꾸는 결정의 인덱스(0부터). 일정 잡기·자료 공유 같은 운영성 결정은 제외.\n' +
+            '2) critical_users: 그 결정이 작업 기준을 바꾸는 참가자 username (직무 정보가 없거나 판단이 안 서면 빈 배열).\n' +
+            '응답은 오직 JSON: {"critical_decisions": number[], "critical_users": [username]}',
         },
         {
           role: 'user',
           content: JSON.stringify({
-            decisions,
+            decisions: decisions.map((d, i) => `${i}: ${d}`),
             members: members.map((m) => ({
               username: m.username,
               position: m.position ?? '',
@@ -226,15 +229,24 @@ async function inferAffected(
     });
     const raw = response.choices[0]?.message?.content ?? '';
     const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as {
-      critical?: unknown;
+      critical_decisions?: unknown;
+      critical_users?: unknown;
     };
     const names = new Set(
-      (Array.isArray(parsed.critical) ? parsed.critical : []).map((n) => String(n)),
+      (Array.isArray(parsed.critical_users) ? parsed.critical_users : []).map((n) => String(n)),
     );
-    return new Set(members.filter((m) => names.has(m.username)).map((m) => m.id));
+    const idx = new Set(
+      (Array.isArray(parsed.critical_decisions) ? parsed.critical_decisions : [])
+        .map(Number)
+        .filter((n) => Number.isInteger(n) && n >= 0 && n < decisions.length),
+    );
+    return {
+      userIds: new Set(members.filter((m) => names.has(m.username)).map((m) => m.id)),
+      decisionIdx: idx,
+    };
   } catch (err) {
     console.error('[recap] 관련성 추론 실패 — 일반 톤 폴백:', err);
-    return new Set();
+    return empty;
   }
 }
 
@@ -461,7 +473,15 @@ export async function runRecapForMeeting(
     .join(' · ');
   // 관련성 라우팅 — 결정이 작업 방식을 바꾸는 사람에게는 "작업 전 확인 필수" 등급으로 (알림 피로 방지의 역설계:
   // 전원에게 같은 톤으로 뿌리면 중요한 것도 묻힌다. 직무·부서로 영향 범위를 추론해 톤을 가른다)
-  const critical = await inferAffected(recap.decisions, members);
+  const crit = await inferCritical(recap.decisions, members);
+  const critical = crit.userIds;
+  // 🔴 결정 인덱스는 원장에 저장 — critical 결정은 확인 시 손 서명을 요구 (중요도에 비례한 마찰)
+  if (crit.decisionIdx.size > 0) {
+    db.prepare('UPDATE meeting_recaps SET criticals = ? WHERE id = ?').run(
+      JSON.stringify(recap.decisions.map((_, i) => crit.decisionIdx.has(i))),
+      recapId,
+    );
+  }
 
   const what = trigger === 'manual' ? '기록' : '통화';
   for (const m of members) {
@@ -498,10 +518,12 @@ export interface LedgerEntry {
   why: string;
   /** 검토됐지만 채택되지 않은 대안 ("대안 — 기각 사유") — 없으면 빈 배열 */
   alts: string[];
+  /** 🔴 작업 전 확인 필수 — 확인 시 손 서명 요구 (중요도에 비례한 마찰) */
+  critical: boolean;
   attendees: string[];
   ts: number;
-  /** 수신 확인한 사람들 (회람 사인) — note = 현장 피드백 한 줄(선택) */
-  acks: { username: string; ts: number; note: string | null }[];
+  /** 수신 확인한 사람들 (회람 사인) — note = 현장 피드백, signature = 손 서명 PNG */
+  acks: { username: string; ts: number; note: string | null; signature: string | null }[];
   /** 이 recap에서 파생된 할 일 — 결정이 실행됐는지 추적 (P1 체인의 실행 단계) */
   todos: { title: string; done: number }[];
 }
@@ -511,12 +533,12 @@ export interface LedgerEntry {
 export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
   const rows = db
     .prepare(
-      `SELECT id, decisions, whys, alts, attendees, created_at FROM meeting_recaps
+      `SELECT id, decisions, whys, alts, criticals, attendees, created_at FROM meeting_recaps
        WHERE meeting_id = ? ORDER BY id DESC LIMIT 50`,
     )
-    .all(meetingId) as { id: number; decisions: string; whys: string | null; alts: string | null; attendees: string; created_at: string }[];
+    .all(meetingId) as { id: number; decisions: string; whys: string | null; alts: string | null; criticals: string | null; attendees: string; created_at: string }[];
   const ackStmt = db.prepare(
-    `SELECT a.decision_idx, u.username, a.created_at, a.note FROM decision_acks a
+    `SELECT a.decision_idx, u.username, a.created_at, a.note, a.signature FROM decision_acks a
      JOIN users u ON u.id = a.user_id WHERE a.recap_id = ? ORDER BY a.id`,
   );
   const todoStmt = db.prepare('SELECT title, done FROM todos WHERE recap_id = ? ORDER BY id');
@@ -529,11 +551,18 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
       username: string;
       created_at: string;
       note: string | null;
+      signature: string | null;
     }[];
     const decisions = JSON.parse(r.decisions) as string[];
     const recapTodos = todoStmt.all(r.id) as { title: string; done: number }[];
     const whys = parseWhys(r.whys, decisions.length);
     const altsAll = parseAlts(r.alts, decisions.length);
+    let criticals: boolean[] = [];
+    try {
+      criticals = r.criticals ? (JSON.parse(r.criticals) as boolean[]) : [];
+    } catch {
+      criticals = [];
+    }
     for (let idx = 0; idx < decisions.length; idx++) {
       out.push({
         recapId: r.id,
@@ -541,6 +570,7 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
         decision: decisions[idx],
         why: whys[idx],
         alts: altsAll[idx],
+        critical: criticals[idx] === true,
         attendees,
         ts,
         acks: ackRows
@@ -549,6 +579,7 @@ export function listDecisions(meetingId: number, limit = 100): LedgerEntry[] {
             username: a.username,
             ts: new Date(a.created_at + 'Z').getTime(),
             note: a.note ?? null,
+            signature: a.signature ?? null,
           })),
         todos: recapTodos,
       });
@@ -581,6 +612,7 @@ export function ackDecision(
   decisionIdx: number,
   userId: number,
   note?: string | null,
+  signature?: string,
 ): boolean {
   const recap = db.prepare('SELECT decisions FROM meeting_recaps WHERE id = ?').get(recapId) as
     | { decisions: string }
@@ -595,6 +627,16 @@ export function ackDecision(
     db.prepare(
       'UPDATE decision_acks SET note = ? WHERE recap_id = ? AND decision_idx = ? AND user_id = ?',
     ).run(note.trim().slice(0, 120), recapId, decisionIdx, userId);
+  }
+  // 손 서명 (🔴 결정) — 종이 회람판의 디지털화
+  if (
+    typeof signature === 'string' &&
+    signature.startsWith('data:image/png;base64,') &&
+    signature.length < 40_000
+  ) {
+    db.prepare(
+      'UPDATE decision_acks SET signature = ? WHERE recap_id = ? AND decision_idx = ? AND user_id = ?',
+    ).run(signature, recapId, decisionIdx, userId);
   }
   return true;
 }

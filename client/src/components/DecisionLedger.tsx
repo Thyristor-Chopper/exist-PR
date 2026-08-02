@@ -6,6 +6,7 @@ import { useDisplayName } from '../names';
 import { CheckMarkIcon, SparklesIcon, RefreshIcon } from './Icons';
 import PillSeg from './PillSeg';
 import HandoverPanel from './HandoverPanel';
+import SignPad from './SignPad';
 
 /*
  * 결정 원장 — 이 그룹의 모든 통화 결정이 시간순으로 쌓이는 타임라인.
@@ -21,9 +22,11 @@ interface LedgerEntry {
   why?: string;
   /** 검토됐지만 채택되지 않은 대안 ("대안 — 기각 사유") — 같은 검토의 반복 방지 */
   alts?: string[];
+  /** 🔴 작업 전 확인 필수 — 확인 시 손 서명 요구 */
+  critical?: boolean;
   attendees: string[];
   ts: number;
-  acks: { username: string; ts: number; note?: string | null }[];
+  acks: { username: string; ts: number; note?: string | null; signature?: string | null }[];
   /** 이 recap에서 파생된 할 일 — 결정이 실행됐는지 추적 */
   todos?: { title: string; done: number }[];
 }
@@ -77,6 +80,8 @@ export default function DecisionLedger({ code }: { code: string }) {
   // 확인 직후 뜨는 "현장 한 줄(선택)" 입력 — 현직자 제안(확인 + 현장 피드백) 반영
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
+  // 🔴 결정 손 서명 — 중요도에 비례한 마찰 (일반 결정은 클릭 1회 유지)
+  const [signFor, setSignFor] = useState<string | null>(null);
 
   const load = useCallback(() => {
     void api<LedgerEntry[]>(`/api/meetings/${code}/decisions`)
@@ -84,12 +89,24 @@ export default function DecisionLedger({ code }: { code: string }) {
       .catch(() => {});
   }, [code]);
 
-  async function ack(e: LedgerEntry) {
+  async function ack(e: LedgerEntry, signature?: string) {
+    if (e.critical && !signature) {
+      // 작업 전 확인 필수 결정은 손 서명으로 — 종이 회람판처럼
+      setSignFor(`${e.recapId}-${e.idx}`);
+      return;
+    }
+    setSignFor(null);
     // 낙관적 반영 후 서버 기록
     setEntries((prev) =>
       prev.map((x) =>
         x.recapId === e.recapId && x.idx === e.idx
-          ? { ...x, acks: [...x.acks, { username: user?.username ?? '', ts: Date.now() }] }
+          ? {
+              ...x,
+              acks: [
+                ...x.acks,
+                { username: user?.username ?? '', ts: Date.now(), signature: signature ?? null },
+              ],
+            }
           : x,
       ),
     );
@@ -97,7 +114,7 @@ export default function DecisionLedger({ code }: { code: string }) {
     setNoteText('');
     await api(`/api/meetings/${code}/decisions/ack`, {
       method: 'POST',
-      body: { recapId: e.recapId, idx: e.idx },
+      body: { recapId: e.recapId, idx: e.idx, ...(signature ? { signature } : {}) },
     }).catch(() => load());
   }
 
@@ -262,7 +279,14 @@ export default function DecisionLedger({ code }: { code: string }) {
                       <CheckMarkIcon size={14} />
                     </span>
                     <div className="ledger-body">
-                      <div className="ledger-decision">{e.decision}</div>
+                      <div className="ledger-decision">
+                        {e.critical && (
+                          <span className="ledger-critical" title="확인 시 손 서명이 필요해요">
+                            🔴 작업 전 확인 필수
+                          </span>
+                        )}
+                        {e.decision}
+                      </div>
                       {e.why && <div className="ledger-why">배경 · {e.why}</div>}
                       {(e.alts?.length ?? 0) > 0 && (
                         <div className="ledger-alts">
@@ -307,6 +331,26 @@ export default function DecisionLedger({ code }: { code: string }) {
                           정리 보기
                         </button>
                       </div>
+                      {/* 손 서명 스트립 — 🔴 결정의 회람판 */}
+                      {e.acks.some((a) => a.signature) && (
+                        <div className="ho-signs ledger-signs">
+                          {e.acks
+                            .filter((a) => a.signature)
+                            .map((a) => (
+                              <span key={a.username} className="ho-sign-chip" title={dn(a.username)}>
+                                <img src={a.signature!} alt={`${dn(a.username)} 서명`} />
+                                <i>{dn(a.username)}</i>
+                              </span>
+                            ))}
+                        </div>
+                      )}
+                      {/* 서명 패드 — 작업 전 확인 필수 결정의 확인 */}
+                      {signFor === `${e.recapId}-${e.idx}` && (
+                        <SignPad
+                          onConfirm={(dataUrl) => void ack(e, dataUrl)}
+                          onCancel={() => setSignFor(null)}
+                        />
+                      )}
                       {/* 현장 피드백 — 확인에 딸린 한 줄 ("반영 완료"/"라인에선 어려움" 등) */}
                       {e.acks.some((a) => a.note) && (
                         <div className="ledger-feedback">

@@ -718,6 +718,18 @@ try {
 } catch {
   /* 이미 존재 */
 }
+// 🔴 작업 전 확인 필수 결정 — decisions와 정렬된 JSON bool[] (AI가 recap 시 판정)
+try {
+  db.exec(`ALTER TABLE meeting_recaps ADD COLUMN criticals TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+// 결정 확인에도 손 서명 (critical 결정 한정)
+try {
+  db.exec(`ALTER TABLE decision_acks ADD COLUMN signature TEXT`);
+} catch {
+  /* 이미 존재 */
+}
 
 // 이월 안건 — 안건으로 올라갔지만 결론에 이르지 못한 것을 영속 추적.
 // 회의(recap)가 지나갈 때마다 rounds+1, 결론이 잡히면 resolved=1.

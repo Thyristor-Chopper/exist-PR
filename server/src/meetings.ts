@@ -1486,7 +1486,8 @@ router.post('/:code/decisions/ack', (req: AuthedRequest, res) => {
   if (!owns) return res.status(404).json({ error: '존재하지 않는 결정입니다' });
   // note = 현장 피드백 한 줄(선택) — 확인 후에 노트만 추가하는 재호출도 허용
   const note = typeof req.body?.note === 'string' ? req.body.note : null;
-  if (!ackDecision(recapId, idx, req.userId!, note)) {
+  const signature = typeof req.body?.signature === 'string' ? req.body.signature : undefined;
+  if (!ackDecision(recapId, idx, req.userId!, note, signature)) {
     return res.status(404).json({ error: '존재하지 않는 결정입니다' });
   }
   res.json({ ok: true });
