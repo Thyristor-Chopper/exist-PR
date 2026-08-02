@@ -59,6 +59,20 @@ interface Actions {
   }[];
 }
 
+/** P0 발신자 카드 — 내가 보낸 결정의 도달 현황 ("보내고 도달을 확인할 방법이 없다" — 발신자 현직 증언) */
+interface SentEntry {
+  recapId: number;
+  idx: number;
+  decision: string;
+  code: string;
+  title: string;
+  ts: number;
+  acked: number;
+  total: number;
+  missing: string[];
+  critical: boolean;
+}
+
 /** P2 — 자리 비운 사이 놓친 것 브리핑 */
 interface CatchupItem {
   type: 'recap' | 'todo' | 'dm' | 'chat';
@@ -98,6 +112,9 @@ export default function ProfileDashboard() {
   const [catchup, setCatchup] = useState<Catchup | null>(null);
   const [pending, setPending] = useState<PendingDecision[] | null>(null);
   const [actions, setActions] = useState<Actions | null>(null);
+  // 발신자 카드 — 행동 기반 노출: 보낸 결정이 있을 때만 뜬다 (역할 설정 없이 대시보드가 역할을 따라감)
+  const [sent, setSent] = useState<{ entries: SentEntry[]; totalSent: number } | null>(null);
+  const [reminding, setReminding] = useState<string | null>(null);
   // 인박스 DM 답장 — 우하단 플로팅 창 (허브·홈 통합 메시지와 같은 창)
   const [dmPeer, setDmPeer] = useState<Thread | null>(null);
   const [statsOpen, setStatsOpen] = useState(false); // 지표·인사이트 한 줄 접힘
@@ -154,6 +171,11 @@ export default function ProfileDashboard() {
     setActions(null);
     api<Actions>(`/api/agent/actions?${orgQ}`)
       .then((d) => alive && setActions(d))
+      .catch(() => {});
+    // 발신자 카드 — 내가 보낸 결정의 도달 현황
+    setSent(null);
+    api<{ entries: SentEntry[]; totalSent: number }>(`/api/agent/sent?${orgQ}`)
+      .then((d) => alive && setSent(d))
       .catch(() => {});
     return () => {
       alive = false;
@@ -307,6 +329,85 @@ export default function ProfileDashboard() {
       /* 전역 토스트 */
     }
   }
+
+  /** 미확인자 리마인드 — AI 총무 명의로 미확인 참가자에게만 (서버 1시간 쿨다운) */
+  async function remindSent(e: SentEntry) {
+    const key = `${e.recapId}-${e.idx}`;
+    setReminding(key);
+    try {
+      const r = await api<{ reminded: number }>(`/api/meetings/${e.code}/decisions/remind`, {
+        method: 'POST',
+        body: { recapId: e.recapId, idx: e.idx },
+      });
+      window.dispatchEvent(
+        new CustomEvent('app:error', {
+          detail: r.reminded > 0 ? `✓ ${r.reminded}명에게 리마인드를 보냈어요` : '보낼 대상이 없어요 (쿨다운 중이거나 전원 확인)',
+        }),
+      );
+    } catch {
+      /* 전역 토스트 */
+    } finally {
+      setReminding(null);
+    }
+  }
+
+  // 발신자 카드 — 보낸 결정이 있을 때만 (행동 기반 노출)
+  const sentCard = sent && sent.entries.length > 0 && (
+    <div style={cellCard} className="pd-sent">
+      <div style={sectionHead}>
+        <span style={headIcon}><ChartIcon size={16} /></span> 보낸 결정 도달 현황
+        {sent.entries.some((e) => e.acked < e.total) && (
+          <span className="pd-ack-count">{sent.entries.filter((e) => e.acked < e.total).length}</span>
+        )}
+        <span className="pd-inbox-hint">누가 아직인지, 여기서 보여요</span>
+      </div>
+      {sent.entries.slice(0, 5).map((e) => {
+        const done = e.acked >= e.total;
+        const key = `${e.recapId}-${e.idx}`;
+        return (
+          <div key={key} className={`pd-sent-row${done ? ' done' : ''}`}>
+            <div
+              className="pd-act-main"
+              onClick={() => openMeeting(e.code, e.title)}
+              title={`"${e.title}" 열기`}
+            >
+              <Marquee className="pd-act-title">
+                {e.critical ? '🔴 ' : ''}
+                {e.decision}
+              </Marquee>
+              <span className="pd-act-sub">
+                {e.title} · 확인 {e.acked}/{e.total}
+                {!done && e.missing.length > 0 && (
+                  <span className="pd-sent-missing" title={e.missing.join(', ')}>
+                    {' '}
+                    — 미확인: {e.missing.slice(0, 3).join(', ')}
+                    {e.missing.length > 3 ? ` 외 ${e.missing.length - 3}명` : ''}
+                  </span>
+                )}
+              </span>
+              <span className="pd-sent-bar" aria-hidden>
+                <i style={{ width: `${Math.round((e.acked / Math.max(1, e.total)) * 100)}%` }} />
+              </span>
+            </div>
+            {done ? (
+              <span className="pd-sent-done">
+                <CheckMarkIcon size={12} /> 전원 확인
+              </span>
+            ) : (
+              <button
+                className="pd-ack-btn"
+                disabled={reminding === key}
+                onClick={() => void remindSent(e)}
+                title="미확인자에게만 AI가 리마인드"
+              >
+                {reminding === key ? '보내는 중…' : '리마인드'}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   const inboxCard = (
     <div style={cellCard} className="pd-inbox">
@@ -479,6 +580,8 @@ export default function ProfileDashboard() {
 
         {inboxCard}
 
+        {sentCard}
+
         <div className="pd-quad">
           <div className="pd-quad-col">
             {todayCard}
@@ -581,6 +684,8 @@ export default function ProfileDashboard() {
       )}
 
       {inboxCard}
+
+        {sentCard}
 
       <div className="pd-quad">
         {/* 좌 = 오늘·못 본 사이·달력, 우 = 할 일·메시지 */}

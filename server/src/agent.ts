@@ -698,6 +698,101 @@ router.get('/pending-decisions', (req: AuthedRequest, res) => {
 
 /** 홈 "지금 처리할 것" 인박스 — 미확인 결정 + 기한 임박·지남 할 일 + 안읽은 DM을 한 번에.
  *  "전달보다 확인" 방향의 홈 구현: 비우면 오늘 준비 끝. (7/29 대시보드 개편) */
+/** 발신자 카드 — "내가 보낸 결정의 도달 현황" (P0).
+ *  발신자 = 호스트이거나 조직 관리자인 그룹의 최근 7일 결정. 도달률 낮은 것부터.
+ *  근거: 발신자 현직 증언 "보내고 나서 도달을 확인할 방법이 없다 — 사후 불량으로만 안다" */
+router.get('/sent', (req: AuthedRequest, res) => {
+  const scope = parseScope(req, res);
+  if (scope === null) return;
+  const sc = scopeSql(scope);
+  const uid = req.userId!;
+
+  const recapRows = db
+    .prepare(
+      `SELECT r.id AS recapId, r.decisions, r.criticals, r.created_at, m.id AS mid, m.code, m.title
+       FROM meeting_recaps r JOIN meetings m ON m.id = r.meeting_id
+       WHERE r.created_at > datetime('now', '-7 days')
+         AND (m.host_id = ?
+           OR (m.org_id IS NOT NULL AND EXISTS (
+             SELECT 1 FROM organization_members om
+             WHERE om.org_id = m.org_id AND om.user_id = ? AND om.role IN ('owner', 'admin') AND om.status = 'active'
+           )))${sc.sql}
+       ORDER BY r.id DESC LIMIT 30`,
+    )
+    .all(uid, uid, ...sc.args) as {
+    recapId: number;
+    decisions: string;
+    criticals: string | null;
+    created_at: string;
+    mid: number;
+    code: string;
+    title: string;
+  }[];
+
+  const partStmt = db.prepare(
+    `SELECT u.id, u.username FROM meeting_participants mp JOIN users u ON u.id = mp.user_id WHERE mp.meeting_id = ?`,
+  );
+  const ackStmt = db.prepare('SELECT decision_idx, user_id FROM decision_acks WHERE recap_id = ?');
+  const partCache = new Map<number, { id: number; username: string }[]>();
+
+  const entries: {
+    recapId: number;
+    idx: number;
+    decision: string;
+    code: string;
+    title: string;
+    ts: number;
+    acked: number;
+    total: number;
+    missing: string[];
+    critical: boolean;
+  }[] = [];
+  for (const r of recapRows) {
+    let parts = partCache.get(r.mid);
+    if (!parts) {
+      parts = partStmt.all(r.mid) as { id: number; username: string }[];
+      partCache.set(r.mid, parts);
+    }
+    const acks = ackStmt.all(r.recapId) as { decision_idx: number; user_id: number }[];
+    let ds: string[] = [];
+    let crit: boolean[] = [];
+    try {
+      ds = JSON.parse(r.decisions) as string[];
+      crit = r.criticals ? (JSON.parse(r.criticals) as boolean[]) : [];
+    } catch {
+      continue;
+    }
+    for (let i = 0; i < ds.length; i++) {
+      const ackedIds = new Set(acks.filter((a) => a.decision_idx === i).map((a) => a.user_id));
+      const missing = parts.filter((p) => !ackedIds.has(p.id)).map((p) => p.username);
+      entries.push({
+        recapId: r.recapId,
+        idx: i,
+        decision: ds[i],
+        code: r.code,
+        title: r.title,
+        ts: new Date(r.created_at + 'Z').getTime(),
+        acked: parts.length - missing.length,
+        total: parts.length,
+        missing,
+        critical: crit[i] === true,
+      });
+    }
+  }
+  // 도달 안 된 것부터 (critical 우선 → 도달률 낮은 순 → 최신순), 완료된 건 뒤로
+  entries.sort((a, b) => {
+    const doneA = a.acked >= a.total ? 1 : 0;
+    const doneB = b.acked >= b.total ? 1 : 0;
+    if (doneA !== doneB) return doneA - doneB;
+    if (a.critical !== b.critical) return a.critical ? -1 : 1;
+    const ra = a.acked / Math.max(1, a.total);
+    const rb = b.acked / Math.max(1, b.total);
+    if (ra !== rb) return ra - rb;
+    return b.ts - a.ts;
+  });
+  res.json({ entries: entries.slice(0, 8), totalSent: entries.length });
+});
+
 router.get('/actions', (req: AuthedRequest, res) => {
   const scope = parseScope(req, res);
   if (scope === null) return;

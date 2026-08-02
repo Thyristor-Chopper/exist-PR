@@ -16303,6 +16303,49 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   padding-left: 2px;
 }
 
+/* ── 발신자 카드 — 보낸 결정 도달 현황 (P0) ── */
+.pd-sent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+.pd-sent-row:first-of-type {
+  border-top: none;
+}
+.pd-sent-row.done {
+  opacity: 0.55;
+}
+.pd-sent-missing {
+  color: var(--amber, #d97706);
+  font-weight: 700;
+}
+.pd-sent-bar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin-top: 5px;
+}
+.pd-sent-bar i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.pd-sent-done {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+}
+
 /* ── 회의 기록 아카이브 — 기록 탭 [회의] 세그먼트 ── */
 .ma-wrap {
   display: flex;
