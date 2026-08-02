@@ -5,7 +5,15 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import db from './db.js';
 import type { AuthedRequest } from './auth.js';
-import { ydocExists, deleteYdoc, copyYdoc, readYdocSnapshot, writeYdoc, roomPresence } from './ydoc.js';
+import {
+  ydocExists,
+  deleteYdoc,
+  copyYdoc,
+  readYdocSnapshot,
+  writeYdoc,
+  roomPresence,
+  logFileActivity,
+} from './ydoc.js';
 import {
   parseCsv,
   parseXlsx,
@@ -245,6 +253,34 @@ router.post('/:fileId/ack', (req: AuthedRequest, res) => {
   res.json({ ok: true });
 });
 
+/** 이 문서를 다룬 회의들 — recap.files 역조회 (문서 → 회의 다리) */
+router.get('/:fileId/meetings', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const fileId = Number(req.params.fileId);
+  if (!Number.isFinite(fileId)) return res.status(400).json({ error: '잘못된 파일이에요' });
+  const rows = db
+    .prepare(
+      `SELECT id, summary, created_at, event_id FROM meeting_recaps
+       WHERE meeting_id = ? AND (files LIKE ? OR files LIKE ?)
+       ORDER BY id DESC LIMIT 10`,
+    )
+    .all(r.meeting.id, `%{"id":${fileId},%`, `%{"id":${fileId}}%`) as {
+    id: number;
+    summary: string;
+    created_at: string;
+    event_id: number | null;
+  }[];
+  res.json(
+    rows.map((x) => ({
+      recapId: x.id,
+      summary: x.summary,
+      ts: new Date(x.created_at + 'Z').getTime(),
+      eventId: x.event_id,
+    })),
+  );
+});
+
 /** 열람 서명 현황 — 서명자 목록(서명 이미지 포함) + 전체 인원 */
 router.get('/:fileId/acks', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
@@ -279,7 +315,10 @@ export function setBlobViewing(meetingId: number, userId: number, fileId: number
     blobViewers.set(meetingId, m);
   }
   if (fileId == null) m.delete(userId);
-  else m.set(userId, { fileId, ts: Date.now() });
+  else {
+    m.set(userId, { fileId, ts: Date.now() });
+    logFileActivity(`file-${fileId}`); // 업로드 파일 미리보기도 회의↔문서 다리에 기록
+  }
 }
 export function clearBlobViewing(userId: number) {
   for (const m of blobViewers.values()) m.delete(userId);

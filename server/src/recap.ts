@@ -277,6 +277,8 @@ export interface RecapRow {
   ts: number;
   /** 이 기록이 열린 일정 이벤트 — 즉석 회의면 null */
   eventId: number | null;
+  /** 이 회의(요약 창) 동안 열람·편집된 문서들 — 회의↔공동편집 다리 */
+  files: { id: number; name: string; type: string }[];
 }
 
 /** whys 컬럼 파싱 — 구 데이터(null)는 decisions 길이만큼 빈 문자열로 */
@@ -307,7 +309,7 @@ function parseAlts(raw: string | null, count: number): string[][] {
 export function listRecaps(meetingId: number, limit = 20): RecapRow[] {
   const rows = db
     .prepare(
-      `SELECT id, summary, decisions, whys, alts, actions, attendees, next_meeting, source, created_at, event_id
+      `SELECT id, summary, decisions, whys, alts, actions, attendees, next_meeting, source, created_at, event_id, files
        FROM meeting_recaps WHERE meeting_id = ? ORDER BY id DESC LIMIT ?`,
     )
     .all(meetingId, limit) as {
@@ -322,6 +324,7 @@ export function listRecaps(meetingId: number, limit = 20): RecapRow[] {
     source: string;
     created_at: string;
     event_id: number | null;
+    files: string | null;
   }[];
   return rows.map((r) => {
     const decisions = JSON.parse(r.decisions) as string[];
@@ -337,6 +340,7 @@ export function listRecaps(meetingId: number, limit = 20): RecapRow[] {
       source: r.source,
       ts: new Date(r.created_at + 'Z').getTime(),
       eventId: r.event_id ?? null,
+      files: r.files ? (JSON.parse(r.files) as { id: number; name: string; type: string }[]) : [],
     };
   });
 }
@@ -432,10 +436,20 @@ export async function runRecapForMeeting(
       .map((e) => ({ id: e.id, diff: e.time ? Math.abs(toMin(e.time) - toMin(nowHm)) : 12 * 60 }))
       .sort((a, b) => a.diff - b.diff)[0]?.id ?? null;
 
+  // 이 요약 창 동안 열람·편집된 문서 — "이 회의에서 다룬 문서" (회의↔공동편집 다리)
+  const touchedFiles = db
+    .prepare(
+      `SELECT DISTINCT fa.file_id AS id, f.name, f.type FROM file_activity fa
+       JOIN collab_files f ON f.id = fa.file_id
+       WHERE fa.meeting_id = ? AND fa.ts > ? AND f.deleted_at IS NULL
+       ORDER BY fa.file_id LIMIT 12`,
+    )
+    .all(meeting.id, since) as { id: number; name: string; type: string }[];
+
   const info = db
     .prepare(
-      `INSERT INTO meeting_recaps (meeting_id, summary, decisions, whys, alts, actions, attendees, next_meeting, source, event_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO meeting_recaps (meeting_id, summary, decisions, whys, alts, actions, attendees, next_meeting, source, event_id, files)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       meeting.id,
@@ -448,6 +462,7 @@ export async function runRecapForMeeting(
       recap.nextMeeting ? JSON.stringify(recap.nextMeeting) : null,
       recap.source,
       eventId,
+      touchedFiles.length > 0 ? JSON.stringify(touchedFiles) : null,
     );
   const recapId = info.lastInsertRowid as number;
 

@@ -275,6 +275,8 @@ export default function MeetingSchedule({
     eventId: number | null;
     decisions: string[];
     ts: number;
+    /** 이 회의 동안 다룬 문서 — 일정→문서 다리 */
+    files?: { id: number; name: string; type: string }[];
   }
   const [recapLinks, setRecapLinks] = useState<RecapLink[]>([]);
   const [agendaCount, setAgendaCount] = useState(0);
@@ -2041,21 +2043,46 @@ export default function MeetingSchedule({
                     popEv.date <= today ? recapForEvent(popBase?.id ?? popEv.id, popEv.date) : null;
                   if (link)
                     return (
-                      <button
-                        type="button"
-                        className="msched-pop-link"
-                        onClick={() => {
-                          setPop(null);
-                          window.dispatchEvent(
-                            new CustomEvent('exist:goto-recap', {
-                              detail: { code, recapId: link.id },
-                            }),
-                          );
-                        }}
-                      >
-                        <CheckMarkIcon size={12} /> 이 회의의 기록 — 결정 {link.decisions.length}건
-                        보기
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="msched-pop-link"
+                          onClick={() => {
+                            setPop(null);
+                            window.dispatchEvent(
+                              new CustomEvent('exist:goto-recap', {
+                                detail: { code, recapId: link.id },
+                              }),
+                            );
+                          }}
+                        >
+                          <CheckMarkIcon size={12} /> 이 회의의 기록 — 결정 {link.decisions.length}건
+                          보기
+                        </button>
+                        {/* 일정 → 문서 다리 — 그 회의에서 다룬 문서 바로 열기 */}
+                        {(link.files?.length ?? 0) > 0 && (
+                          <div className="msched-pop-files">
+                            {link.files!.map((f) => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                className="msched-pop-filechip"
+                                title={`공동편집에서 "${f.name}" 열기`}
+                                onClick={() => {
+                                  setPop(null);
+                                  window.dispatchEvent(
+                                    new CustomEvent('exist:open-file', {
+                                      detail: { code, fileId: f.id },
+                                    }),
+                                  );
+                                }}
+                              >
+                                📄 {f.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     );
                   if (popEv.date >= today && agendaCount > 0)
                     return (

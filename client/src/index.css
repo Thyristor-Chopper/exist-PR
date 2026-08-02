@@ -12270,6 +12270,80 @@ input:focus {
   }
 }
 
+/* ── 회의 ↔ 공동편집 ↔ 일정 삼각 다리 ── */
+/* 회의 아카이브 카드 — 다룬 문서 칩 */
+.ma-files {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ma-files-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+.ma-file-chip,
+.msched-pop-filechip {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ma-file-chip:hover,
+.msched-pop-filechip:hover {
+  background: var(--surface-2);
+}
+.msched-pop-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+/* 문서 세부정보 — 다룬 회의 역링크 */
+.cf-filemeets {
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cf-filemeet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.cf-filemeet-row:hover {
+  background: var(--surface-2);
+}
+.cf-filemeet-date {
+  flex: none;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+.cf-filemeet-sum {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── 문서 열람 서명 (회람 사인) ── */
 /* 파일 배지 — 빨강: 내 서명 필요 / 초록: 완료 */
 .cf-ackdot {

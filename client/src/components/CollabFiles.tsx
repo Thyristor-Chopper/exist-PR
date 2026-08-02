@@ -262,6 +262,35 @@ export default function CollabFiles({
     [],
   );
 
+  // 회의록·일정에서 "다룬 문서" 클릭 → 해당 파일 열기 (목록 로드 전이면 대기 후 소비)
+  const pendingOpenRef = useRef<number | null>(null);
+  useEffect(() => {
+    function onOpenNow(e: Event) {
+      const d = (e as CustomEvent).detail as { code?: string; fileId?: number } | undefined;
+      if (d?.code !== code || !d.fileId) return;
+      pendingOpenRef.current = d.fileId;
+      const f = files.find((x) => x.id === d.fileId);
+      if (f && f.type !== 'folder') {
+        pendingOpenRef.current = null;
+        setTrashOpen(false);
+        openFile(f);
+      }
+    }
+    window.addEventListener('exist:open-file-now', onOpenNow);
+    return () => window.removeEventListener('exist:open-file-now', onOpenNow);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, files]);
+  useEffect(() => {
+    if (pendingOpenRef.current == null) return;
+    const f = files.find((x) => x.id === pendingOpenRef.current);
+    if (f && f.type !== 'folder') {
+      pendingOpenRef.current = null;
+      setTrashOpen(false);
+      openFile(f);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files]);
+
   // 드래그 고스트가 포인터를 따라다니게 — dragover 좌표로 직접 이동 (리렌더 없이)
   useEffect(() => {
     if (!dragGhost) return;
@@ -508,6 +537,25 @@ export default function CollabFiles({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, selected?.ack_required]);
+
+  // 선택 파일을 다룬 회의들 — 문서 → 회의 역링크
+  const [fileMeetings, setFileMeetings] = useState<
+    { recapId: number; summary: string; ts: number }[] | null
+  >(null);
+  useEffect(() => {
+    setFileMeetings(null);
+    if (!selected || selected.type === 'folder') return;
+    let alive = true;
+    void api<{ recapId: number; summary: string; ts: number }[]>(
+      `/api/meetings/${code}/files/${selected.id}/meetings`,
+    )
+      .then((rows) => alive && setFileMeetings(rows))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
 
   // 전체화면 Esc 종료 — 입력 중이거나 발표 모드가 떠 있으면 양보
   useEffect(() => {
@@ -2013,6 +2061,33 @@ export default function CollabFiles({
                 </div>
               )}
             </div>
+            {/* 이 문서를 다룬 회의 — 클릭하면 기록 탭 해당 회의로 (문서 → 회의 다리) */}
+            {(fileMeetings?.length ?? 0) > 0 && (
+              <div className="cf-filemeets">
+                <div className="cf-ack-head">🗓 다룬 회의</div>
+                {fileMeetings!.map((m) => (
+                  <button
+                    key={m.recapId}
+                    className="cf-filemeet-row"
+                    onClick={() =>
+                      window.dispatchEvent(
+                        new CustomEvent('exist:goto-recap', {
+                          detail: { code, recapId: m.recapId },
+                        }),
+                      )
+                    }
+                  >
+                    <span className="cf-filemeet-date">
+                      {new Date(m.ts).toLocaleDateString('ko-KR', {
+                        month: 'numeric',
+                        day: 'numeric',
+                      })}
+                    </span>
+                    <span className="cf-filemeet-sum">{m.summary}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {/* 열람 서명 (회람 사인) — 요청·현황·서명 */}
             {selected.type !== 'folder' && (
               <div className="cf-ack">

@@ -566,6 +566,23 @@ try {
 } catch {
   /* 이미 존재 */
 }
+/* 회의 ↔ 공동편집 다리 — 통화·요약 창 동안 어떤 문서가 열람·편집됐는지.
+ * recap 생성 시 창 안의 파일들이 recap.files로 박제된다 (일정↔회의↔문서 삼각 연결) */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS file_activity (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id),
+    file_id    INTEGER NOT NULL REFERENCES collab_files(id),
+    ts         TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_file_activity ON file_activity(meeting_id, ts);
+`);
+try {
+  db.exec(`ALTER TABLE meeting_recaps ADD COLUMN files TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS file_acks (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -360,11 +360,22 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
         setTimeout(() => el?.classList.remove('recap-flash'), 2400);
       }, 250);
     }
+    // 회의록·일정의 "다룬 문서" — 공동편집 탭으로 옮기고 파일 열기 신호 재전달
+    function onOpenFile(e: Event) {
+      const d = (e as CustomEvent).detail as { code?: string; fileId?: number } | undefined;
+      if (d?.code !== code || !d.fileId) return;
+      setSubtab('files');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('exist:open-file-now', { detail: d }));
+      }, 300);
+    }
     window.addEventListener('exist:goto-recap', onGotoRecap);
     window.addEventListener('exist:goto-agenda', onGotoAgenda);
+    window.addEventListener('exist:open-file', onOpenFile);
     return () => {
       window.removeEventListener('exist:goto-recap', onGotoRecap);
       window.removeEventListener('exist:goto-agenda', onGotoAgenda);
+      window.removeEventListener('exist:open-file', onOpenFile);
     };
   }, [code]);
 

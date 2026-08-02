@@ -25,6 +25,32 @@ fs.mkdirSync(YDOCS_DIR, { recursive: true });
 const messageSync = 0;
 const messageAwareness = 1;
 
+/* 회의 ↔ 문서 다리 — 파일 룸(file-N) 활동을 file_activity에 기록.
+ * recap 생성 시 요약 창 안의 활동으로 "이 회의에서 다룬 문서"가 자동 박제된다.
+ * 룸당 3분 스로틀 — 편집 메시지마다 쌓이지 않게 */
+const activityLast = new Map<string, number>();
+export function logFileActivity(room: string) {
+  if (!room.startsWith('file-')) return;
+  const now = Date.now();
+  const last = activityLast.get(room) ?? 0;
+  if (now - last < 3 * 60_000) return;
+  activityLast.set(room, now);
+  const fileId = Number(room.slice(5));
+  if (!Number.isFinite(fileId)) return;
+  try {
+    const f = db
+      .prepare('SELECT meeting_id FROM collab_files WHERE id = ? AND deleted_at IS NULL')
+      .get(fileId) as { meeting_id: number } | undefined;
+    if (!f) return;
+    db.prepare('INSERT INTO file_activity (meeting_id, file_id) VALUES (?, ?)').run(
+      f.meeting_id,
+      fileId,
+    );
+  } catch {
+    /* 활동 기록 실패는 치명적이지 않음 */
+  }
+}
+
 /* 프레즌스 변경 푸시 — awareness가 바뀌면(입장/퇴장/복귀) 해당 그룹 참가자들에게
  * 'files:presence' 소켓 이벤트를 보내 클라가 즉시 재조회하게 한다 (폴링은 폴백).
  * 룸당 300ms 디바운스 — 커서 이동 같은 잦은 갱신으로 소켓이 넘치지 않게. */
@@ -291,9 +317,11 @@ function setupConn(conn: WebSocket, room: string) {
   conn.binaryType = 'arraybuffer';
   const doc = getYDoc(room);
   doc.conns.set(conn, new Set());
+  logFileActivity(room); // 열람 시작 — 회의↔문서 다리
 
   conn.on('message', (data: ArrayBuffer | Buffer) => {
     const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    logFileActivity(room); // 편집·프레즌스 지속 (3분 스로틀)
     messageListener(conn, doc, bytes);
   });
 

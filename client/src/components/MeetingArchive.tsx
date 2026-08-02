@@ -24,6 +24,8 @@ interface Recap {
   attendees: string[];
   source: string;
   ts: number;
+  /** 이 회의 동안 열람·편집된 문서 — 회의↔공동편집 다리 */
+  files?: { id: number; name: string; type: string }[];
 }
 
 function dateLabel(ts: number): string {
@@ -224,6 +226,28 @@ export default function MeetingArchive({
                                 </span>
                                 {a.title}
                               </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* 이 회의에서 다룬 문서 — 클릭하면 공동편집 탭에서 바로 열림 */}
+                        {(r.files?.length ?? 0) > 0 && (
+                          <div className="ma-files">
+                            <span className="ma-files-label">다룬 문서</span>
+                            {r.files!.map((f) => (
+                              <button
+                                key={f.id}
+                                className="ma-file-chip"
+                                title={`공동편집에서 "${f.name}" 열기`}
+                                onClick={() =>
+                                  window.dispatchEvent(
+                                    new CustomEvent('exist:open-file', {
+                                      detail: { code, fileId: f.id },
+                                    }),
+                                  )
+                                }
+                              >
+                                📄 {f.name}
+                              </button>
                             ))}
                           </div>
                         )}
