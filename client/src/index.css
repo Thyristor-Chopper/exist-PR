@@ -12041,7 +12041,6 @@ input:focus {
   border-radius: 999px 0 0 999px;
 }
 .cf-newgroup .cf-tool.primary.cf-upload {
-  background: rgba(0, 0, 0, 0.12); /* 반 톤 어둡게 — 스플릿 버튼의 부(sub) 세그먼트 */
   padding: 0 13px;
   border-radius: 0 999px 999px 0;
 }
@@ -12191,11 +12190,14 @@ input:focus {
   font-size: 12px;
   padding: 0 13px;
   height: 34px;
-}
-.cf-trash-toggle.on {
   background: var(--red);
   border-color: transparent;
   color: #fff;
+  font-weight: 700;
+}
+.cf-trash-toggle:hover:not(:disabled),
+.cf-trash-toggle.on {
+  background: color-mix(in srgb, var(--red) 80%, #000);
 }
 
 .cf-tool-wrap {
