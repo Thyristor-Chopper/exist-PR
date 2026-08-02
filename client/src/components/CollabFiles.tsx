@@ -203,13 +203,29 @@ export default function CollabFiles({
       return [];
     }
   });
-  // 러버밴드(드래그 박스 선택) + 드래그 이동
-  const [rubber, setRubber] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  // 러버밴드(드래그 박스 선택) + 드래그 이동 — s0: 시작 시점 scrollTop (스크롤 중 기준점 보정)
+  const [rubber, setRubber] = useState<{
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    s0: number;
+  } | null>(null);
   const rubberMoved = useRef(false);
+  const mainRef = useRef<HTMLDivElement | null>(null);
+  const rubberScrollVel = useRef(0);
+  const rubberScrollRaf = useRef<number | null>(null);
   const entryRefs = useRef(new Map<number, HTMLElement>());
   const dragIdsRef = useRef<number[]>([]);
   const [dropTarget, setDropTarget] = useState<number | 'root' | null>(null);
   const renameTimerRef = useRef<number | null>(null); // 선택된 항목 이름 재클릭 → 지연 후 인라인 편집
+
+  useEffect(
+    () => () => {
+      if (rubberScrollRaf.current != null) cancelAnimationFrame(rubberScrollRaf.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -1332,6 +1348,7 @@ export default function CollabFiles({
         {/* 본문 — 현재 폴더 내용 (+ 선택 시 오른쪽 세부 정보) */}
         <div className="cf-body">
         <div
+          ref={mainRef}
           className={`cf-main ${view}`}
           onClick={() => {
             if (rubberMoved.current) {
@@ -1365,7 +1382,13 @@ export default function CollabFiles({
               /* 캡처 불가 환경 무시 */
             }
             rubberMoved.current = false;
-            setRubber({ x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY });
+            setRubber({
+              x0: e.clientX,
+              y0: e.clientY,
+              x1: e.clientX,
+              y1: e.clientY,
+              s0: e.currentTarget.scrollTop,
+            });
           }}
           onPointerMove={(e) => {
             if (!rubber) return;
@@ -1373,8 +1396,30 @@ export default function CollabFiles({
             setRubber(nr);
             if (Math.abs(nr.x1 - nr.x0) + Math.abs(nr.y1 - nr.y0) > 8) rubberMoved.current = true;
             if (!rubberMoved.current) return;
+            const host = mainRef.current;
+            // 가장자리를 넘겨 드래그하면 페이지가 아니라 목록 자신을 자동 스크롤
+            if (host) {
+              const b = host.getBoundingClientRect();
+              let dy = 0;
+              if (e.clientY > b.bottom - 10) dy = e.clientY - (b.bottom - 10);
+              else if (e.clientY < b.top + 10) dy = e.clientY - (b.top + 10);
+              rubberScrollVel.current = dy;
+              if (dy !== 0 && rubberScrollRaf.current == null) {
+                const step = () => {
+                  const m = mainRef.current;
+                  if (rubberScrollVel.current === 0 || !m) {
+                    rubberScrollRaf.current = null;
+                    return;
+                  }
+                  m.scrollTop += rubberScrollVel.current * 0.2;
+                  rubberScrollRaf.current = requestAnimationFrame(step);
+                };
+                rubberScrollRaf.current = requestAnimationFrame(step);
+              }
+            }
+            const y0e = host ? nr.y0 - (host.scrollTop - nr.s0) : nr.y0;
             const [lx, hx] = nr.x0 < nr.x1 ? [nr.x0, nr.x1] : [nr.x1, nr.x0];
-            const [ly, hy] = nr.y0 < nr.y1 ? [nr.y0, nr.y1] : [nr.y1, nr.y0];
+            const [ly, hy] = y0e < nr.y1 ? [y0e, nr.y1] : [nr.y1, y0e];
             const hit = new Set<number>();
             for (const f of items) {
               const el = entryRefs.current.get(f.id);
@@ -1384,19 +1429,36 @@ export default function CollabFiles({
             }
             setSelectedIds(hit);
           }}
-          onPointerUp={() => setRubber(null)}
+          onPointerUp={() => {
+            setRubber(null);
+            rubberScrollVel.current = 0;
+          }}
         >
-          {rubber && rubberMoved.current && (
-            <div
-              className="cf-rubber"
-              style={{
-                left: Math.min(rubber.x0, rubber.x1),
-                top: Math.min(rubber.y0, rubber.y1),
-                width: Math.abs(rubber.x1 - rubber.x0),
-                height: Math.abs(rubber.y1 - rubber.y0),
-              }}
-            />
-          )}
+          {rubber &&
+            rubberMoved.current &&
+            (() => {
+              // 사각형을 작업창(cf-main) 경계 안으로 클램프 — 툴바·바깥 화면을 덮지 않게
+              const host = mainRef.current;
+              const b = host?.getBoundingClientRect();
+              const y0e = host ? rubber.y0 - (host.scrollTop - rubber.s0) : rubber.y0;
+              let left = Math.min(rubber.x0, rubber.x1);
+              let top = Math.min(y0e, rubber.y1);
+              let right = Math.max(rubber.x0, rubber.x1);
+              let bottom = Math.max(y0e, rubber.y1);
+              if (b) {
+                left = Math.max(left, b.left);
+                top = Math.max(top, b.top);
+                right = Math.min(right, b.right);
+                bottom = Math.min(bottom, b.bottom);
+              }
+              if (right <= left || bottom <= top) return null;
+              return (
+                <div
+                  className="cf-rubber"
+                  style={{ left, top, width: right - left, height: bottom - top }}
+                />
+              );
+            })()}
           {view === 'list' && items.length > 0 && (
             <div className="cf-listhead">
               <button
