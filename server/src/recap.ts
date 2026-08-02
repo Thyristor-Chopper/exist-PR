@@ -354,8 +354,10 @@ export async function runRecapForMeeting(
 ): Promise<number | null> {
   const trigger = opts.trigger ?? 'call';
   const meeting = db
-    .prepare('SELECT id, code, title FROM meetings WHERE code = ?')
-    .get(code.toUpperCase()) as { id: number; code: string; title: string } | undefined;
+    .prepare('SELECT id, code, title, org_id FROM meetings WHERE code = ?')
+    .get(code.toUpperCase()) as
+    | { id: number; code: string; title: string; org_id: number | null }
+    | undefined;
   if (!meeting) return null;
 
   // 요약 창: 마지막 recap 이후 ~ 지금. 첫 recap이면 최근 24시간.
@@ -397,13 +399,16 @@ export async function runRecapForMeeting(
     .map((m) => ({ from: m.from, text: m.text }));
   if (msgs.length < MIN_MESSAGES) return null;
 
-  // 회의 등록 참가자 전원 (배달 대상) — 참석/불참은 sessionUserIds로 구분
+  // 회의 등록 참가자 전원 (배달 대상) — 직급·부서는 조직 멤버십에서 (개인 회의면 null)
   const members = db
     .prepare(
-      `SELECT u.id, u.username, u.position, u.department FROM meeting_participants mp
-       JOIN users u ON u.id = mp.user_id WHERE mp.meeting_id = ?`,
+      `SELECT u.id, u.username, om.position, om.department FROM meeting_participants mp
+       JOIN users u ON u.id = mp.user_id
+       LEFT JOIN organization_members om
+         ON om.user_id = u.id AND om.org_id = ? AND om.status = 'active'
+       WHERE mp.meeting_id = ?`,
     )
-    .all(meeting.id) as { id: number; username: string; position: string | null; department: string | null }[];
+    .all(meeting.org_id, meeting.id) as { id: number; username: string; position: string | null; department: string | null }[];
   if (members.length === 0) return null;
 
   const recap = await extractRecap(
