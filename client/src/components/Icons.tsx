@@ -509,6 +509,17 @@ export function GridIcon({ size }: IconProps) {
   );
 }
 
+/** 목록 보기 — Win11식: 네모 불릿 + 줄 2단 */
+export function ListViewIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="3.5" y="4.6" width="4.4" height="4.4" rx="1.3" stroke="currentColor" strokeWidth="1.9" />
+      <rect x="3.5" y="15" width="4.4" height="4.4" rx="1.3" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M11.4 6.8h9.1M11.4 17.2h9.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 /** 이름 바꾸기 — Win11식: A가 든 상자 + 오른쪽을 관통하는 텍스트 커서(I-beam) */
 export function RenameIcon({ size }: IconProps) {
   return (

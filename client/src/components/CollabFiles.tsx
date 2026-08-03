@@ -40,7 +40,7 @@ import {
   PanelLeftIcon,
   FilterIcon,
   ClockIcon,
-  ListIcon,
+  ListViewIcon,
   HomeIcon,
   RenameIcon,
 } from './Icons';
@@ -1982,7 +1982,7 @@ export default function CollabFiles({
                 setViewMenu(next);
               }}
             >
-              {view === 'grid' ? <GridIcon size={13} /> : <ListIcon size={13} />} 보기
+              {view === 'grid' ? <GridIcon size={13} /> : <ListViewIcon size={13} />} 보기
             </button>
             {viewMenu && (
               <div className="cf-type-menu">
@@ -2003,7 +2003,7 @@ export default function CollabFiles({
                     <span className="cf-menu-check">
                       {view === k && <CheckMarkIcon size={12} />}
                     </span>
-                    {k === 'grid' ? <GridIcon size={13} /> : <ListIcon size={13} />} {label}
+                    {k === 'grid' ? <GridIcon size={13} /> : <ListViewIcon size={13} />} {label}
                   </button>
                 ))}
                 {/* 표시 — 패널 켜고 끄기 (Win11 보기 > 표시) */}
