@@ -1733,6 +1733,11 @@ export default function CollabFiles({
             }}
           >
             {pathEditing && (
+              <span className="cf-path-editicon">
+                <FolderIcon size={13} />
+              </span>
+            )}
+            {pathEditing && (
               <input
                 ref={pathInputRef}
                 className="cf-path-input"
@@ -2150,7 +2155,7 @@ export default function CollabFiles({
         {treeOn && (
           <aside className="cf-desktree">
             <button
-              className={`cf-desktree-item${homeOpen ? ' cur' : ''}`}
+              className={`cf-desktree-item side-ic-home${homeOpen ? ' cur' : ''}`}
               onClick={() => {
                 clearSel();
                 setTrashOpen(false);
@@ -2161,9 +2166,9 @@ export default function CollabFiles({
             </button>
             <div className="cf-desktree-sep" />
             <button
-              className={`cf-desktree-item${cwd === null && !trashOpen && !homeOpen ? ' cur' : ''}${
-                dropTarget === 'root' ? ' droptarget' : ''
-              }`}
+              className={`cf-desktree-item side-ic-folder${
+                cwd === null && !trashOpen && !homeOpen ? ' cur' : ''
+              }${dropTarget === 'root' ? ' droptarget' : ''}`}
               onClick={() => navigate(null)}
               onDragOver={(e) => {
                 if (dragIdsRef.current.length === 0) return;
@@ -2186,9 +2191,9 @@ export default function CollabFiles({
             {folderTree.map(({ f, depth }) => (
               <button
                 key={f.id}
-                className={`cf-desktree-item${cwd === f.id && !trashOpen && !homeOpen ? ' cur' : ''}${
-                  dropTarget === f.id ? ' droptarget' : ''
-                }`}
+                className={`cf-desktree-item side-ic-folder${
+                  cwd === f.id && !trashOpen && !homeOpen ? ' cur' : ''
+                }${dropTarget === f.id ? ' droptarget' : ''}`}
                 style={{ paddingLeft: 10 + depth * 14 }}
                 onClick={() => navigate(f.id)}
                 onDragOver={(e) => {
@@ -2212,7 +2217,7 @@ export default function CollabFiles({
             ))}
             <div className="cf-desktree-sep" />
             <button
-              className={`cf-desktree-item${trashOpen ? ' cur' : ''}${
+              className={`cf-desktree-item side-ic-trash${trashOpen ? ' cur' : ''}${
                 dropTarget === 'trash' ? ' droptarget danger' : ''
               }`}
               onClick={() => {

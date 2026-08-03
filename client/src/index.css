@@ -11889,6 +11889,22 @@ input:focus {
   background: transparent;
   font-size: 13px;
   color: var(--text);
+  padding: 0;
+}
+/* 전역 input:focus의 사각 글로우 차단 — 포커스 표시는 알약(.cf-path)이 담당 */
+.cf-path-input:focus {
+  box-shadow: none;
+}
+.cf-path:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(45, 180, 0, 0.12);
+}
+/* 편집 모드에도 폴더 아이콘은 남긴다 — 같은 알약이 편집 중일 뿐이라는 신호 */
+.cf-path-editicon {
+  display: inline-flex;
+  flex: none;
+  color: #e0a13f;
+  margin-right: 4px;
 }
 
 .cf-crumb {
@@ -12669,6 +12685,28 @@ input:focus {
   padding: 6px 10px 3px;
   text-transform: none;
 }
+/* 사이드바 아이콘 채색 — 장소·상태는 유색, 액션 툴바는 무채 (Win11 문법) */
+.side-ic-home > svg {
+  color: var(--green);
+}
+.side-ic-folder > svg {
+  color: #e0a13f;
+}
+.side-ic-trash > svg {
+  color: var(--red);
+}
+/* 루트 크럼 폴더 아이콘 — 타입 색과 일치 */
+.cf-path > button.cf-crumb > svg {
+  color: #e0a13f;
+}
+/* 홈 탭 섹션 라벨 — 별=노랑, 시계=파랑 */
+.cf-home-sec:first-child .cf-home-label svg {
+  color: #f5a524;
+}
+.cf-home-sec:last-child .cf-home-label svg {
+  color: #4f7df9;
+}
+
 .cf-desktree-item.droptarget {
   outline: 2px solid var(--green);
   outline-offset: -2px;
