@@ -786,7 +786,7 @@ router.get('/recent/list', (req: AuthedRequest, res) => {
       `SELECT f.id, f.name, f.type, MAX(fa.ts) AS last_ts
        FROM file_activity fa JOIN collab_files f ON f.id = fa.file_id
        WHERE fa.meeting_id = ? AND f.deleted_at IS NULL
-       GROUP BY f.id ORDER BY last_ts DESC LIMIT 8`,
+       GROUP BY f.id ORDER BY last_ts DESC LIMIT 20`,
     )
     .all(r.meeting.id);
   res.json(rows);

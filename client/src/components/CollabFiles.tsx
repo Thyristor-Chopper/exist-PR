@@ -41,6 +41,7 @@ import {
   FilterIcon,
   ClockIcon,
   ListIcon,
+  HomeIcon,
 } from './Icons';
 
 /*
@@ -320,6 +321,15 @@ export default function CollabFiles({
   const [sortMenu, setSortMenu] = useState(false);
   const [viewMenu, setViewMenu] = useState(false); // MS 탐색기식 "보기" 드롭다운
   const [moreMenu, setMoreMenu] = useState(false); // ⋯ 더보기 (실행 취소·선택 3종)
+
+  /** 드롭다운은 한 번에 하나 — 다른 걸 열면 열려 있던 건 닫는다 */
+  function closeMenus() {
+    setSortMenu(false);
+    setViewMenu(false);
+    setFilterMenu(false);
+    setMoreMenu(false);
+    setTypeMenuFor(null);
+  }
   const [filterMenu, setFilterMenu] = useState(false); // 필터 드롭다운 (탐색기식)
   const [typeFilter, setTypeFilter] = useState<FileType | null>(null); // null = 전체
   const [view, setView] = useState<ViewMode>(
@@ -337,8 +347,12 @@ export default function CollabFiles({
   // 문서 열람 서명 (회람 사인) — 선택 파일의 서명 현황 + SignPad 대상
   const [ackStatus, setAckStatus] = useState<FileAckStatus | null>(null);
   const [ackSignFor, setAckSignFor] = useState<number | null>(null);
-  // 최근 항목 — 그룹에서 최근 열람·편집된 문서 (루트 상단 스트립, 드라이브식)
-  const [recent, setRecent] = useState<{ id: number; name: string; type: FileType }[]>([]);
+  // 최근 항목 — 그룹에서 최근 열람·편집된 문서 (사이드바·홈 탭)
+  const [recent, setRecent] = useState<
+    { id: number; name: string; type: FileType; last_ts?: string }[]
+  >([]);
+  // 홈 탭 — 즐겨찾기 + 최근 방문 (탐색기 홈, 휴지통과 같은 "장소" 패턴)
+  const [homeOpen, setHomeOpen] = useState(false);
   // 내용 검색 — 문서 안 텍스트 일치 (드라이브식, 디바운스)
   const [contentHits, setContentHits] = useState<
     { id: number; name: string; type: FileType; snippet: string }[]
@@ -482,7 +496,7 @@ export default function CollabFiles({
   }, [code]);
   // 최근 항목 — 파일 목록이 갱신될 때마다 재조회 (활동이 있었을 확률이 높은 시점)
   useEffect(() => {
-    void api<{ id: number; name: string; type: FileType }[]>(
+    void api<{ id: number; name: string; type: FileType; last_ts?: string }[]>(
       `/api/meetings/${code}/files/recent/list`,
       { silent: true },
     )
@@ -601,9 +615,10 @@ export default function CollabFiles({
     }
   }
 
-  // ── 내비게이션 ── (휴지통은 "장소" — 어디로든 이동하면 빠져나온다)
+  // ── 내비게이션 ── (휴지통·홈은 "장소" — 어디로든 이동하면 빠져나온다)
   function navigate(to: number | null) {
     setTrashOpen(false);
+    setHomeOpen(false);
     if (to === cwd) return;
     backStack.current.push(cwd);
     fwdStack.current = [];
@@ -614,8 +629,9 @@ export default function CollabFiles({
   }
 
   function goBack() {
-    if (trashOpen) {
+    if (trashOpen || homeOpen) {
       setTrashOpen(false);
+      setHomeOpen(false);
       return;
     }
     if (backStack.current.length === 0) return;
@@ -628,6 +644,7 @@ export default function CollabFiles({
   function goForward() {
     if (fwdStack.current.length === 0) return;
     setTrashOpen(false);
+    setHomeOpen(false);
     backStack.current.push(cwd);
     setCwd(fwdStack.current.pop()!);
     clearSel();
@@ -635,8 +652,9 @@ export default function CollabFiles({
   }
 
   function goUp() {
-    if (trashOpen) {
+    if (trashOpen || homeOpen) {
       setTrashOpen(false);
+      setHomeOpen(false);
       return;
     }
     if (cwd === null) return;
@@ -1457,10 +1475,11 @@ export default function CollabFiles({
 
   // 정렬·새로 만들기 드롭다운 — 바깥 클릭으로 닫기
   useEffect(() => {
-    if (!sortMenu && !moreMenu && !filterMenu && typeMenuFor === null) return;
+    if (!sortMenu && !viewMenu && !moreMenu && !filterMenu && typeMenuFor === null) return;
     function onDown(e: PointerEvent) {
       if (!(e.target as HTMLElement).closest('.cf-type-menu, .cf-tool-wrap, .cf-actions')) {
         setSortMenu(false);
+        setViewMenu(false);
         setMoreMenu(false);
         setFilterMenu(false);
         setTypeMenuFor(null);
@@ -1468,7 +1487,7 @@ export default function CollabFiles({
     }
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [sortMenu, moreMenu, filterMenu, typeMenuFor]);
+  }, [sortMenu, viewMenu, moreMenu, filterMenu, typeMenuFor]);
 
   function share(f: CollabFile) {
     const link = `${location.origin}/meeting/${code}`;
@@ -1636,7 +1655,7 @@ export default function CollabFiles({
           </button>
           <button
             title="뒤로"
-            disabled={!trashOpen && backStack.current.length === 0}
+            disabled={!trashOpen && !homeOpen && backStack.current.length === 0}
             onClick={goBack}
           >
             <ChevronLeftIcon size={14} />
@@ -1644,7 +1663,7 @@ export default function CollabFiles({
           <button title="앞으로" disabled={fwdStack.current.length === 0} onClick={goForward}>
             <ChevronRightIcon size={14} />
           </button>
-          <button title="상위 폴더" disabled={!trashOpen && cwd === null} onClick={goUp}>
+          <button title="상위 폴더" disabled={!trashOpen && !homeOpen && cwd === null} onClick={goUp}>
             <ChevronUpIcon size={14} />
           </button>
           <button title="새로고침" onClick={load}>
@@ -1679,7 +1698,15 @@ export default function CollabFiles({
                 </button>
               </span>
             )}
-            {!trashOpen && crumbs.map((c) => (
+            {homeOpen && (
+              <span className="cf-crumb-seg">
+                <ChevronIcon size={11} />
+                <button className="cf-crumb cf-crumb-home">
+                  <HomeIcon size={12} /> 홈
+                </button>
+              </span>
+            )}
+            {!trashOpen && !homeOpen && crumbs.map((c) => (
               <span key={c.id} className="cf-crumb-seg">
                 <ChevronIcon size={11} />
                 <button
@@ -1719,8 +1746,12 @@ export default function CollabFiles({
             <div className="cf-tool-wrap">
               <button
                 className="cf-tool primary"
-                disabled={trashOpen}
-                onClick={() => setTypeMenuFor('root')}
+                disabled={trashOpen || homeOpen}
+                onClick={() => {
+                  const wasOpen = typeMenuFor !== null;
+                  closeMenus();
+                  if (!wasOpen) setTypeMenuFor('root');
+                }}
               >
                 <PlusIcon size={13} /> 새로 만들기
               </button>
@@ -1729,7 +1760,7 @@ export default function CollabFiles({
             <button
               className="cf-tool primary cf-upload"
               title="내 파일 업로드"
-              disabled={trashOpen}
+              disabled={trashOpen || homeOpen}
               onClick={() => {
                 uploadParentRef.current = cwd;
                 uploadInputRef.current?.click();
@@ -1797,7 +1828,14 @@ export default function CollabFiles({
             </button>
             <span className="cf-gsep" />
             <div className="cf-tool-wrap">
-            <button className="cf-tool labeled" onClick={() => setSortMenu((v) => !v)}>
+            <button
+              className="cf-tool labeled"
+              onClick={() => {
+                const next = !sortMenu;
+                closeMenus();
+                setSortMenu(next);
+              }}
+            >
               <SortIcon size={13} /> 정렬
             </button>
             {sortMenu && (
@@ -1852,7 +1890,14 @@ export default function CollabFiles({
           </div>
           {/* 보기 — MS 탐색기식 드롭다운 (정렬 옆 짝). 버튼 아이콘 = 현재 뷰 모드 */}
           <div className="cf-tool-wrap">
-            <button className="cf-tool labeled" onClick={() => setViewMenu((v) => !v)}>
+            <button
+              className="cf-tool labeled"
+              onClick={() => {
+                const next = !viewMenu;
+                closeMenus();
+                setViewMenu(next);
+              }}
+            >
               {view === 'grid' ? <GridIcon size={13} /> : <ListIcon size={13} />} 보기
             </button>
             {viewMenu && (
@@ -1884,7 +1929,11 @@ export default function CollabFiles({
           <div className="cf-tool-wrap">
             <button
               className={`cf-tool labeled${typeFilter ? ' on' : ''}`}
-              onClick={() => setFilterMenu((v) => !v)}
+              onClick={() => {
+                const next = !filterMenu;
+                closeMenus();
+                setFilterMenu(next);
+              }}
             >
               <FilterIcon size={13} /> 필터
             </button>
@@ -1929,7 +1978,11 @@ export default function CollabFiles({
               className="cf-tool"
               title="더 보기"
               aria-label="더 보기"
-              onClick={() => setMoreMenu((v) => !v)}
+              onClick={() => {
+                const next = !moreMenu;
+                closeMenus();
+                setMoreMenu(next);
+              }}
             >
               ⋯
             </button>
@@ -1998,9 +2051,20 @@ export default function CollabFiles({
 
         {/* 본문 — 현재 폴더 내용 (+ 선택 시 오른쪽 세부 정보) */}
         <div className="cf-body">
-        {/* 왼쪽 사이드바 — 즐겨찾기·최근·폴더·휴지통 한 공간 (윈도우 탐색기 탐색 창) */}
+        {/* 왼쪽 사이드바 — 홈·즐겨찾기·최근·폴더·휴지통 한 공간 (윈도우 탐색기 탐색 창) */}
         {treeOn && (
           <aside className="cf-desktree">
+            <button
+              className={`cf-desktree-item${homeOpen ? ' cur' : ''}`}
+              onClick={() => {
+                clearSel();
+                setTrashOpen(false);
+                setHomeOpen(true);
+              }}
+            >
+              <HomeIcon size={13} /> 홈
+            </button>
+            <div className="cf-desktree-sep" />
             {favFiles.length > 0 && (
               <>
                 <div className="cf-desktree-label">
@@ -2100,6 +2164,7 @@ export default function CollabFiles({
               }`}
               onClick={() => {
                 clearSel();
+                setHomeOpen(false);
                 void loadTrash();
                 setTrashOpen(true);
               }}
@@ -2123,6 +2188,82 @@ export default function CollabFiles({
               <TrashIcon size={13} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
             </button>
           </aside>
+        )}
+        {/* 홈 — 상단 즐겨찾기, 하단 최근 방문 (탐색기 홈) */}
+        {homeOpen && (
+          <div className="cf-main cf-homeview">
+            <div className="cf-home-sec">
+              <div className="cf-home-label">
+                <StarIcon size={13} /> 즐겨찾기
+              </div>
+              {favFiles.length === 0 ? (
+                <div className="cf-empty">
+                  파일을 선택하고 세부정보의 ★을 누르면 여기에 고정돼요
+                </div>
+              ) : (
+                <div className="cf-home-grid">
+                  {favFiles.map((f) => (
+                    <button
+                      key={f.id}
+                      className="cf-home-tile"
+                      title={f.name}
+                      onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
+                    >
+                      {f.type === 'file' && viewKindOf(f.name) === 'image' ? (
+                        <span className="cf-thumbwrap">
+                          <img
+                            className="cf-thumb"
+                            loading="lazy"
+                            src={`/api/meetings/${code}/files/${f.id}/download?token=${encodeURIComponent(token ?? '')}`}
+                            alt=""
+                          />
+                        </span>
+                      ) : (
+                        <span className={`cf-icon ${f.type}`}>
+                          <TypeIcon type={f.type} size={28} />
+                        </span>
+                      )}
+                      <span className="cf-home-name">{f.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="cf-home-sec">
+              <div className="cf-home-label">
+                <ClockIcon size={13} /> 최근 방문
+              </div>
+              {recent.length === 0 ? (
+                <div className="cf-empty">아직 활동이 없어요 — 문서를 열면 여기에 쌓여요</div>
+              ) : (
+                <div className="cf-home-list">
+                  {recent.map((rf) => {
+                    const f = byId.get(rf.id);
+                    return (
+                      <button
+                        key={rf.id}
+                        className="cf-home-row"
+                        onClick={() => {
+                          if (f) openFile(f);
+                        }}
+                      >
+                        <span className={`cf-icon ${rf.type}`}>
+                          <TypeIcon type={rf.type} size={15} />
+                        </span>
+                        <span className="cf-home-row-name">{rf.name}</span>
+                        <span className="cf-home-row-meta">
+                          {rf.type === 'folder' ? '폴더' : TYPE_LABEL[rf.type as Exclude<FileType, 'folder'>]}
+                        </span>
+                        <span className="cf-home-row-meta">
+                          {rf.last_ts ? fmtDate(rf.last_ts) : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
         {/* 휴지통 뷰 — 팝오버가 아니라 본문 전체를 쓰는 "장소" (8/2) */}
         {trashOpen && (
@@ -2171,7 +2312,7 @@ export default function CollabFiles({
         )}
         <div
           ref={mainRef}
-          style={{ display: trashOpen ? 'none' : undefined }}
+          style={{ display: trashOpen || homeOpen ? 'none' : undefined }}
           className={`cf-main ${view}`}
           onClick={() => {
             if (rubberMoved.current) {
@@ -2383,6 +2524,7 @@ export default function CollabFiles({
               }}
               onDoubleClick={() => {
                 clearSel();
+                setHomeOpen(false);
                 void loadTrash();
                 setTrashOpen(true);
               }}
@@ -2624,6 +2766,7 @@ export default function CollabFiles({
                 className="cf-details-open"
                 onClick={() => {
                   clearSel();
+                  setHomeOpen(false);
                   void loadTrash();
                   setTrashOpen(true);
                 }}
@@ -2633,7 +2776,7 @@ export default function CollabFiles({
             )}
           </aside>
         )}
-        {detailsOn && !trashOpen && !trashSel && selCount === 0 && (
+        {detailsOn && !trashOpen && !homeOpen && !trashSel && selCount === 0 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon folder">
               <TypeIcon type="folder" size={42} />
@@ -2938,7 +3081,9 @@ export default function CollabFiles({
         )}
 
         <div className="cf-statusbar">
-          {trashOpen ? (
+          {homeOpen ? (
+            <>홈 — 즐겨찾기 {favFiles.length}개 · 최근 {recent.length}개</>
+          ) : trashOpen ? (
             <>휴지통 항목 {trashItems.length}개</>
           ) : (
             <>
