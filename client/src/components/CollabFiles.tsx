@@ -40,6 +40,7 @@ import {
   PanelLeftIcon,
   FilterIcon,
   ClockIcon,
+  ListIcon,
 } from './Icons';
 
 /*
@@ -1841,17 +1842,17 @@ export default function CollabFiles({
               </div>
             )}
           </div>
-          {/* 보기 — MS 탐색기식 드롭다운 (정렬 옆 짝) */}
+          {/* 보기 — MS 탐색기식 드롭다운 (정렬 옆 짝). 버튼 아이콘 = 현재 뷰 모드 */}
           <div className="cf-tool-wrap">
             <button className="cf-tool labeled" onClick={() => setViewMenu((v) => !v)}>
-              <GridIcon size={13} /> 보기
+              {view === 'grid' ? <GridIcon size={13} /> : <ListIcon size={13} />} 보기
             </button>
             {viewMenu && (
               <div className="cf-type-menu">
                 {(
                   [
-                    ['grid', '▦ 아이콘'],
-                    ['list', '☰ 목록'],
+                    ['grid', '아이콘'],
+                    ['list', '목록'],
                   ] as [ViewMode, string][]
                 ).map(([k, label]) => (
                   <button
@@ -1862,7 +1863,8 @@ export default function CollabFiles({
                       setViewMenu(false);
                     }}
                   >
-                    {view === k && <CheckMarkIcon size={12} />} {label}
+                    {view === k && <CheckMarkIcon size={12} />}{' '}
+                    {k === 'grid' ? <GridIcon size={13} /> : <ListIcon size={13} />} {label}
                   </button>
                 ))}
               </div>
