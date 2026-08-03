@@ -2069,9 +2069,6 @@ export default function CollabFiles({
               <HomeIcon size={13} /> 홈
             </button>
             <div className="cf-desktree-sep" />
-            <div className="cf-desktree-label">
-              <FolderIcon size={11} /> 폴더
-            </div>
             <button
               className={`cf-desktree-item${cwd === null && !trashOpen ? ' cur' : ''}${
                 dropTarget === 'root' ? ' droptarget' : ''
