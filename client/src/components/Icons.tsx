@@ -509,6 +509,39 @@ export function GridIcon({ size }: IconProps) {
   );
 }
 
+/** 이름 바꾸기 — Win11식: A가 든 상자 + 오른쪽을 관통하는 텍스트 커서(I-beam) */
+export function RenameIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      {/* 상자 — 오른쪽 변은 커서가 지나가는 자리라 비움 */}
+      <path
+        d="M15.6 6.5H5.4Q3.2 6.5 3.2 8.7v6.6q0 2.2 2.2 2.2h10.2"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* A */}
+      <path
+        d="M6.8 14.4 9.2 8.6l2.4 5.8M7.7 12.5h3"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      {/* I-beam 커서 */}
+      <path
+        d="M18.6 4.8v14.4M16.9 4.8h3.4M16.9 19.2h3.4"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 export function FilterIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

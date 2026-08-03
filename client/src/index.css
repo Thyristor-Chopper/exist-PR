@@ -11880,6 +11880,17 @@ input:focus {
   white-space: nowrap;
 }
 
+/* 주소줄 직접 입력 — 알약(.cf-path)은 그대로, 내용만 input으로 교체 */
+.cf-path-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text);
+}
+
 .cf-crumb {
   display: inline-flex;
   align-items: center;

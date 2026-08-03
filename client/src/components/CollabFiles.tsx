@@ -42,6 +42,7 @@ import {
   ClockIcon,
   ListIcon,
   HomeIcon,
+  RenameIcon,
 } from './Icons';
 
 /*
@@ -353,6 +354,10 @@ export default function CollabFiles({
   >([]);
   // 홈 탭 — 즐겨찾기 + 최근 방문 (탐색기 홈, 휴지통과 같은 "장소" 패턴)
   const [homeOpen, setHomeOpen] = useState(false);
+  // 주소줄 직접 입력 — 윈도우 탐색기식 (빈 영역 클릭 → 경로 타이핑해서 이동)
+  const [pathEditing, setPathEditing] = useState(false);
+  const [pathText, setPathText] = useState('');
+  const pathInputRef = useRef<HTMLInputElement | null>(null);
   // 내용 검색 — 문서 안 텍스트 일치 (드라이브식, 디바운스)
   const [contentHits, setContentHits] = useState<
     { id: number; name: string; type: FileType; snippet: string }[]
@@ -673,6 +678,68 @@ export default function CollabFiles({
     }
     return list;
   }, [cwd, byId]);
+
+  // ── 주소줄 직접 입력 ── (윈도우 탐색기식 — 빈 영역 클릭 → 텍스트로 경로 이동)
+  /** 편집 모드 진입 — 현재 경로를 텍스트로 채운다 (선택 등 다른 상태는 건드리지 않음) */
+  function startPathEdit() {
+    const text = trashOpen
+      ? '공동편집/휴지통'
+      : homeOpen
+        ? '공동편집/홈'
+        : ['공동편집', ...crumbs.map((c) => c.name)].join('/');
+    setPathText(text);
+    setPathEditing(true);
+  }
+
+  /** Enter — 입력 경로를 루트부터 폴더 이름으로 해석해 이동. 못 찾으면 토스트 + 편집 유지 */
+  function submitPathEdit() {
+    // 구분자 `/`·`>`·`\` 모두 허용, 빈 세그먼트는 무시
+    const segs = pathText
+      .split(/[/>\\]/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (segs[0] === '공동편집') segs.shift(); // 선두 "공동편집"은 있어도 없어도 됨
+    // 마지막 세그먼트가 "휴지통"·"홈"이면 해당 장소로 (휴지통·홈은 폴더가 아닌 "장소")
+    const last = segs[segs.length - 1];
+    if (last === '휴지통') {
+      clearSel();
+      void loadTrash();
+      setTrashOpen(true);
+      setHomeOpen(false);
+      setPathEditing(false);
+      return;
+    }
+    if (last === '홈') {
+      clearSel();
+      setTrashOpen(false);
+      setHomeOpen(true);
+      setPathEditing(false);
+      return;
+    }
+    // 루트부터 순차 매칭 — 정확 일치 우선, 없으면 대소문자 무시
+    let cur: number | null = null;
+    for (const seg of segs) {
+      const kids: CollabFile[] = (byParent.get(cur) ?? []).filter((x) => x.type === 'folder');
+      const hit =
+        kids.find((x) => x.name === seg) ??
+        kids.find((x) => x.name.toLowerCase() === seg.toLowerCase());
+      if (!hit) {
+        toast(`"${seg}" 폴더를 찾을 수 없어요`);
+        return; // 편집 모드 유지 — 고쳐서 다시 시도할 수 있게
+      }
+      cur = hit.id;
+    }
+    setPathEditing(false);
+    navigate(cur); // 빈 입력·"공동편집"만이면 루트로
+  }
+
+  // 편집 모드 진입 시 포커스 + 전체 선택 (탐색기 주소줄 관례)
+  useEffect(() => {
+    if (pathEditing) {
+      pathInputRef.current?.focus();
+      pathInputRef.current?.select();
+    }
+  }, [pathEditing]);
 
   // 폴더 트리 (이동 다이얼로그·데스크탑 사이드바 공용) — DFS 평탄화
   const folderTree = useMemo(() => {
@@ -1566,7 +1633,7 @@ export default function CollabFiles({
                         setNameInput(f.name);
                       }}
                     >
-                      <PenIcon size={12} />
+                      <RenameIcon size={12} />
                     </button>
                     <button title="삭제" className="danger" onClick={() => void deleteSelection([f])}>
                       <CloseIcon size={12} />
@@ -1657,7 +1724,30 @@ export default function CollabFiles({
           <button title="새로고침" onClick={load}>
             <RefreshIcon size={13} />
           </button>
-          <div className="cf-path">
+          <div
+            className="cf-path"
+            onClick={(e) => {
+              // 빈 영역 클릭 → 경로 직접 입력 모드 (크럼 버튼 클릭은 그대로 통과)
+              if ((e.target as HTMLElement).closest('button')) return;
+              if (!pathEditing) startPathEdit();
+            }}
+          >
+            {pathEditing && (
+              <input
+                ref={pathInputRef}
+                className="cf-path-input"
+                value={pathText}
+                onChange={(e) => setPathText(e.target.value)}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={() => setPathEditing(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitPathEdit();
+                  else if (e.key === 'Escape') setPathEditing(false);
+                }}
+              />
+            )}
+            {!pathEditing && (<>
             <button
               className={`cf-crumb${dropTarget === 'root' ? ' droptarget' : ''}`}
               onClick={() => navigate(null)}
@@ -1718,6 +1808,7 @@ export default function CollabFiles({
                 </button>
               </span>
             ))}
+            </>)}
           </div>
           <input
             className="cf-search"
@@ -1794,7 +1885,7 @@ export default function CollabFiles({
               disabled={!selected || !canEdit(selected)}
               onClick={() => selected && startRename(selected)}
             >
-              <PenIcon size={14} />
+              <RenameIcon size={15} />
             </button>
             <button
               className="cf-tool"
