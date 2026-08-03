@@ -13167,6 +13167,16 @@ input:focus {
   color: var(--green);
 }
 
+/* 체크 자리 고정 — 선택 표시가 붙어도 라벨이 안 밀리게 (정렬·보기·필터 공용) */
+.cf-menu-check {
+  width: 14px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--green);
+}
+
 /* ⋯ 더보기 메뉴 — 탐색기식 (실행 취소·선택 3종) */
 .cf-more-menu {
   min-width: 176px;

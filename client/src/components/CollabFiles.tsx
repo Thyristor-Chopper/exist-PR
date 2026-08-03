@@ -1818,7 +1818,9 @@ export default function CollabFiles({
                       setSortMenu(false);
                     }}
                   >
-                    {sortKey === k && <CheckMarkIcon size={12} />} 
+                    <span className="cf-menu-check">
+                      {sortKey === k && <CheckMarkIcon size={12} />}
+                    </span>
                     {label}
                   </button>
                 ))}
@@ -1829,7 +1831,10 @@ export default function CollabFiles({
                     setSortMenu(false);
                   }}
                 >
-                  {sortDir === 'asc' && <CheckMarkIcon size={12} />} 오름차순
+                  <span className="cf-menu-check">
+                    {sortDir === 'asc' && <CheckMarkIcon size={12} />}
+                  </span>
+                  오름차순
                 </button>
                 <button
                   onClick={() => {
@@ -1837,7 +1842,10 @@ export default function CollabFiles({
                     setSortMenu(false);
                   }}
                 >
-                  {sortDir === 'desc' && <CheckMarkIcon size={12} />} 내림차순
+                  <span className="cf-menu-check">
+                    {sortDir === 'desc' && <CheckMarkIcon size={12} />}
+                  </span>
+                  내림차순
                 </button>
               </div>
             )}
@@ -1863,7 +1871,9 @@ export default function CollabFiles({
                       setViewMenu(false);
                     }}
                   >
-                    {view === k && <CheckMarkIcon size={12} />}{' '}
+                    <span className="cf-menu-check">
+                      {view === k && <CheckMarkIcon size={12} />}
+                    </span>
                     {k === 'grid' ? <GridIcon size={13} /> : <ListIcon size={13} />} {label}
                   </button>
                 ))}
@@ -1886,7 +1896,10 @@ export default function CollabFiles({
                     setFilterMenu(false);
                   }}
                 >
-                  {typeFilter === null && <CheckMarkIcon size={12} />} 전체
+                  <span className="cf-menu-check">
+                    {typeFilter === null && <CheckMarkIcon size={12} />}
+                  </span>
+                  전체
                 </button>
                 <div className="cf-menu-sep" />
                 {(['doc', 'code', 'sheet', 'slide', 'canvas', 'file', 'folder'] as FileType[]).map(
@@ -1898,7 +1911,10 @@ export default function CollabFiles({
                         setFilterMenu(false);
                       }}
                     >
-                      {typeFilter === t && <CheckMarkIcon size={12} />} <TypeIcon type={t} size={13} />{' '}
+                      <span className="cf-menu-check">
+                        {typeFilter === t && <CheckMarkIcon size={12} />}
+                      </span>
+                      <TypeIcon type={t} size={13} />{' '}
                       {t === 'folder' ? '폴더' : TYPE_LABEL[t]}
                     </button>
                   ),
