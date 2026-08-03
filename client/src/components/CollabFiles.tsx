@@ -355,9 +355,9 @@ export default function CollabFiles({
   >(null);
   // 이동 다이얼로그 — 우클릭 "이동…" 대상 id들
   const [movePicker, setMovePicker] = useState<number[] | null>(null);
-  // 데스크탑 폴더 트리 사이드바
+  // 왼쪽 사이드바 (즐겨찾기·최근·폴더·휴지통) — 기본 켜짐
   const [treeOn, setTreeOn] = useState<boolean>(
-    () => localStorage.getItem('exist:cf-tree') === '1',
+    () => localStorage.getItem('exist:cf-tree') !== '0',
   );
   // 다중 드래그 고스트 — 네이티브 프리뷰 대신 포인터를 따라다니는 카드 스택 + 개수 배지
   const [dragGhost, setDragGhost] = useState<{
@@ -1996,73 +1996,128 @@ export default function CollabFiles({
           </button>
         </div>
 
-        {/* 즐겨찾기 바 — 우클릭으로 추가한 항목 바로가기 */}
-        {favFiles.length > 0 && (
-          <div className="cf-favbar">
-            <span className="cf-favbar-label"><StarIcon size={12} /></span>
-            {favFiles.map((f) => (
-              <button
-                key={f.id}
-                className="cf-fav-chip"
-                title={f.name}
-                onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
-              >
-                <TypeIcon type={f.type} size={12} /> {f.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* 최근 항목 — 그룹에서 최근 열람·편집된 문서 (루트에서만, 드라이브식) */}
-        {cwd === null && !search.trim() && !trashOpen && recent.length > 0 && (
-          <div className="cf-recent">
-            <span className="cf-recent-label">
-              <ClockIcon size={12} /> 최근
-            </span>
-            {recent.map((rf) => (
-              <button
-                key={rf.id}
-                className="cf-fav-chip"
-                title={rf.name}
-                onClick={() => {
-                  const f = byId.get(rf.id);
-                  if (f) openFile(f);
-                }}
-              >
-                <TypeIcon type={rf.type} size={12} /> {rf.name}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* 본문 — 현재 폴더 내용 (+ 선택 시 오른쪽 세부 정보) */}
         <div className="cf-body">
-        {/* 데스크탑 폴더 트리 — 윈도우 탐색기 왼쪽 패널 */}
+        {/* 왼쪽 사이드바 — 즐겨찾기·최근·폴더·휴지통 한 공간 (윈도우 탐색기 탐색 창) */}
         {treeOn && (
           <aside className="cf-desktree">
+            {favFiles.length > 0 && (
+              <>
+                <div className="cf-desktree-label">
+                  <StarIcon size={11} /> 즐겨찾기
+                </div>
+                {favFiles.map((f) => (
+                  <button
+                    key={`fav-${f.id}`}
+                    className="cf-desktree-item"
+                    title={f.name}
+                    onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
+                  >
+                    <TypeIcon type={f.type} size={13} /> {f.name}
+                  </button>
+                ))}
+                <div className="cf-desktree-sep" />
+              </>
+            )}
+            {recent.length > 0 && (
+              <>
+                <div className="cf-desktree-label">
+                  <ClockIcon size={11} /> 최근
+                </div>
+                {recent.slice(0, 6).map((rf) => (
+                  <button
+                    key={`rec-${rf.id}`}
+                    className="cf-desktree-item"
+                    title={rf.name}
+                    onClick={() => {
+                      const f = byId.get(rf.id);
+                      if (f) openFile(f);
+                    }}
+                  >
+                    <TypeIcon type={rf.type} size={13} /> {rf.name}
+                  </button>
+                ))}
+                <div className="cf-desktree-sep" />
+              </>
+            )}
+            <div className="cf-desktree-label">
+              <FolderIcon size={11} /> 폴더
+            </div>
             <button
-              className={`cf-desktree-item${cwd === null && !trashOpen ? ' cur' : ''}`}
+              className={`cf-desktree-item${cwd === null && !trashOpen ? ' cur' : ''}${
+                dropTarget === 'root' ? ' droptarget' : ''
+              }`}
               onClick={() => navigate(null)}
+              onDragOver={(e) => {
+                if (dragIdsRef.current.length === 0) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
+                setDropTarget('root');
+              }}
+              onDragLeave={() => setDropTarget((t) => (t === 'root' ? null : t))}
+              onDrop={(e) => {
+                e.preventDefault();
+                const ids = dragIdsRef.current;
+                dragIdsRef.current = [];
+                setDropTarget(null);
+                if (e.ctrlKey) void copyMany(ids, null);
+                else void moveMany(ids, null);
+              }}
             >
               <FolderIcon size={13} /> 공동편집
             </button>
             {folderTree.map(({ f, depth }) => (
               <button
                 key={f.id}
-                className={`cf-desktree-item${cwd === f.id && !trashOpen ? ' cur' : ''}`}
+                className={`cf-desktree-item${cwd === f.id && !trashOpen ? ' cur' : ''}${
+                  dropTarget === f.id ? ' droptarget' : ''
+                }`}
                 style={{ paddingLeft: 10 + depth * 14 }}
                 onClick={() => navigate(f.id)}
+                onDragOver={(e) => {
+                  if (dragIdsRef.current.length === 0 || dragIdsRef.current.includes(f.id)) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
+                  setDropTarget(f.id);
+                }}
+                onDragLeave={() => setDropTarget((t) => (t === f.id ? null : t))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const ids = dragIdsRef.current;
+                  dragIdsRef.current = [];
+                  setDropTarget(null);
+                  if (e.ctrlKey) void copyMany(ids, f.id);
+                  else void moveMany(ids, f.id);
+                }}
               >
                 <FolderIcon size={13} /> {f.name}
               </button>
             ))}
             <div className="cf-desktree-sep" />
             <button
-              className={`cf-desktree-item${trashOpen ? ' cur' : ''}`}
+              className={`cf-desktree-item${trashOpen ? ' cur' : ''}${
+                dropTarget === 'trash' ? ' droptarget danger' : ''
+              }`}
               onClick={() => {
                 clearSel();
                 void loadTrash();
                 setTrashOpen(true);
+              }}
+              onDragOver={(e) => {
+                if (dragIdsRef.current.length === 0) return;
+                e.preventDefault();
+                setDropTarget('trash');
+              }}
+              onDragLeave={() => setDropTarget((t) => (t === 'trash' ? null : t))}
+              onDrop={(e) => {
+                e.preventDefault();
+                const ids = dragIdsRef.current;
+                dragIdsRef.current = [];
+                setDropTarget(null);
+                const targets = ids
+                  .map((id) => byId.get(id))
+                  .filter((f): f is CollabFile => !!f);
+                void deleteSelection(targets);
               }}
             >
               <TrashIcon size={13} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
