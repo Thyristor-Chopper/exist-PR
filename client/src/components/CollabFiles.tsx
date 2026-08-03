@@ -43,6 +43,9 @@ import {
   ListViewIcon,
   HomeIcon,
   RenameIcon,
+  SelectAllIcon,
+  SelectNoneIcon,
+  SelectInvertIcon,
 } from './Icons';
 
 /*
@@ -378,6 +381,16 @@ export default function CollabFiles({
   const [treeOn, setTreeOn] = useState<boolean>(
     () => localStorage.getItem('exist:cf-tree') !== '0',
   );
+  // 사이드바 트리 펼침 상태 (윈도우 탐색기식 계층) — 셰브론으로 접고 펴기
+  const [sideOpenIds, setSideOpenIds] = useState<Set<number>>(new Set());
+  function toggleSideOpen(id: number) {
+    setSideOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   // 다중 드래그 고스트 — 네이티브 프리뷰 대신 포인터를 따라다니는 카드 스택 + 개수 배지
   const [dragGhost, setDragGhost] = useState<{
     count: number;
@@ -740,6 +753,21 @@ export default function CollabFiles({
       pathInputRef.current?.select();
     }
   }, [pathEditing]);
+
+  // 현재 폴더로 이동하면 사이드바 트리에서 조상 경로를 자동으로 펼친다
+  useEffect(() => {
+    if (cwd == null) return;
+    setSideOpenIds((prev) => {
+      const next = new Set(prev);
+      next.add(cwd);
+      let cur = byId.get(cwd)?.parent_id ?? null;
+      while (cur != null) {
+        next.add(cur);
+        cur = byId.get(cur)?.parent_id ?? null;
+      }
+      return next;
+    });
+  }, [cwd, byId]);
 
   // 폴더 트리 (이동 다이얼로그·데스크탑 사이드바 공용) — DFS 평탄화
   const folderTree = useMemo(() => {
@@ -2107,7 +2135,7 @@ export default function CollabFiles({
                     setMoreMenu(false);
                   }}
                 >
-                  모두 선택
+                  <SelectAllIcon size={14} /> 모두 선택
                 </button>
                 <button
                   disabled={selCount === 0}
@@ -2116,7 +2144,7 @@ export default function CollabFiles({
                     setMoreMenu(false);
                   }}
                 >
-                  선택 안 함
+                  <SelectNoneIcon size={14} /> 선택 안 함
                 </button>
                 <button
                   disabled={items.length === 0}
@@ -2126,7 +2154,7 @@ export default function CollabFiles({
                     setMoreMenu(false);
                   }}
                 >
-                  선택 영역 반전
+                  <SelectInvertIcon size={14} /> 선택 영역 반전
                 </button>
               </div>
             )}
@@ -2188,33 +2216,53 @@ export default function CollabFiles({
             >
               <FolderIcon size={13} /> 공동편집
             </button>
-            {folderTree.map(({ f, depth }) => (
-              <button
-                key={f.id}
-                className={`cf-desktree-item side-ic-folder${
-                  cwd === f.id && !trashOpen && !homeOpen ? ' cur' : ''
-                }${dropTarget === f.id ? ' droptarget' : ''}`}
-                style={{ paddingLeft: 10 + depth * 14 }}
-                onClick={() => navigate(f.id)}
-                onDragOver={(e) => {
-                  if (dragIdsRef.current.length === 0 || dragIdsRef.current.includes(f.id)) return;
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
-                  setDropTarget(f.id);
-                }}
-                onDragLeave={() => setDropTarget((t) => (t === f.id ? null : t))}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const ids = dragIdsRef.current;
-                  dragIdsRef.current = [];
-                  setDropTarget(null);
-                  if (e.ctrlKey) void copyMany(ids, f.id);
-                  else void moveMany(ids, f.id);
-                }}
-              >
-                <FolderIcon size={13} /> {f.name}
-              </button>
-            ))}
+            {(function renderSideFolders(pid: number | null, depth: number): React.ReactNode[] {
+              return (byParent.get(pid) ?? [])
+                .filter((x) => x.type === 'folder')
+                .sort(byNameNat)
+                .flatMap((f) => {
+                  const hasKids = (byParent.get(f.id) ?? []).some((c) => c.type === 'folder');
+                  const open = sideOpenIds.has(f.id);
+                  return [
+                    <button
+                      key={f.id}
+                      className={`cf-desktree-item side-ic-folder${
+                        cwd === f.id && !trashOpen && !homeOpen ? ' cur' : ''
+                      }${dropTarget === f.id ? ' droptarget' : ''}`}
+                      style={{ paddingLeft: 6 + depth * 14 }}
+                      onClick={() => navigate(f.id)}
+                      onDragOver={(e) => {
+                        if (dragIdsRef.current.length === 0 || dragIdsRef.current.includes(f.id))
+                          return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
+                        setDropTarget(f.id);
+                      }}
+                      onDragLeave={() => setDropTarget((t) => (t === f.id ? null : t))}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const ids = dragIdsRef.current;
+                        dragIdsRef.current = [];
+                        setDropTarget(null);
+                        if (e.ctrlKey) void copyMany(ids, f.id);
+                        else void moveMany(ids, f.id);
+                      }}
+                    >
+                      <span
+                        className={`side-chevron${open ? ' open' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasKids) toggleSideOpen(f.id);
+                        }}
+                      >
+                        {hasKids && <ChevronIcon size={10} />}
+                      </span>
+                      <FolderIcon size={13} /> {f.name}
+                    </button>,
+                    ...(open && hasKids ? renderSideFolders(f.id, depth + 1) : []),
+                  ];
+                });
+            })(null, 0)}
             <div className="cf-desktree-sep" />
             <button
               className={`cf-desktree-item side-ic-trash${trashOpen ? ' cur' : ''}${

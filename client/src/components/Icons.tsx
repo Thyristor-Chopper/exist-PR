@@ -395,7 +395,15 @@ export function SortIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
       <path d="M8 4.5v15M8 4.5 4.5 8M8 4.5 11.5 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M16 19.5v-15M16 19.5 12.5 16M16 19.5 19.5 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      {/* 아래 화살표만 포인트 색 (.ic-accent) — 투톤 */}
+      <path
+        className="ic-accent"
+        d="M16 19.5v-15M16 19.5 12.5 16M16 19.5 19.5 16"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }
@@ -505,6 +513,66 @@ export function GridIcon({ size }: IconProps) {
       <rect x="13.5" y="3.5" width="7" height="7" rx="1.6" stroke="currentColor" strokeWidth="1.9" />
       <rect x="3.5" y="13.5" width="7" height="7" rx="1.6" stroke="currentColor" strokeWidth="1.9" />
       <rect x="13.5" y="13.5" width="7" height="7" rx="1.6" stroke="currentColor" strokeWidth="1.9" />
+    </Svg>
+  );
+}
+
+/** 모두 선택 — 점선 선택 상자 + 채워진 4칸 (Win11식, 파랑 대신 브랜드 초록) */
+export function SelectAllIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect
+        x="3.2"
+        y="3.2"
+        width="17.6"
+        height="17.6"
+        rx="2.2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeDasharray="3 2.6"
+      />
+      <g className="ic-accent-green">
+        <rect x="7.2" y="7.2" width="3.6" height="3.6" rx="0.9" fill="currentColor" />
+        <rect x="13.2" y="7.2" width="3.6" height="3.6" rx="0.9" fill="currentColor" />
+        <rect x="7.2" y="13.2" width="3.6" height="3.6" rx="0.9" fill="currentColor" />
+        <rect x="13.2" y="13.2" width="3.6" height="3.6" rx="0.9" fill="currentColor" />
+      </g>
+    </Svg>
+  );
+}
+
+/** 선택 안 함 — 빈 4칸 */
+export function SelectNoneIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="4.5" y="4.5" width="6" height="6" rx="1.4" stroke="currentColor" strokeWidth="1.8" />
+      <rect x="13.5" y="4.5" width="6" height="6" rx="1.4" stroke="currentColor" strokeWidth="1.8" />
+      <rect x="4.5" y="13.5" width="6" height="6" rx="1.4" stroke="currentColor" strokeWidth="1.8" />
+      <rect x="13.5" y="13.5" width="6" height="6" rx="1.4" stroke="currentColor" strokeWidth="1.8" />
+    </Svg>
+  );
+}
+
+/** 선택 영역 반전 — 점선 상자 + 채움/빈칸 대각 교차 (Win11식, 초록) */
+export function SelectInvertIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect
+        x="3.2"
+        y="3.2"
+        width="17.6"
+        height="17.6"
+        rx="2.2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeDasharray="3 2.6"
+      />
+      <g className="ic-accent-green">
+        <rect x="7.2" y="7.2" width="3.6" height="3.6" rx="0.9" fill="currentColor" />
+        <rect x="13.2" y="13.2" width="3.6" height="3.6" rx="0.9" fill="currentColor" />
+      </g>
+      <rect x="13.4" y="7.4" width="3.2" height="3.2" rx="0.8" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="7.4" y="13.4" width="3.2" height="3.2" rx="0.8" stroke="currentColor" strokeWidth="1.5" />
     </Svg>
   );
 }
