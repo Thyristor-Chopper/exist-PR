@@ -1642,18 +1642,6 @@ export default function CollabFiles({
         {/* 1줄 — 내비게이션 바 */}
         <div className="cf-nav">
           <button
-            title="폴더 창 켜기/끄기"
-            className={treeOn ? 'cf-nav-active' : ''}
-            onClick={() =>
-              setTreeOn((v) => {
-                localStorage.setItem('exist:cf-tree', v ? '0' : '1');
-                return !v;
-              })
-            }
-          >
-            <PanelLeftIcon size={14} />
-          </button>
-          <button
             title="뒤로"
             disabled={!trashOpen && !homeOpen && backStack.current.length === 0}
             onClick={goBack}
@@ -1922,6 +1910,22 @@ export default function CollabFiles({
                     {k === 'grid' ? <GridIcon size={13} /> : <ListIcon size={13} />} {label}
                   </button>
                 ))}
+                {/* 표시 — 패널 켜고 끄기 (Win11 보기 > 표시) */}
+                <div className="cf-menu-sep" />
+                <button
+                  onClick={() => {
+                    setTreeOn((v) => {
+                      localStorage.setItem('exist:cf-tree', v ? '0' : '1');
+                      return !v;
+                    });
+                    setViewMenu(false);
+                  }}
+                >
+                  <span className="cf-menu-check">
+                    {treeOn && <CheckMarkIcon size={12} />}
+                  </span>
+                  <PanelLeftIcon size={13} /> 탐색 창
+                </button>
               </div>
             )}
           </div>
@@ -2065,45 +2069,6 @@ export default function CollabFiles({
               <HomeIcon size={13} /> 홈
             </button>
             <div className="cf-desktree-sep" />
-            {favFiles.length > 0 && (
-              <>
-                <div className="cf-desktree-label">
-                  <StarIcon size={11} /> 즐겨찾기
-                </div>
-                {favFiles.map((f) => (
-                  <button
-                    key={`fav-${f.id}`}
-                    className="cf-desktree-item"
-                    title={f.name}
-                    onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
-                  >
-                    <TypeIcon type={f.type} size={13} /> {f.name}
-                  </button>
-                ))}
-                <div className="cf-desktree-sep" />
-              </>
-            )}
-            {recent.length > 0 && (
-              <>
-                <div className="cf-desktree-label">
-                  <ClockIcon size={11} /> 최근
-                </div>
-                {recent.slice(0, 6).map((rf) => (
-                  <button
-                    key={`rec-${rf.id}`}
-                    className="cf-desktree-item"
-                    title={rf.name}
-                    onClick={() => {
-                      const f = byId.get(rf.id);
-                      if (f) openFile(f);
-                    }}
-                  >
-                    <TypeIcon type={rf.type} size={13} /> {rf.name}
-                  </button>
-                ))}
-                <div className="cf-desktree-sep" />
-              </>
-            )}
             <div className="cf-desktree-label">
               <FolderIcon size={11} /> 폴더
             </div>
