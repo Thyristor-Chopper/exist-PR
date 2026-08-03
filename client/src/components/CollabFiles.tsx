@@ -2070,7 +2070,7 @@ export default function CollabFiles({
             </button>
             <div className="cf-desktree-sep" />
             <button
-              className={`cf-desktree-item${cwd === null && !trashOpen ? ' cur' : ''}${
+              className={`cf-desktree-item${cwd === null && !trashOpen && !homeOpen ? ' cur' : ''}${
                 dropTarget === 'root' ? ' droptarget' : ''
               }`}
               onClick={() => navigate(null)}
@@ -2095,7 +2095,7 @@ export default function CollabFiles({
             {folderTree.map(({ f, depth }) => (
               <button
                 key={f.id}
-                className={`cf-desktree-item${cwd === f.id && !trashOpen ? ' cur' : ''}${
+                className={`cf-desktree-item${cwd === f.id && !trashOpen && !homeOpen ? ' cur' : ''}${
                   dropTarget === f.id ? ' droptarget' : ''
                 }`}
                 style={{ paddingLeft: 10 + depth * 14 }}
