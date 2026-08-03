@@ -2107,6 +2107,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
               code={code}
               isHost={!!(detail?.isHost || detail?.canManage)}
               visible={visible && subtab === 'files'}
+              groupName={detail?.title}
             />
           </div>
         )}

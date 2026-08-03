@@ -290,15 +290,19 @@ export default function CollabFiles({
   code,
   isHost,
   visible = true,
+  groupName,
 }: {
   code: string;
   isHost: boolean;
   /** 공동편집 화면이 실제로 보이는지 — 숨김 상태의 열린 에디터가 프레즌스에 잡히지 않게 */
   visible?: boolean;
+  /** 파일 체계의 루트 이름 = 그룹 이름 (없으면 "공동편집" 폴백) */
+  groupName?: string;
 }) {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const dn = useDisplayName();
+  const rootName = (groupName ?? '').trim() || '공동편집';
   const [files, setFiles] = useState<CollabFile[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [editorFull, setEditorFull] = useState(false); // 에디터 전체화면 (화면이 작을 때)
@@ -696,10 +700,10 @@ export default function CollabFiles({
   /** 편집 모드 진입 — 현재 경로를 텍스트로 채운다 (선택 등 다른 상태는 건드리지 않음) */
   function startPathEdit() {
     const text = trashOpen
-      ? '공동편집/휴지통'
+      ? `${rootName}/휴지통`
       : homeOpen
-        ? '공동편집/홈'
-        : ['공동편집', ...crumbs.map((c) => c.name)].join('/');
+        ? `${rootName}/홈`
+        : [rootName, ...crumbs.map((c) => c.name)].join('/');
     setPathText(text);
     setPathEditing(true);
   }
@@ -711,7 +715,8 @@ export default function CollabFiles({
       .split(/[/>\\]/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    if (segs[0] === '공동편집') segs.shift(); // 선두 "공동편집"은 있어도 없어도 됨
+    // 선두 루트 이름(그룹명)·구칭 "공동편집"은 있어도 없어도 됨
+    if (segs[0] === rootName || segs[0] === '공동편집') segs.shift();
     // 마지막 세그먼트가 "휴지통"·"홈"이면 해당 장소로 (휴지통·홈은 폴더가 아닌 "장소")
     const last = segs[segs.length - 1];
     if (last === '휴지통') {
@@ -1799,7 +1804,7 @@ export default function CollabFiles({
                 else void moveMany(ids, null);
               }}
             >
-              <FolderIcon size={13} /> 공동편집
+              <FolderIcon size={13} /> {rootName}
             </button>
             {trashOpen && (
               <span className="cf-crumb-seg">
@@ -1847,7 +1852,7 @@ export default function CollabFiles({
             className="cf-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`${cwd === null ? '공동편집' : (byId.get(cwd)?.name ?? '')} 검색`}
+            placeholder={`${cwd === null ? rootName : (byId.get(cwd)?.name ?? '')} 검색`}
           />
         </div>
 
@@ -2214,7 +2219,7 @@ export default function CollabFiles({
                 else void moveMany(ids, null);
               }}
             >
-              <FolderIcon size={13} /> 공동편집
+              <FolderIcon size={13} /> {rootName}
             </button>
             {(function renderSideFolders(pid: number | null, depth: number): React.ReactNode[] {
               return (byParent.get(pid) ?? [])
@@ -2888,13 +2893,13 @@ export default function CollabFiles({
               <TypeIcon type="folder" size={42} />
             </div>
             <div className="cf-details-name">
-              {crumbs.length > 0 ? crumbs[crumbs.length - 1].name : '공동편집'}
+              {crumbs.length > 0 ? crumbs[crumbs.length - 1].name : rootName}
             </div>
             <div className="cf-details-sub">현재 폴더</div>
             <div className="cf-details-rows">
               <div className="cf-details-row">
                 <span>위치</span>
-                <b>{['공동편집', ...crumbs.map((c) => c.name)].join(' › ')}</b>
+                <b>{[rootName, ...crumbs.map((c) => c.name)].join(' › ')}</b>
               </div>
               <div className="cf-details-row">
                 <span>포함 항목</span>
@@ -2946,7 +2951,7 @@ export default function CollabFiles({
               <div className="cf-details-row">
                 <span>위치</span>
                 <b>
-                  {['공동편집', ...crumbs.map((c) => c.name)].join(' › ')}
+                  {[rootName, ...crumbs.map((c) => c.name)].join(' › ')}
                 </b>
               </div>
               <div className="cf-details-row">
@@ -3132,7 +3137,7 @@ export default function CollabFiles({
                     setMovePicker(null);
                   }}
                 >
-                  <FolderIcon size={14} /> 공동편집 (루트)
+                  <FolderIcon size={14} /> {rootName} (루트)
                 </button>
                 {(() => {
                   const ex = moveExcluded(movePicker);
@@ -3492,7 +3497,7 @@ export default function CollabFiles({
                   parts.unshift(p.name);
                   cur = p.parent_id;
                 }
-                return ['공동편집', ...parts].map((s) => `${s} › `).join('');
+                return [rootName, ...parts].map((s) => `${s} › `).join('');
               })()}
             </span>
             <span className={`cf-icon ${active.type}`}>
