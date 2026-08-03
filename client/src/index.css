@@ -11871,9 +11871,10 @@ input:focus {
   align-items: center;
   gap: 2px;
   margin: 0 6px;
-  padding: 4px 8px;
+  padding: 4px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 999px;
+  background: var(--surface);
   overflow-x: auto;
   scrollbar-width: none;
   white-space: nowrap;
@@ -11905,8 +11906,8 @@ input:focus {
 .cf-search {
   width: 200px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 11px;
+  border-radius: 999px;
+  padding: 6px 14px;
   font-size: 13px;
   background: var(--surface);
   color: var(--text);
