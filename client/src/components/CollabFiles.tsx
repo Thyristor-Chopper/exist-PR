@@ -2197,7 +2197,10 @@ export default function CollabFiles({
         {/* 본문 — 현재 폴더 내용 (+ 선택 시 오른쪽 세부 정보) */}
         <div className="cf-body">
         {/* 왼쪽 사이드바 — 홈·즐겨찾기·최근·폴더·휴지통 한 공간 (윈도우 탐색기 탐색 창) */}
-        {treeOn && (
+        <div
+          className={`cf-slidewrap cf-slide-l${treeOn ? ' open' : ''}`}
+          aria-hidden={!treeOn}
+        >
           <aside className="cf-desktree">
             {/* 루트 = 그룹 이름 — 그 아래 홈·폴더·휴지통이 계층으로 (파일 체계 통일) */}
             <button
@@ -2328,7 +2331,7 @@ export default function CollabFiles({
             </button>
             )}
           </aside>
-        )}
+        </div>
         {/* 홈 — 상단 즐겨찾기, 하단 최근 방문 (탐색기 홈) */}
         {homeOpen && (
           <div className="cf-main cf-homeview">
@@ -2888,7 +2891,11 @@ export default function CollabFiles({
 
         {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약, 선택 없으면 현재 폴더 (탐색기식) */}
         {/* 우선순위: 파일 선택 > 휴지통 선택 — 어떤 상태 조합에서도 패널은 하나만 */}
-        {detailsOn && (trashOpen || (trashSel && selCount === 0)) && (
+        <div
+          className={`cf-slidewrap cf-slide-r${detailsOn && !homeOpen ? ' open' : ''}`}
+          aria-hidden={!detailsOn || homeOpen}
+        >
+        {(trashOpen || (trashSel && selCount === 0)) && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon file">
               <TrashIcon size={38} />
@@ -2916,7 +2923,7 @@ export default function CollabFiles({
             )}
           </aside>
         )}
-        {detailsOn && !trashOpen && !homeOpen && !trashSel && selCount === 0 && (
+        {!trashOpen && !homeOpen && !trashSel && selCount === 0 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon folder">
               <TypeIcon type="folder" size={42} />
@@ -2946,7 +2953,7 @@ export default function CollabFiles({
             </div>
           </aside>
         )}
-        {detailsOn && !trashOpen && selCount > 1 && (
+        {!trashOpen && selCount > 1 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon folder">
               <CopyIcon size={36} />
@@ -2958,7 +2965,7 @@ export default function CollabFiles({
             </div>
           </aside>
         )}
-        {detailsOn && !trashOpen && selected && (
+        {!trashOpen && selected && (
           <aside className="cf-details">
             <div className={`cf-details-icon cf-icon ${selected.type}`}>
               <TypeIcon type={selected.type} size={42} />
@@ -3147,6 +3154,7 @@ export default function CollabFiles({
             )}
           </aside>
         )}
+        </div>
         </div>
 
         {/* 하단 상태바 — 윈도우식 */}

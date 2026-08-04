@@ -12640,6 +12640,35 @@ input:focus {
 }
 
 /* 데스크탑 폴더 트리 — 탐색기 왼쪽 패널 */
+/* 사이드 패널 슬라이드 — 탐색 창(왼쪽)·세부 정보(오른쪽) 여닫기.
+ * 내용(aside)은 고정폭 그대로 두고 래퍼 폭만 줄여서
+ * 텍스트 리플로우 없이 잘리며 밀려나게 한다 */
+.cf-slidewrap {
+  display: flex;
+  overflow: hidden;
+  flex: none;
+  min-height: 0;
+  opacity: 1;
+  transition:
+    width 0.22s ease,
+    opacity 0.18s ease;
+}
+.cf-slide-l {
+  width: 176px;
+}
+.cf-slide-r {
+  width: 240px;
+  justify-content: flex-end; /* 오른쪽 패널은 오른쪽으로 밀려나가게 */
+}
+.cf-slidewrap:not(.open),
+.cf-slidewrap:empty {
+  width: 0;
+  opacity: 0;
+}
+.cf-slidewrap > * {
+  flex: none;
+}
+
 .cf-desktree {
   width: 176px;
   flex: none;
