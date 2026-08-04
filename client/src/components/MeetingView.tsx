@@ -868,7 +868,22 @@ export default function MeetingView({
 
     run().catch((err) => setStatus(`연결 실패: ${err.message}`));
 
+    // 탭 닫기·모바일 백그라운드 이탈 — 소켓 타임아웃(수십 초)을 기다리지 않고 즉시 퇴장 신고.
+    // pagehide는 모바일 사파리·PWA 백그라운드 전환에서도 발화한다
+    const onPageHide = (e: PageTransitionEvent) => {
+      // persisted=true는 bfcache 진입(뒤로가기 등으로 복귀 가능) — 통화를 끊지 않는다.
+      // 진짜 닫기/이탈만 즉시 퇴장 신고
+      if (e.persisted) return;
+      try {
+        socket.emit('room:leave');
+      } catch {
+        /* 이미 끊겼으면 무시 */
+      }
+    };
+    window.addEventListener('pagehide', onPageHide);
+
     return () => {
+      window.removeEventListener('pagehide', onPageHide);
       closed = true;
       socket.io.off('reconnect', onReconnect);
       socket.off('peer:joined');

@@ -25,6 +25,10 @@ ensureAgentUser();
 // Socket.IO — SFU 시그널링 + presence + nowbar 알림 push
 const io = new Server(server, {
   cors: { origin: CLIENT_ORIGIN },
+  // 탭 강제 종료·모바일 백그라운드 같은 비정상 이탈 감지 시간 단축 (기본 25s+20s ≈ 최대 45초 → 최대 ~15초)
+  // 통화 인원 표시가 이 감지에 걸려 있어서 기본값이면 "나갔는데 한참 남아 있는" 것처럼 보인다
+  pingInterval: 10_000,
+  pingTimeout: 5_000,
 });
 
 // 소켓 인증: handshake.auth.token으로 세션 검증
