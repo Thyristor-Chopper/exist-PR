@@ -577,6 +577,28 @@ export function SelectInvertIcon({ size }: IconProps) {
   );
 }
 
+/** 캔버스(화이트보드) — 보드 모서리에 걸친 마커펜 (W4) */
+export function WhiteboardIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path
+        d="M21 10.5V7a2.4 2.4 0 0 0-2.4-2.4H5.4A2.4 2.4 0 0 0 3 7v9.6A2.4 2.4 0 0 0 5.4 19H11"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m12.7 18.3 6.3-6.3 2 2-6.3 6.3h-2v-2z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 /** 목록 보기 — Win11식: 네모 불릿 + 줄 2단 */
 export function ListViewIcon({ size }: IconProps) {
   return (

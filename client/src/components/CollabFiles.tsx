@@ -17,7 +17,6 @@ import {
   DocIcon,
   SheetIcon,
   SlideIcon,
-  PenIcon,
   ChevronIcon,
   PlusIcon,
   UploadIcon,
@@ -46,6 +45,7 @@ import {
   SelectAllIcon,
   SelectNoneIcon,
   SelectInvertIcon,
+  WhiteboardIcon,
 } from './Icons';
 
 /*
@@ -104,7 +104,7 @@ function TypeIcon({ type, size = 15 }: { type: FileType; size?: number }) {
   if (type === 'code') return <CodeIcon size={size} />;
   if (type === 'doc') return <DocIcon size={size} />;
   if (type === 'sheet') return <SheetIcon size={size} />;
-  if (type === 'canvas') return <PenIcon size={size} />;
+  if (type === 'canvas') return <WhiteboardIcon size={size} />;
   if (type === 'file') return <BlobFileIcon size={size} />;
   return <SlideIcon size={size} />;
 }
