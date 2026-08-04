@@ -918,11 +918,19 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
       window.dispatchEvent(new CustomEvent('meeting:message', { detail: { code: code.toUpperCase() } }));
     }
     socket.on('chat:message', onMessage);
+
+    // 통화 인원 변동 즉시 반영 — 10초 폴링을 기다리지 않고 소켓 푸시로
+    function onCallPresence(p: { code?: string; peers?: string[] } | undefined) {
+      if (p?.code !== code.toUpperCase() || !Array.isArray(p.peers)) return;
+      setDetail((prev) => (prev ? { ...prev, callPeers: p.peers! } : prev));
+    }
+    socket.on('call:presence', onCallPresence);
     return () => {
       alive = false;
       socket.off('connect', join);
       socket.off('chat:message', onMessage);
       socket.off('chat:ai-thinking', onAiThinking);
+      socket.off('call:presence', onCallPresence);
       if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
     };
   }, [code, inCall, activeChannel]);

@@ -177,6 +177,14 @@ export function getRoomPeers(code: string): string[] {
 }
 
 export function attachSfu(io: Server) {
+  /** 통화 인원 변동을 그룹(채팅 룸)에 즉시 방송 — 허브가 10초 폴링을 기다리지 않게 */
+  function broadcastCallPresence(r: Room) {
+    io.to(`chat:${r.code.toUpperCase()}`).emit('call:presence', {
+      code: r.code.toUpperCase(),
+      peers: [...r.peers.values()].map((p) => p.username),
+    });
+  }
+
   io.on('connection', (socket: Socket) => {
     let room: Room | null = null;
     let peer: Peer | null = null;
@@ -232,6 +240,7 @@ export function attachSfu(io: Server) {
           peerId: socket.id,
           username: peer.username,
         });
+        broadcastCallPresence(room);
         ack({
           rtpCapabilities: room.router.rtpCapabilities,
           producers,
@@ -612,6 +621,7 @@ export function attachSfu(io: Server) {
       room.peers.delete(socket.id);
       void socket.leave(`room:${room.code}`);
       socket.to(`room:${room.code}`).emit('peer:left', { peerId: socket.id });
+      broadcastCallPresence(room);
       closeRoomIfEmpty(room);
       room = null;
       peer = null;
@@ -622,6 +632,7 @@ export function attachSfu(io: Server) {
       for (const t of peer.transports.values()) t.close();
       room.peers.delete(socket.id);
       socket.to(`room:${room.code}`).emit('peer:left', { peerId: socket.id });
+      broadcastCallPresence(room);
       closeRoomIfEmpty(room);
     });
   });
