@@ -39,6 +39,7 @@ import {
   PanelLeftIcon,
   FilterIcon,
   ClockIcon,
+  UsersIcon,
   ListViewIcon,
   HomeIcon,
   RenameIcon,
@@ -2372,6 +2373,43 @@ export default function CollabFiles({
                 </div>
               )}
             </div>
+            {/* 작업 중 — 지금 누군가 열어 두고 있는 파일 (실시간 프레즌스) */}
+            <div className="cf-home-sec">
+              <div className="cf-home-label">
+                <UsersIcon size={13} /> 작업 중
+              </div>
+              {(() => {
+                const working = Object.entries(presence)
+                  .filter(([, ppl]) => ppl.length > 0)
+                  .map(([id, ppl]) => ({ f: byId.get(Number(id)), ppl }))
+                  .filter(
+                    (w): w is { f: CollabFile; ppl: { username: string; avatar: string | null }[] } =>
+                      !!w.f,
+                  );
+                if (working.length === 0)
+                  return (
+                    <div className="cf-empty">지금 열려 있는 문서가 없어요</div>
+                  );
+                return (
+                  <div className="cf-home-list">
+                    {working.map(({ f, ppl }) => (
+                      <button
+                        key={f.id}
+                        className="cf-home-row"
+                        onClick={() => openFile(f)}
+                      >
+                        <span className={`cf-icon ${f.type}`}>
+                          <TypeIcon type={f.type} size={15} />
+                        </span>
+                        <span className="cf-home-row-name">{f.name}</span>
+                        <PresenceStack fileId={f.id} />
+                        <span className="cf-home-row-meta">{ppl.length}명 작업 중</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
             <div className="cf-home-sec">
               <div className="cf-home-label">
                 <ClockIcon size={13} /> 최근 방문
@@ -3230,7 +3268,10 @@ export default function CollabFiles({
 
         <div className="cf-statusbar">
           {homeOpen ? (
-            <>홈 — 즐겨찾기 {favFiles.length}개 · 최근 {recent.length}개</>
+            <>
+              홈 — 즐겨찾기 {favFiles.length}개 · 작업 중{' '}
+              {Object.values(presence).filter((p) => p.length > 0).length}개 · 최근 {recent.length}개
+            </>
           ) : trashOpen ? (
             <>휴지통 항목 {trashItems.length}개</>
           ) : (
