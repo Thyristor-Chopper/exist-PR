@@ -52,6 +52,15 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
   next();
 }
 
+/** 요청의 세션 토큰 — requireAuth와 동일 규약(헤더 우선, ?token= 쿼리 폴백).
+ * 헤더만 보고 !를 걸면 쿼리 인증으로 들어온 요청에서 undefined.replace로 500이 난다. */
+function sessionToken(req: AuthedRequest): string {
+  return (
+    req.headers.authorization?.replace(/^Bearer /, '') ||
+    (typeof req.query?.token === 'string' ? req.query.token : '')
+  );
+}
+
 const router = Router();
 
 // ── 로그인 무차별 대입 방지: IP+아이디당 15분에 10회 ──
@@ -81,10 +90,10 @@ router.post('/register', (req, res) => {
   if (!username || !password) {
     return res.status(400).json({ error: '아이디와 비밀번호를 입력하세요' });
   }
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(String(username))) {
     return res.status(400).json({ error: '아이디는 영문·숫자·_ 3~20자입니다' });
   }
-  if (password.length < 8) {
+  if (typeof password !== 'string' || password.length < 8) {
     return res.status(400).json({ error: '비밀번호는 8자 이상이어야 합니다' });
   }
   if (db.prepare('SELECT id FROM users WHERE username = ?').get(username)) {
@@ -127,10 +136,10 @@ router.post('/reset', (req, res) => {
   if (!username || !recoveryCode || !newPassword) {
     return res.status(400).json({ error: '모든 항목을 입력하세요' });
   }
-  if (newPassword.length < 8) {
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
     return res.status(400).json({ error: '비밀번호는 8자 이상이어야 합니다' });
   }
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(String(username)) as
     | {
         id: number;
         recovery_hash: string | null;
@@ -173,10 +182,10 @@ router.post('/login', (req, res) => {
   if (rateLimited(key)) {
     return res.status(429).json({ error: '시도가 너무 많습니다. 15분 뒤에 다시 해보세요' });
   }
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(String(username ?? '')) as
     | { id: number; username: string; pw_hash: string; pw_salt: string; name: string | null }
     | undefined;
-  if (!user || hashPassword(password ?? '', user.pw_salt) !== user.pw_hash) {
+  if (!user || hashPassword(typeof password === 'string' ? password : '', user.pw_salt) !== user.pw_hash) {
     return res.status(401).json({ error: '아이디 또는 비밀번호가 틀렸습니다' });
   }
   attempts.delete(key); // 성공 시 카운터 리셋
@@ -186,7 +195,7 @@ router.post('/login', (req, res) => {
 });
 
 router.post('/logout', requireAuth, (req: AuthedRequest, res) => {
-  const token = req.headers.authorization!.replace(/^Bearer /, '');
+  const token = sessionToken(req);
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
   res.json({ ok: true });
 });
@@ -280,10 +289,16 @@ router.post('/avatar', requireAuth, (req: AuthedRequest, res) => {
   req.on('end', () => {
     if (res.headersSent) return;
     if (size === 0) return res.status(400).json({ error: '빈 파일이에요' });
-    fs.writeFileSync(path.join(UPLOAD_DIR, filename), Buffer.concat(chunks));
-    const url = `/api/workspaces/uploads/${filename}`;
-    db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(url, req.userId);
-    res.json({ avatar: url });
+    try {
+      fs.writeFileSync(path.join(UPLOAD_DIR, filename), Buffer.concat(chunks));
+      const url = `/api/workspaces/uploads/${filename}`;
+      db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(url, req.userId);
+      res.json({ avatar: url });
+    } catch (e) {
+      // 이벤트 콜백 안의 예외는 Express가 못 잡는다 — 직접 응답
+      console.error('[avatar]', e);
+      res.status(500).json({ error: '업로드 저장에 실패했어요' });
+    }
   });
 });
 
@@ -293,7 +308,10 @@ router.post('/password', requireAuth, (req: AuthedRequest, res) => {
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: '모든 항목을 입력하세요' });
   }
-  if (String(newPassword).length < 8) {
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+    return res.status(400).json({ error: '모든 항목을 입력하세요' });
+  }
+  if (newPassword.length < 8) {
     return res.status(400).json({ error: '새 비밀번호는 8자 이상이어야 합니다' });
   }
   const user = db.prepare('SELECT pw_hash, pw_salt FROM users WHERE id = ?').get(req.userId) as {
@@ -310,7 +328,7 @@ router.post('/password', requireAuth, (req: AuthedRequest, res) => {
     req.userId,
   );
   // 현재 세션 외 전부 무효화
-  const token = req.headers.authorization!.replace(/^Bearer /, '');
+  const token = sessionToken(req);
   db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(req.userId, token);
   res.json({ ok: true });
 });

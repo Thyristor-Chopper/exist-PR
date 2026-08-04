@@ -285,7 +285,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
         body: { text: m[1] },
       });
       window.dispatchEvent(
-        new CustomEvent('app:error', { detail: '✓ 결정 원장에 기록했어요' }),
+        new CustomEvent('app:info', { detail: '결정 원장에 기록했어요' }),
       );
     } catch {
       /* 전역 토스트 */
@@ -296,7 +296,7 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   async function undoAutoDecision(recapId: string) {
     try {
       await api(`/api/meetings/${code}/decisions/auto/${recapId}`, { method: 'DELETE' });
-      window.dispatchEvent(new CustomEvent('app:error', { detail: '기록을 취소했어요' }));
+      window.dispatchEvent(new CustomEvent('app:info', { detail: '기록을 취소했어요' }));
     } catch {
       /* 전역 토스트 */
     }

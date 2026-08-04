@@ -76,5 +76,15 @@ export function createApp() {
     console.log(`[static] serving client from ${clientDist}`);
   }
 
+  // 전역 에러 핸들러 — 미포착 예외가 Express 기본 핸들러(HTML + 스택 노출)로 새지 않게.
+  // 반드시 마지막에 마운트해야 모든 라우터의 예외를 받는다.
+  app.use(
+    (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      console.error('[unhandled]', err);
+      if (res.headersSent) return;
+      res.status(500).json({ error: '서버 오류가 났어요 — 잠시 후 다시 시도해주세요' });
+    },
+  );
+
   return app;
 }

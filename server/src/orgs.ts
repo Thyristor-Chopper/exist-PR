@@ -449,7 +449,15 @@ router.get('/:id', (req: AuthedRequest, res) => {
       name: string;
       perms: string;
     }[]
-  ).map((r) => ({ id: r.id, name: r.name, perms: JSON.parse(r.perms) as string[] }));
+  ).map((r) => {
+    let perms: string[] = [];
+    try {
+      perms = JSON.parse(r.perms) as string[]; // rolePerms·perm.ts와 동일하게 방어 (행 손상 시 500 방지)
+    } catch {
+      /* 손상된 역할은 빈 권한으로 */
+    }
+    return { id: r.id, name: r.name, perms };
+  });
 
   // AI 위임 제안(Access Analyzer식, 규칙 기반) — 소유자에게만.
   // 사실에서 계산만 하고 실행은 사람이 (자동 실행 금지 원칙)

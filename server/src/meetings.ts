@@ -131,8 +131,12 @@ function parseExcept(raw: unknown): Set<string> {
 }
 
 router.post('/', (req: AuthedRequest, res) => {
-  const { title, starts_at, ends_at } = req.body ?? {};
+  const { title: rawTitle, starts_at: rawStart, ends_at: rawEnd } = req.body ?? {};
+  const title = typeof rawTitle === 'string' ? rawTitle.trim() : '';
   if (!title) return res.status(400).json({ error: '회의 이름을 입력하세요' });
+  // 문자열 외 타입이 바인딩으로 흘러가면 better-sqlite3 RangeError → 500
+  const starts_at = typeof rawStart === 'string' ? rawStart : null;
+  const ends_at = typeof rawEnd === 'string' ? rawEnd : null;
   const recur = cleanRecur(req.body?.recur);
   const recurUntil = recur === 'none' ? null : cleanDate(req.body?.recur_until);
 
@@ -156,7 +160,7 @@ router.post('/', (req: AuthedRequest, res) => {
     .prepare(
       'INSERT INTO meetings (code, title, host_id, org_id, starts_at, ends_at, recur, recur_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(code, title, req.userId, orgId, starts_at ?? null, ends_at ?? null, recur, recurUntil);
+    .run(code, title, req.userId, orgId, starts_at, ends_at, recur, recurUntil);
   const meetingId = info.lastInsertRowid as number;
   db.prepare('INSERT INTO meeting_participants (meeting_id, user_id) VALUES (?, ?)').run(
     meetingId,
@@ -199,7 +203,7 @@ router.post('/', (req: AuthedRequest, res) => {
 /** 코드로 회의 참여 */
 router.post('/join', (req: AuthedRequest, res) => {
   const { code } = req.body ?? {};
-  const meeting = db.prepare('SELECT * FROM meetings WHERE code = ?').get((code ?? '').toUpperCase()) as
+  const meeting = db.prepare('SELECT * FROM meetings WHERE code = ?').get(String(code ?? '').toUpperCase()) as
     | { id: number; code: string; title: string; settings: string | null }
     | undefined;
   if (!meeting) return res.status(404).json({ error: '존재하지 않는 회의 코드입니다' });
@@ -569,7 +573,13 @@ router.get('/:code', (req: AuthedRequest, res) => {
     orgId: meeting.org_id,
     orgName: meeting.org_name,
     thumbnail: meeting.thumbnail,
-    settings: meeting.settings ? JSON.parse(meeting.settings) : { locked: false, guestEdit: true, muteOnJoin: false },
+    settings: (() => {
+      try {
+        return meeting.settings ? JSON.parse(meeting.settings) : { locked: false, guestEdit: true, muteOnJoin: false };
+      } catch {
+        return { locked: false, guestEdit: true, muteOnJoin: false };
+      }
+    })(),
     period:
       meeting.period_start || meeting.period_end
         ? { start: meeting.period_start, end: meeting.period_end }
@@ -705,10 +715,13 @@ router.patch('/:code', (req: AuthedRequest, res) => {
   if (!canManageMeeting(meeting, req.userId!, 'group:edit-info')) {
     return res.status(403).json({ error: '호스트나 조직 관리자만 수정할 수 있어요' });
   }
-  const { title, starts_at, ends_at } = req.body ?? {};
-  if (title !== undefined && !String(title).trim()) {
+  const { title: rawTitle, starts_at: rawStart2, ends_at: rawEnd2 } = req.body ?? {};
+  if (rawTitle !== undefined && (typeof rawTitle !== 'string' || !rawTitle.trim())) {
     return res.status(400).json({ error: '회의 이름을 입력하세요' });
   }
+  const title = typeof rawTitle === 'string' ? rawTitle : undefined;
+  const starts_at = typeof rawStart2 === 'string' ? rawStart2 : null;
+  const ends_at = typeof rawEnd2 === 'string' ? rawEnd2 : null;
   if (req.body?.recur !== undefined) {
     // 반복 정보까지 함께 갱신 (일정 잡기/수정)
     const recur = cleanRecur(req.body.recur);
@@ -717,13 +730,13 @@ router.patch('/:code', (req: AuthedRequest, res) => {
       `UPDATE meetings SET
          title = COALESCE(?, title), starts_at = ?, ends_at = ?, recur = ?, recur_until = ?
        WHERE id = ?`,
-    ).run(title ?? null, starts_at ?? null, ends_at ?? null, recur, recurUntil, meeting.id);
+    ).run(title ?? null, starts_at, ends_at, recur, recurUntil, meeting.id);
   } else {
     db.prepare(
       `UPDATE meetings SET
          title = COALESCE(?, title), starts_at = ?, ends_at = ?
        WHERE id = ?`,
-    ).run(title ?? null, starts_at ?? null, ends_at ?? null, meeting.id);
+    ).run(title ?? null, starts_at, ends_at, meeting.id);
   }
   res.json({ ok: true });
 });
@@ -759,10 +772,16 @@ router.post('/:code/thumbnail', (req: AuthedRequest, res) => {
   req.on('end', () => {
     if (res.headersSent) return;
     if (size === 0) return res.status(400).json({ error: '빈 파일이에요' });
-    fs.writeFileSync(path.join(UPLOAD_DIR, filename), Buffer.concat(chunks));
-    const url = `/api/workspaces/uploads/${filename}`;
-    db.prepare('UPDATE meetings SET thumbnail = ? WHERE id = ?').run(url, meeting.id);
-    res.json({ thumbnail: url });
+    try {
+      fs.writeFileSync(path.join(UPLOAD_DIR, filename), Buffer.concat(chunks));
+      const url = `/api/workspaces/uploads/${filename}`;
+      db.prepare('UPDATE meetings SET thumbnail = ? WHERE id = ?').run(url, meeting.id);
+      res.json({ thumbnail: url });
+    } catch (e) {
+      // 이벤트 콜백 안의 예외는 Express가 못 잡는다 — 직접 응답
+      console.error('[thumbnail]', e);
+      res.status(500).json({ error: '업로드 저장에 실패했어요' });
+    }
   });
 });
 
@@ -1623,7 +1642,13 @@ router.get('/:code/messages', (req: AuthedRequest, res) => {
       from: r.from,
       avatar: r.avatar,
       text: r.text,
-      file: r.file ? JSON.parse(r.file) : undefined,
+      file: (() => {
+        try {
+          return r.file ? JSON.parse(r.file) : undefined;
+        } catch {
+          return undefined; // 행 하나 손상돼도 히스토리 전체가 죽지 않게
+        }
+      })(),
       channelId: r.channel_id ?? channelId,
       ts: new Date(r.created_at + 'Z').getTime(),
       unread: r.id > lastRead && r.user_id !== req.userId ? true : undefined,

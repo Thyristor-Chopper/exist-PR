@@ -123,8 +123,13 @@ function runShell(
 
 /** 코드 실행 — 격리 러너로 위임(RUNNER_URL), 없으면 로컬 직접 실행(게이트) */
 router.post('/exec', async (req, res) => {
-  const { lang, entry, files } = req.body as { lang: string; entry: string; files: RunFile[] };
-  if (!lang || !entry || !Array.isArray(files)) {
+  const { lang, entry, files } = (req.body ?? {}) as { lang: string; entry: string; files: RunFile[] };
+  if (
+    typeof lang !== 'string' ||
+    typeof entry !== 'string' ||
+    !Array.isArray(files) ||
+    files.some((f) => typeof f?.path !== 'string')
+  ) {
     return res.status(400).json({ error: '잘못된 요청' });
   }
 
@@ -209,7 +214,7 @@ router.post('/exec', async (req, res) => {
 
 /** SQL 실행 — 인메모리 SQLite (ATTACH/확장 로드 차단 → 파일시스템 격리) */
 router.post('/sql', (req, res) => {
-  const { sql } = req.body as { sql: string };
+  const { sql } = (req.body ?? {}) as { sql: string };
   if (typeof sql !== 'string') return res.status(400).json({ error: '잘못된 요청' });
   const lines: { type: string; text: string }[] = [];
   const sdb = new Database(':memory:');
@@ -264,7 +269,7 @@ router.post('/git', requireExecEnabled, async (req, res) => {
     name = 'exist',
     email = 'exist@local',
     files,
-  } = req.body as {
+  } = (req.body ?? {}) as {
     remote: string;
     token: string;
     branch?: string;
@@ -273,7 +278,14 @@ router.post('/git', requireExecEnabled, async (req, res) => {
     email?: string;
     files: RunFile[];
   };
-  if (!remote || !token || !Array.isArray(files)) {
+  if (
+    typeof remote !== 'string' ||
+    typeof token !== 'string' ||
+    !remote ||
+    !token ||
+    !Array.isArray(files) ||
+    files.some((f) => typeof f?.path !== 'string')
+  ) {
     return res.status(400).json({ error: 'remote · token · files 필요' });
   }
   const lines: { type: string; text: string }[] = [];

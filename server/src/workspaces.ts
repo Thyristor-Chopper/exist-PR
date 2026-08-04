@@ -61,7 +61,9 @@ router.get('/', (req: AuthedRequest, res) => {
 
 router.post('/', (req: AuthedRequest, res) => {
   const { name } = req.body ?? {};
-  if (!name) return res.status(400).json({ error: '작업공간 이름을 입력하세요' });
+  if (typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: '작업공간 이름을 입력하세요' });
+  }
   const ctx = parseCtx(req);
   if (!ctx.ok) return res.status(ctx.status).json({ error: ctx.error });
   const info = db
@@ -75,7 +77,8 @@ const MAX_UPLOAD = 20 * 1024 * 1024;
 
 router.post('/uploads', (req: AuthedRequest, res) => {
   const id = crypto.randomUUID();
-  const ext = (req.query.name as string | undefined)?.split('.').pop()?.replace(/[^\w]/g, '') ?? 'bin';
+  const qname = typeof req.query.name === 'string' ? req.query.name : '';
+  const ext = qname.split('.').pop()?.replace(/[^\w]/g, '') || 'bin';
   const filename = `${id}.${ext}`;
   const chunks: Buffer[] = [];
   let size = 0;
@@ -90,15 +93,23 @@ router.post('/uploads', (req: AuthedRequest, res) => {
   });
   req.on('end', () => {
     if (res.headersSent) return;
-    fs.writeFileSync(path.join(UPLOAD_DIR, filename), Buffer.concat(chunks));
-    res.json({ url: `/api/workspaces/uploads/${filename}` });
+    try {
+      fs.writeFileSync(path.join(UPLOAD_DIR, filename), Buffer.concat(chunks));
+      res.json({ url: `/api/workspaces/uploads/${filename}` });
+    } catch (e) {
+      // 이벤트 콜백 안의 예외는 Express가 못 잡는다(프로세스 크래시) — 직접 응답
+      console.error('[uploads]', e);
+      res.status(500).json({ error: '업로드 저장에 실패했어요' });
+    }
   });
 });
 
 /** 작업공간 이름 변경 */
 router.patch('/:id', (req: AuthedRequest, res) => {
   const { name } = req.body ?? {};
-  if (!name?.trim()) return res.status(400).json({ error: '이름을 입력하세요' });
+  if (typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: '이름을 입력하세요' });
+  }
   const ws = db
     .prepare('SELECT id, created_by, org_id FROM workspaces WHERE id = ?')
     .get(req.params.id) as { id: number; created_by: number; org_id: number | null } | undefined;

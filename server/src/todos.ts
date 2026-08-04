@@ -166,12 +166,14 @@ router.get('/', (req: AuthedRequest, res) => {
 });
 
 router.post('/', (req: AuthedRequest, res) => {
-  const { title, due_at, meeting, assignees } = req.body ?? {};
+  const { title: rawTitle, due_at: rawDue, meeting, assignees } = req.body ?? {};
+  const title = typeof rawTitle === 'string' ? rawTitle.trim() : '';
   if (!title) return res.status(400).json({ error: '내용을 입력하세요' });
+  const due_at = typeof rawDue === 'string' && rawDue ? rawDue : null;
   const mid = meetingIdOf(meeting);
   const info = db
     .prepare('INSERT INTO todos (user_id, title, due_at, meeting_id) VALUES (?, ?, ?, ?)')
-    .run(req.userId, title, due_at ?? null, mid);
+    .run(req.userId, title, due_at, mid);
   const id = info.lastInsertRowid as number;
   let names: string[] = [];
   if (mid) {
@@ -182,7 +184,7 @@ router.post('/', (req: AuthedRequest, res) => {
     const want = Array.isArray(assignees) && assignees.length ? assignees : [me?.username];
     names = setAssignees(id, mid, req.userId!, want, String(title));
   }
-  res.json({ id, title, done: 0, due_at: due_at ?? null, assignees: names });
+  res.json({ id, title, done: 0, due_at, assignees: names });
 });
 
 router.patch('/:id', (req: AuthedRequest, res) => {
@@ -219,6 +221,9 @@ router.patch('/:id', (req: AuthedRequest, res) => {
     }
   }
   if (title !== undefined) {
+    if (typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: '내용을 입력하세요' });
+    }
     db.prepare('UPDATE todos SET title = ? WHERE id = ?').run(title, req.params.id);
   }
   if (due_at !== undefined) {

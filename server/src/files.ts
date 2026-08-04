@@ -523,9 +523,18 @@ router.post('/upload', (req: AuthedRequest, res) => {
   });
   req.on('end', () => {
     if (aborted) return;
-    const buf = Buffer.concat(chunks);
-    ensureLegacyFiles(r.meeting.id, r.meeting.code, req.userId!);
-    void finishUpload(res, r.meeting, req.userId!, { name, base, ext: ext.toLowerCase(), parentId, mime, buf });
+    try {
+      const buf = Buffer.concat(chunks);
+      ensureLegacyFiles(r.meeting.id, r.meeting.code, req.userId!);
+      finishUpload(res, r.meeting, req.userId!, { name, base, ext: ext.toLowerCase(), parentId, mime, buf }).catch((e) => {
+        // 이벤트 콜백 안의 예외는 Express가 못 잡는다 — 직접 응답해야 크래시/행이 안 남
+        console.error('[upload]', e);
+        if (!res.headersSent) res.status(500).json({ error: '업로드 저장에 실패했어요' });
+      });
+    } catch (e) {
+      console.error('[upload]', e);
+      if (!res.headersSent) res.status(500).json({ error: '업로드 저장에 실패했어요' });
+    }
   });
   req.on('error', () => {
     if (!aborted && !res.headersSent) res.status(500).json({ error: '업로드에 실패했어요' });
@@ -753,7 +762,9 @@ router.post('/:fileId/copy', (req: AuthedRequest, res) => {
     }
   ).n;
 
-  /** 대상 위치에서 안 겹치는 이름 — "이름", "이름 (2)", "이름 (3)" … */
+  /** 대상 위치에서 안 겹치는 이름 — "이름", "이름 (2)", "이름 (3)" …
+   * ⚠️ 접미사가 아닌 base를 잘라야 한다 — base가 이미 60자면 `${base} (2)`.slice(0,60)이
+   * 접미사를 통째로 날려 매 반복 같은 문자열 → 무한루프(이벤트 루프 점유)였다. */
   function freeName(base: string, parentId: number | null): string {
     let name = base;
     for (let i = 2; ; i++) {
@@ -761,7 +772,8 @@ router.post('/:fileId/copy', (req: AuthedRequest, res) => {
         .prepare('SELECT 1 FROM collab_files WHERE meeting_id = ? AND name = ? AND parent_id IS ? AND deleted_at IS NULL')
         .get(meetingId, name, parentId);
       if (!dup) return name;
-      name = `${base} (${i})`.slice(0, 60);
+      const suffix = ` (${i})`;
+      name = base.slice(0, Math.max(1, 60 - suffix.length)) + suffix;
     }
   }
 
@@ -996,23 +1008,29 @@ router.post('/:fileId/upload-version', (req: AuthedRequest, res) => {
   });
   req.on('end', () => {
     if (aborted) return;
-    const buf = Buffer.concat(chunks);
-    if (buf.length === 0) return res.status(400).json({ error: '빈 파일이에요' });
-    // 이전 blob → 버전 보관
-    db.prepare(
-      'INSERT INTO file_versions (file_id, blob_path, mime, size, uploaded_by) VALUES (?, ?, ?, ?, ?)',
-    ).run(f.id, f.blob_path, f.mime, f.size, f.created_by);
-    const blobName = crypto.randomUUID();
-    fs.mkdirSync(BLOB_DIR, { recursive: true });
-    fs.writeFileSync(path.join(BLOB_DIR, blobName), buf);
-    db.prepare('UPDATE collab_files SET blob_path = ?, mime = ?, size = ?, created_by = ? WHERE id = ?').run(
-      blobName,
-      mime,
-      buf.length,
-      req.userId!,
-      f.id,
-    );
-    res.json({ ok: true, size: buf.length });
+    try {
+      const buf = Buffer.concat(chunks);
+      if (buf.length === 0) return res.status(400).json({ error: '빈 파일이에요' });
+      // 이전 blob → 버전 보관
+      db.prepare(
+        'INSERT INTO file_versions (file_id, blob_path, mime, size, uploaded_by) VALUES (?, ?, ?, ?, ?)',
+      ).run(f.id, f.blob_path, f.mime, f.size, f.created_by);
+      const blobName = crypto.randomUUID();
+      fs.mkdirSync(BLOB_DIR, { recursive: true });
+      fs.writeFileSync(path.join(BLOB_DIR, blobName), buf);
+      db.prepare('UPDATE collab_files SET blob_path = ?, mime = ?, size = ?, created_by = ? WHERE id = ?').run(
+        blobName,
+        mime,
+        buf.length,
+        req.userId!,
+        f.id,
+      );
+      res.json({ ok: true, size: buf.length });
+    } catch (e) {
+      // 이벤트 콜백 안의 예외는 Express가 못 잡는다 — 직접 응답
+      console.error('[upload-version]', e);
+      if (!res.headersSent) res.status(500).json({ error: '업로드 저장에 실패했어요' });
+    }
   });
   req.on('error', () => {
     if (!aborted && !res.headersSent) res.status(500).json({ error: '업로드에 실패했어요' });
@@ -1104,7 +1122,8 @@ router.post('/trash/:fileId/restore', (req: AuthedRequest, res) => {
       )
       .get(r.meeting.id, name, target, f.id);
     if (!dup) break;
-    name = `${f.name} (${i})`.slice(0, 60);
+    const suffix = ` (${i})`; // base를 잘라야 함 — 접미사가 잘리면 무한루프 (copy의 freeName과 동일)
+    name = f.name.slice(0, Math.max(1, 60 - suffix.length)) + suffix;
   }
   db.prepare('UPDATE collab_files SET deleted_at = NULL, deleted_root = NULL WHERE deleted_root = ?').run(
     f.id,

@@ -394,8 +394,8 @@ export default function ProfileDashboard() {
         body: { recapId: e.recapId, idx: e.idx },
       });
       window.dispatchEvent(
-        new CustomEvent('app:error', {
-          detail: r.reminded > 0 ? `✓ ${r.reminded}명에게 리마인드를 보냈어요` : '보낼 대상이 없어요 (쿨다운 중이거나 전원 확인)',
+        new CustomEvent(r.reminded > 0 ? 'app:info' : 'app:error', {
+          detail: r.reminded > 0 ? `${r.reminded}명에게 리마인드를 보냈어요` : '보낼 대상이 없어요 (쿨다운 중이거나 전원 확인)',
         }),
       );
     } catch {

@@ -283,8 +283,11 @@ interface UndoOp {
   undo: () => Promise<void>;
 }
 
-function toast(message: string) {
-  window.dispatchEvent(new CustomEvent('app:error', { detail: message }));
+/** 우상단 토스트 — 성공(체크)은 app:info, 실패(느낌표)는 app:error */
+function toast(message: string, kind: 'ok' | 'error' = 'ok') {
+  window.dispatchEvent(
+    new CustomEvent(kind === 'error' ? 'app:error' : 'app:info', { detail: message }),
+  );
 }
 
 export default function CollabFiles({
@@ -754,7 +757,7 @@ export default function CollabFiles({
         kids.find((x) => x.name === seg) ??
         kids.find((x) => x.name.toLowerCase() === seg.toLowerCase());
       if (!hit) {
-        toast(`"${seg}" 폴더를 찾을 수 없어요`);
+        toast(`"${seg}" 폴더를 찾을 수 없어요`, 'error');
         return; // 편집 모드 유지 — 고쳐서 다시 시도할 수 있게
       }
       cur = hit.id;
@@ -917,7 +920,7 @@ export default function CollabFiles({
 
   async function uploadNewVersion(f: CollabFile, file: File) {
     if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      toast(`파일은 ${MAX_UPLOAD_MB}MB까지 지원해요`);
+      toast(`파일은 ${MAX_UPLOAD_MB}MB까지 지원해요`, 'error');
       return;
     }
     try {
@@ -1044,7 +1047,7 @@ export default function CollabFiles({
           });
         prog(0);
         const r = await uploadOne(file, parentId, prog);
-        if (!r.ok) toast(r.error ?? `${file.name} 업로드 실패`);
+        if (!r.ok) toast(r.error ?? `${file.name} 업로드 실패`, 'error');
         load(); // 파일별 갱신 — 끝난 것부터 목록에 바로 보이게
       }
     } finally {
@@ -1060,11 +1063,11 @@ export default function CollabFiles({
     for (const file of arr) {
       // 올릴 수 없는 파일은 보내기 전에 경고 — 25MB 초과(서버 413과 동일 기준)·빈 파일
       if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-        toast(`"${file.name}"은 올릴 수 없어요 — 파일은 ${MAX_UPLOAD_MB}MB까지 지원해요`);
+        toast(`"${file.name}"은 올릴 수 없어요 — 파일은 ${MAX_UPLOAD_MB}MB까지 지원해요`, 'error');
         continue;
       }
       if (file.size === 0) {
-        toast(`"${file.name}"은 빈 파일이라 올릴 수 없어요`);
+        toast(`"${file.name}"은 빈 파일이라 올릴 수 없어요`, 'error');
         continue;
       }
       uploadQueueRef.current.push({ file, parentId });
@@ -1480,7 +1483,7 @@ export default function CollabFiles({
       await op.undo();
       toast(`실행 취소: ${op.label}`);
     } catch {
-      toast('실행 취소에 실패했어요 (이미 바뀌었을 수 있어요)');
+      toast('실행 취소에 실패했어요 (이미 바뀌었을 수 있어요)', 'error');
     }
   }
 
@@ -1607,7 +1610,7 @@ export default function CollabFiles({
     void navigator.clipboard
       .writeText(`[exist] ${f.name} — ${link}`)
       .then(() => toast('그룹 링크를 복사했어요'))
-      .catch(() => toast('클립보드 복사에 실패했어요'));
+      .catch(() => toast('클립보드 복사에 실패했어요', 'error'));
   }
 
   function TypeMenu({ parentId }: { parentId: number | null }) {
