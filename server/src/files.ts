@@ -87,7 +87,15 @@ export function ensureLegacyFiles(meetingId: number, meetingCode: string, userId
   }
   // 레거시가 없는 새 그룹 — 현업(제조 분산 조직)에서 가장 많이 쓰는 표준 폴더 세트로 시작
   if (created === 0) {
-    const SEED_FOLDERS = ['절차·기준서', '회의 자료', '점검·일지', '현장 사진', '도면·설계', '보고서·품의'];
+    const SEED_FOLDERS = [
+      '작업·교대 일지', // 생산일보·교대 인수인계 — 현장 최다 빈도
+      '설비·정비', // 설비 이력·예방정비(PM)·고장 보고
+      '안전·환경', // TBM·위험성평가·MSDS·안전교육
+      '품질·검사', // 검사성적서·부적합·CAPA·변경관리 기록
+      '작업표준·SOP',
+      '도면·설계',
+      '회의 자료',
+    ];
     const ins = db.prepare(
       'INSERT INTO collab_files (meeting_id, parent_id, name, type, created_by) VALUES (?, NULL, ?, ?, ?)',
     );
