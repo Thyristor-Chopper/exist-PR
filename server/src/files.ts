@@ -22,7 +22,7 @@ import {
   buildDocYdoc,
   buildDocYdocFromMarkdown,
 } from './importFile.js';
-import { notifyUser } from './notify.js';
+import { notifyUser, emitToUser } from './notify.js';
 import { canManageMeeting } from './perm.js';
 import { sendDmCore } from './dm.js';
 
@@ -172,6 +172,43 @@ function checkParticipant(
 }
 
 const router = Router({ mergeParams: true });
+
+/* ── files:changed 푸시 — 파일 생성·이동·삭제·업로드·서명 등 모든 변경을 그룹 멤버 전원에게 즉시 방송.
+ * 폴링 없이 목록이 실시간으로 맞는 유일한 경로. 연속 변경(폴더 업로드 등)은 300ms로 뭉친다 ── */
+const filesChangedTimers = new Map<string, NodeJS.Timeout>();
+function notifyFilesChanged(code: string) {
+  const upper = code.toUpperCase();
+  if (filesChangedTimers.has(upper)) return;
+  filesChangedTimers.set(
+    upper,
+    setTimeout(() => {
+      filesChangedTimers.delete(upper);
+      try {
+        const m = db.prepare('SELECT id FROM meetings WHERE code = ?').get(upper) as
+          | { id: number }
+          | undefined;
+        if (!m) return;
+        const rows = db
+          .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+          .all(m.id) as { user_id: number }[];
+        for (const r of rows) emitToUser(r.user_id, 'files:changed', { code: upper });
+      } catch {
+        /* 방송 실패는 치명적이지 않음 */
+      }
+    }, 300),
+  );
+}
+
+// 변경 성공(2xx·비GET) 시 자동 방송 — 개별 라우트에 일일이 심지 않는다
+router.use((req, res, next) => {
+  if (req.method !== 'GET') {
+    res.on('finish', () => {
+      const code = (req.params as { code?: string }).code;
+      if (res.statusCode < 400 && code) notifyFilesChanged(String(code));
+    });
+  }
+  next();
+});
 
 /** 파일 목록 (평면 배열 — 클라가 parent_id로 트리 구성) */
 router.get('/', (req: AuthedRequest, res) => {

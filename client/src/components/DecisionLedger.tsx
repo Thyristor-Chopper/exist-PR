@@ -165,8 +165,14 @@ export default function DecisionLedger({ code }: { code: string }) {
       }
     }
     socket.on('agent:notify', onNotify);
+    // 남이 확인(서명)한 순간 현황 즉시 갱신 — 회람 진행 상황이 새로고침 없이 맞게
+    function onLedgerChanged(p: { code?: string } | undefined) {
+      if (p?.code === code.toUpperCase()) load();
+    }
+    socket.on('ledger:changed', onLedgerChanged);
     return () => {
       socket.off('agent:notify', onNotify);
+      socket.off('ledger:changed', onLedgerChanged);
     };
   }, [code, load]);
 

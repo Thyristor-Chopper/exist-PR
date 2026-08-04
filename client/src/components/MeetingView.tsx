@@ -71,7 +71,14 @@ function makeFallbackStream(label: string): MediaStream {
   canvas.width = 640;
   canvas.height = 360;
   const ctx = canvas.getContext('2d')!;
-  setInterval(() => {
+  const stream = canvas.captureStream(2);
+  const track = stream.getVideoTracks()[0];
+  const timer = setInterval(() => {
+    // 통화가 끝나 트랙이 정지되면 그리기도 멈춘다 (기존엔 clearInterval이 없어 호출마다 영구 누수)
+    if (!track || track.readyState === 'ended') {
+      clearInterval(timer);
+      return;
+    }
     ctx.fillStyle = '#1c1f26';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#2db400';
@@ -82,7 +89,7 @@ function makeFallbackStream(label: string): MediaStream {
     ctx.font = '20px sans-serif';
     ctx.fillText(new Date().toLocaleTimeString('ko-KR'), canvas.width / 2, canvas.height / 2 + 40);
   }, 500);
-  return canvas.captureStream(2);
+  return stream;
 }
 
 function VideoTile({

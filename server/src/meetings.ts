@@ -1418,6 +1418,7 @@ router.post('/:code/handovers/:id/ack', (req: AuthedRequest, res) => {
     )
   )
     return res.status(404).json({ error: '없는 인수인계예요' });
+  emitLedgerChanged(r.meeting.id, String(req.params.code));
   res.json({ ok: true });
 });
 
@@ -1482,6 +1483,18 @@ router.get('/:code/decisions/history', async (req: AuthedRequest, res) => {
 });
 
 /** 결정 수신 확인 — 회람 사인. recap이 이 회의 것인지 검증 후 기록 */
+/** 확인(서명) 변동을 그룹 멤버 전원에게 즉시 방송 — 발신자 카드·원장·인수인계 현황이 새로고침 없이 맞게 */
+function emitLedgerChanged(meetingId: number, code: string) {
+  try {
+    const rows = db
+      .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+      .all(meetingId) as { user_id: number }[];
+    for (const row of rows) emitToUser(row.user_id, 'ledger:changed', { code: code.toUpperCase() });
+  } catch {
+    /* 방송 실패는 치명적이지 않음 */
+  }
+}
+
 router.post('/:code/decisions/ack', (req: AuthedRequest, res) => {
   const r = meetingForParticipant(req.params.code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
@@ -1500,6 +1513,7 @@ router.post('/:code/decisions/ack', (req: AuthedRequest, res) => {
   if (!ackDecision(recapId, idx, req.userId!, note, signature)) {
     return res.status(404).json({ error: '존재하지 않는 결정입니다' });
   }
+  emitLedgerChanged(r.meeting.id, String(req.params.code));
   res.json({ ok: true });
 });
 

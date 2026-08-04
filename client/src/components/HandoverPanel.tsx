@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
+import { getSocket } from '../lib/socket';
 import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
 import { CheckMarkIcon, SparklesIcon, AlertIcon, ListIcon, BulbIcon, RefreshIcon } from './Icons';
@@ -84,6 +85,18 @@ export default function HandoverPanel({
       .catch(() => {});
   }, [code]);
   useEffect(load, [load]);
+
+  // 남이 인수인계를 확인(서명)하면 현황 즉시 갱신
+  useEffect(() => {
+    const socket = getSocket();
+    function onLedgerChanged(p: { code?: string } | undefined) {
+      if (p?.code === code.toUpperCase()) load();
+    }
+    socket.on('ledger:changed', onLedgerChanged);
+    return () => {
+      socket.off('ledger:changed', onLedgerChanged);
+    };
+  }, [code, load]);
 
   async function addCheckItem() {
     const label = newCheck.trim();

@@ -167,7 +167,11 @@ export default function DashboardPage() {
       void refresh();
     }
     window.addEventListener('exist:schedule-changed', onChanged);
-    return () => window.removeEventListener('exist:schedule-changed', onChanged);
+    window.addEventListener('exist:todos-changed', onChanged); // 할 일 배정 푸시 → 목록 갱신
+    return () => {
+      window.removeEventListener('exist:schedule-changed', onChanged);
+      window.removeEventListener('exist:todos-changed', onChanged);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -183,8 +187,11 @@ export default function DashboardPage() {
       }, 500);
     }
     socket.on('call:presence', onCallPresence);
+    // 그룹 초대 — 사이드바 "최근 그룹"에 즉시 표시 (기존엔 수신처가 없어 새로고침 전까지 안 보였음)
+    socket.on('meeting:invited', onCallPresence);
     return () => {
       socket.off('call:presence', onCallPresence);
+      socket.off('meeting:invited', onCallPresence);
       if (t != null) window.clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

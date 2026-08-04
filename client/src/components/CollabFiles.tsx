@@ -546,10 +546,18 @@ export default function CollabFiles({
       if (p?.code === code) tick();
     };
     socket.on('files:presence', onPresence);
+    // 파일 목록 변경 푸시 — 남이 만들고 올리고 지운 것이 즉시 보인다 (기존엔 갱신 경로 없음)
+    const onFilesChanged = (p: { code?: string }) => {
+      if (p?.code !== code.toUpperCase()) return;
+      load();
+      void loadTrash(); // 삭제·복원도 변경에 포함 — 휴지통 개수 배지 동기화
+    };
+    socket.on('files:changed', onFilesChanged);
     return () => {
       alive = false;
       clearInterval(t);
       socket.off('files:presence', onPresence);
+      socket.off('files:changed', onFilesChanged);
     };
   }, [code]);
 

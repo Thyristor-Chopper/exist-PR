@@ -141,6 +141,37 @@ export default function ProfileDashboard() {
     }
   }
 
+  // 확인(서명) 변동 푸시 — "지금 처리할 것" 인박스·발신자 카드 즉시 갱신
+  useEffect(() => {
+    const socket = getSocket();
+    const orgQ = `org=${org === 'personal' ? 'personal' : org}`;
+    function onLedgerChanged() {
+      api<{ items: PendingDecision[] }>(`/api/agent/pending-decisions?${orgQ}`)
+        .then((d) => setPending(d.items))
+        .catch(() => {});
+      api<{ entries: SentEntry[]; totalSent: number }>(`/api/agent/sent?${orgQ}`)
+        .then((d) => setSent(d))
+        .catch(() => {});
+      api<Actions>(`/api/agent/actions?${orgQ}`).then(setActions).catch(() => {});
+    }
+    socket.on('ledger:changed', onLedgerChanged);
+    return () => {
+      socket.off('ledger:changed', onLedgerChanged);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org]);
+
+  // 할 일 배정/변경 푸시 — 홈 "전체 할 일" 즉시 갱신
+  useEffect(() => {
+    const orgQ = `org=${org === 'personal' ? 'personal' : org}`;
+    function onTodos() {
+      api<Todo[]>(`/api/todos?${orgQ}`).then(setTodos).catch(() => {});
+    }
+    window.addEventListener('exist:todos-changed', onTodos);
+    return () => window.removeEventListener('exist:todos-changed', onTodos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org]);
+
   // 통화 인원 변동 소켓 푸시 — "지금 N명 통화 중" 배너·그룹 카드 즉시 갱신
   useEffect(() => {
     const socket = getSocket();

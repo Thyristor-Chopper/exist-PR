@@ -540,6 +540,11 @@ function NowBar({
       if (n.kind === 'org-approved' || n.kind === 'org-request') {
         void useOrgStore.getState().load();
       }
+      // 할 일 배정/변경 알림 — 서버가 이미 쏘고 있었는데 소비를 안 했었다.
+      // 이 이벤트 하나로 나우바·대시보드·홈의 할 일 목록이 전부 재조회된다
+      if (n.kind === 'todo') {
+        window.dispatchEvent(new CustomEvent('exist:todos-changed', { detail: {} }));
+      }
     }
     socket.on('agent:notify', onNotify);
     return () => {
