@@ -357,21 +357,36 @@ router.get('/:fileId/acks', (req: AuthedRequest, res) => {
 
 /* ── 업로드 파일(blob) 미리보기 시청자 — yjs room이 없는 파일의 프레즌스 (소켓 신고 기반).
  * 클라가 미리보기를 여는 동안 file:viewing을 30초 심박으로 보내고, 90초 무신호면 스테일 처리 ── */
-const blobViewers = new Map<number, Map<number, { fileId: number; ts: number }>>();
-export function setBlobViewing(meetingId: number, userId: number, fileId: number | null) {
+/* 시청 상태를 소켓 연결에 귀속 — 심박·TTL·게으른 청소 불필요.
+ * 소켓이 끊기면 그 소켓이 신고한 시청도 즉시 사라진다 (문서 편집 프레즌스와 같은 모델).
+ * meetingId → socketId → { userId, fileId } */
+const blobViewers = new Map<number, Map<string, { userId: number; fileId: number }>>();
+export function setBlobViewing(
+  meetingId: number,
+  socketId: string,
+  userId: number,
+  fileId: number | null,
+) {
   let m = blobViewers.get(meetingId);
   if (!m) {
     m = new Map();
     blobViewers.set(meetingId, m);
   }
-  if (fileId == null) m.delete(userId);
+  if (fileId == null) m.delete(socketId);
   else {
-    m.set(userId, { fileId, ts: Date.now() });
+    m.set(socketId, { userId, fileId });
     logFileActivity(`file-${fileId}`); // 업로드 파일 미리보기도 회의↔문서 다리에 기록
   }
+  if (m.size === 0) blobViewers.delete(meetingId);
 }
-export function clearBlobViewing(userId: number) {
-  for (const m of blobViewers.values()) m.delete(userId);
+/** 소켓 하나가 끊길 때 그 소켓 몫만 제거 — 영향받은 meetingId 목록 반환 (프레즌스 방송용) */
+export function clearBlobViewingBySocket(socketId: string): number[] {
+  const touched: number[] = [];
+  for (const [mid, m] of blobViewers) {
+    if (m.delete(socketId)) touched.push(mid);
+    if (m.size === 0) blobViewers.delete(mid);
+  }
+  return touched;
 }
 
 /** 파일별 현재 편집자·시청자 — { fileId: [{username, avatar}] } (편집=awareness, 미리보기=소켓 신고) */
@@ -411,12 +426,9 @@ router.get('/presence', (req: AuthedRequest, res) => {
   // 미리보기 시청자 합류 (업로드 파일)
   const viewers = blobViewers.get(r.meeting.id);
   if (viewers) {
-    for (const [uid, v] of viewers) {
-      if (Date.now() - v.ts > 90_000) {
-        viewers.delete(uid); // 스테일 — 심박 끊김
-        continue;
-      }
-      const p = byId.get(uid);
+    // 소켓 귀속이라 스테일 판정 불필요 — 여기 있는 건 전부 살아 있는 연결
+    for (const v of viewers.values()) {
+      const p = byId.get(v.userId);
       if (!p) continue;
       const list = (out[v.fileId] ??= []);
       if (!list.some((x) => x.username === p.username)) list.push(p);

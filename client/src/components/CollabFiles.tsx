@@ -540,12 +540,14 @@ export default function CollabFiles({
         .catch(() => {});
     };
     tick();
-    const t = setInterval(tick, 15000);
+    // 15초 폴링 제거 — files:presence 푸시가 전 케이스(입장·퇴장·소켓 끊김)를 커버한다.
+    // 재연결 시에만 스냅샷 재조회 (끊긴 사이 놓친 변동 보정)
     const socket = getSocket();
     const onPresence = (p: { code?: string }) => {
       if (p?.code === code) tick();
     };
     socket.on('files:presence', onPresence);
+    socket.on('connect', tick);
     // 파일 목록 변경 푸시 — 남이 만들고 올리고 지운 것이 즉시 보인다 (기존엔 갱신 경로 없음)
     const onFilesChanged = (p: { code?: string }) => {
       if (p?.code !== code.toUpperCase()) return;
@@ -555,8 +557,8 @@ export default function CollabFiles({
     socket.on('files:changed', onFilesChanged);
     return () => {
       alive = false;
-      clearInterval(t);
       socket.off('files:presence', onPresence);
+      socket.off('connect', tick);
       socket.off('files:changed', onFilesChanged);
     };
   }, [code]);
@@ -1110,17 +1112,18 @@ export default function CollabFiles({
     load();
   }
 
-  // 미리보기 열람 신고 — "누가 지금 이 파일을 보고 있나" (편집 프레즌스의 미리보기판).
-  // 열면 즉시 + 30초 심박, 떠나면 null (서버는 90초 무신호를 스테일 처리)
+  // 미리보기 열람 신고 — 소켓 연결에 귀속 (심박 불필요, 소켓이 끊기면 서버가 알아서 정리).
+  // 열면 즉시 신고, 재연결되면 재신고, 떠나면 null
   const activeBlobId = active?.type === 'file' ? active.id : null;
   useEffect(() => {
     if (!visible || activeBlobId == null) return;
     const socket = getSocket();
     const report = () => socket.emit('file:viewing', { code, fileId: activeBlobId });
     report();
-    const heartbeat = setInterval(report, 30_000);
+    // 와이파이 순단 등으로 소켓이 갈아끼워지면 새 소켓엔 내 시청 상태가 없다 — 재신고
+    socket.on('connect', report);
     return () => {
-      clearInterval(heartbeat);
+      socket.off('connect', report);
       socket.emit('file:viewing', { code, fileId: null });
     };
   }, [activeBlobId, visible, code]);

@@ -7,7 +7,7 @@ import { eventOccurrenceOnOrAfter } from './meetings.js';
 import { getUserContext } from './agent.js';
 import { attachYjs } from './ydoc.js';
 import { initNotifier, notifyUser, emitToUser } from './notify.js';
-import { setBlobViewing, clearBlobViewing } from './files.js';
+import { setBlobViewing, clearBlobViewingBySocket } from './files.js';
 import { sweepHandoverEscalations } from './handover.js';
 import { ensureAgentUser } from './steward.js';
 import { runTodoReminders } from './todos.js';
@@ -180,7 +180,7 @@ io.on('connection', (socket) => {
       .get(meeting.id, userId);
     if (!isPart) return;
     const fid = Number(p?.fileId);
-    setBlobViewing(meeting.id, userId, Number.isInteger(fid) && fid > 0 ? fid : null);
+    setBlobViewing(meeting.id, socket.id, userId, Number.isInteger(fid) && fid > 0 ? fid : null);
     // 참가자들에게 재조회 핑 — 편집 프레즌스(ydoc pingPresence)와 같은 채널
     const parts = db
       .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
@@ -196,12 +196,27 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    // 이 소켓이 신고한 미리보기 시청 상태 즉시 정리 + 해당 그룹에 프레즌스 핑
+    // (소켓 귀속 모델 — 탭 하나가 죽으면 그 탭 몫만 정확히 사라진다)
+    for (const mid of clearBlobViewingBySocket(socket.id)) {
+      try {
+        const m = db.prepare('SELECT code FROM meetings WHERE id = ?').get(mid) as
+          | { code: string }
+          | undefined;
+        if (!m) continue;
+        const parts = db
+          .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+          .all(mid) as { user_id: number }[];
+        for (const q of parts) emitToUser(q.user_id, 'files:presence', { code: m.code });
+      } catch {
+        /* 방송 실패 무시 */
+      }
+    }
     const e = online.get(userId);
     if (!e) return;
     e.count--;
     if (e.count <= 0) {
       online.delete(userId);
-      clearBlobViewing(userId); // 마지막 소켓까지 끊김 — 미리보기 시청 상태 정리
       // 마지막 소켓이 끊긴 시각 = "자리를 비운 시점" — P2 놓친 것 브리핑의 기준
       db.prepare(`UPDATE users SET last_seen_at = datetime('now') WHERE id = ?`).run(userId);
     }
