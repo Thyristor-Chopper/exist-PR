@@ -12690,9 +12690,9 @@ input:focus {
   padding: 6px 10px 3px;
   text-transform: none;
 }
-/* 투톤 아이콘 포인트 색 — 정렬 아래 화살표 등 */
+/* 투톤 아이콘 포인트 색 — 정렬 아래 화살표 등 (브랜드 초록 통일) */
 .ic-accent {
-  color: #4f7df9;
+  color: var(--green);
 }
 .ic-accent-green {
   color: var(--green);
