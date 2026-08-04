@@ -13,6 +13,7 @@ import GlobalSearch from '../components/GlobalSearch';
 import { useOrgStore } from '../orgStore';
 import { readPins, PINS_EVENT } from '../lib/pins';
 import { initPush } from '../lib/push';
+import { getSocket } from '../lib/socket';
 
 export default function DashboardPage() {
   const location = useLocation();
@@ -167,6 +168,25 @@ export default function DashboardPage() {
     }
     window.addEventListener('exist:schedule-changed', onChanged);
     return () => window.removeEventListener('exist:schedule-changed', onChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 통화 인원 변동 소켓 푸시 — 나우바·최근 그룹의 "N명 통화 중"을 즉시 갱신 (500ms 디바운스)
+  useEffect(() => {
+    const socket = getSocket();
+    let t: number | null = null;
+    function onCallPresence() {
+      if (t != null) return;
+      t = window.setTimeout(() => {
+        t = null;
+        void refresh();
+      }, 500);
+    }
+    socket.on('call:presence', onCallPresence);
+    return () => {
+      socket.off('call:presence', onCallPresence);
+      if (t != null) window.clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

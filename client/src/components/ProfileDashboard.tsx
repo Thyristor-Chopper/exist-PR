@@ -9,6 +9,7 @@ import { type Todo, type Meeting } from './NowBar';
 import UnifiedInbox from './UnifiedInbox';
 import { DmWindow, type Thread, type DmScope } from './DirectMessages';
 import { dueBadge } from '../lib/due';
+import { getSocket } from '../lib/socket';
 import ScheduleWidget from './ScheduleWidget';
 import Marquee from './Marquee';
 import { ListIcon, SparklesIcon, CalendarIcon, ChatIcon, UsersIcon, CheckMarkIcon, ChartIcon, CheckIcon, PenIcon, UserIcon, BoltIcon, BuildingIcon, CloseIcon } from './Icons';
@@ -139,6 +140,28 @@ export default function ProfileDashboard() {
       /* 전역 토스트 */
     }
   }
+
+  // 통화 인원 변동 소켓 푸시 — "지금 N명 통화 중" 배너·그룹 카드 즉시 갱신
+  useEffect(() => {
+    const socket = getSocket();
+    function onCallPresence(p: { code?: string; title?: string; peers?: string[] } | undefined) {
+      if (!p?.code || !Array.isArray(p.peers)) return;
+      const n = p.peers.length;
+      setOv((prev) => {
+        if (!prev) return prev;
+        let liveCalls = prev.liveCalls.filter((c) => c.code !== p.code);
+        if (n > 0) liveCalls = [{ title: p.title ?? p.code!, code: p.code!, inCall: n }, ...liveCalls];
+        const recentMeetings = prev.recentMeetings.map((m) =>
+          m.code === p.code ? { ...m, inCall: n } : m,
+        );
+        return { ...prev, liveCalls, recentMeetings };
+      });
+    }
+    socket.on('call:presence', onCallPresence);
+    return () => {
+      socket.off('call:presence', onCallPresence);
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;

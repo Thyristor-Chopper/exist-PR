@@ -19,7 +19,7 @@ import { invalidateBriefForMeeting } from './agent.js';
 import { canManageMeeting } from './perm.js';
 import { audit as orgAudit } from './orgs.js';
 import { resolveChannel, notifyModeOf } from './channels.js';
-import { notifyUser } from './notify.js';
+import { notifyUser, emitToUser } from './notify.js';
 import { AGENT_MENTION, handleAgentQuery, maybeSuggestDecision } from './steward.js';
 
 /*
@@ -177,12 +177,26 @@ export function getRoomPeers(code: string): string[] {
 }
 
 export function attachSfu(io: Server) {
-  /** 통화 인원 변동을 그룹(채팅 룸)에 즉시 방송 — 허브가 10초 폴링을 기다리지 않게 */
+  /** 통화 인원 변동을 즉시 방송 — 허브(채팅 룸) + 그룹 멤버 전원의 홈 화면(사용자 소켓).
+   *  홈 대시보드·나우바는 폴링 트리거가 없어서 이 푸시가 유일한 실시간 경로다 */
   function broadcastCallPresence(r: Room) {
-    io.to(`chat:${r.code.toUpperCase()}`).emit('call:presence', {
-      code: r.code.toUpperCase(),
-      peers: [...r.peers.values()].map((p) => p.username),
-    });
+    const code = r.code.toUpperCase();
+    const peers = [...r.peers.values()].map((p) => p.username);
+    io.to(`chat:${code}`).emit('call:presence', { code, peers });
+    try {
+      const m = db.prepare('SELECT id, title FROM meetings WHERE code = ?').get(code) as
+        | { id: number; title: string }
+        | undefined;
+      if (!m) return;
+      const rows = db
+        .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+        .all(m.id) as { user_id: number }[];
+      for (const row of rows) {
+        emitToUser(row.user_id, 'call:presence', { code, title: m.title, peers });
+      }
+    } catch {
+      /* 방송 실패는 치명적이지 않음 — 폴링 폴백 */
+    }
   }
 
   io.on('connection', (socket: Socket) => {
