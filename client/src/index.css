@@ -12698,7 +12698,7 @@ input:focus {
   color: var(--green);
 }
 
-/* 사이드바 트리 셰브론 — 접고 펴기 (윈도우 탐색기식) */
+/* 사이드바 트리 셰브론 — 접고 펴기 (윈도우 탐색기식: 접힘 › / 펼침 ∨) */
 .side-chevron {
   width: 14px;
   flex: none;
@@ -12707,9 +12707,11 @@ input:focus {
   justify-content: center;
   color: var(--text-sub);
   transition: transform 0.15s ease;
+  /* ChevronIcon 기본이 ∨ — 접힘 상태는 -90° 돌려 › 로 */
+  transform: rotate(-90deg);
 }
 .side-chevron.open {
-  transform: rotate(90deg);
+  transform: rotate(0deg);
 }
 
 /* 사이드바 아이콘 채색 — 장소·상태는 유색, 액션 툴바는 무채 (Win11 문법) */
