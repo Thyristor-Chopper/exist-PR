@@ -910,7 +910,13 @@ export default function MeetingView({
       producersRef.current.audio?.track?.stop();
       producersRef.current.video?.track?.stop();
       producersRef.current = {}; // 재입장 시 죽은 producer 참조 잔존 방지
-      socket.disconnect();
+      // 공유 소켓을 disconnect하면 "내 퇴장" call:presence 방송을 나만 못 받아
+      // 내 화면 갱신이 폴링(10초)으로 밀린다 — 방만 나가고 소켓은 유지 (채팅·알림도 계속 써야 함)
+      try {
+        socket.emit('room:leave');
+      } catch {
+        /* 이미 끊겼으면 무시 */
+      }
     };
   }, [code, user?.username, phase, rejoinTick]);
 

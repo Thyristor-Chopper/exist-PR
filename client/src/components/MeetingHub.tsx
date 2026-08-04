@@ -838,9 +838,14 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
     }
     void load();
     const t = setInterval(load, 10_000);
+    // 소켓 재연결 직후엔 끊긴 사이 놓친 푸시가 있을 수 있다 — 즉시 재조회로 보정
+    const socket = getSocket();
+    const onReconnect = () => void load();
+    socket.on('connect', onReconnect);
     return () => {
       alive = false;
       clearInterval(t);
+      socket.off('connect', onReconnect);
     };
   }, [code]);
 
