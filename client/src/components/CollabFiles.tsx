@@ -386,6 +386,7 @@ export default function CollabFiles({
     () => localStorage.getItem('exist:cf-tree') !== '0',
   );
   // 사이드바 트리 펼침 상태 (윈도우 탐색기식 계층) — 셰브론으로 접고 펴기
+  const [sideRootOpen, setSideRootOpen] = useState(true); // 루트(그룹명) 펼침
   const [sideOpenIds, setSideOpenIds] = useState<Set<number>>(new Set());
   function toggleSideOpen(id: number) {
     setSideOpenIds((prev) => {
@@ -2187,17 +2188,7 @@ export default function CollabFiles({
         {/* 왼쪽 사이드바 — 홈·즐겨찾기·최근·폴더·휴지통 한 공간 (윈도우 탐색기 탐색 창) */}
         {treeOn && (
           <aside className="cf-desktree">
-            <button
-              className={`cf-desktree-item side-ic-home${homeOpen ? ' cur' : ''}`}
-              onClick={() => {
-                clearSel();
-                setTrashOpen(false);
-                setHomeOpen(true);
-              }}
-            >
-              <HomeIcon size={13} /> 홈
-            </button>
-            <div className="cf-desktree-sep" />
+            {/* 루트 = 그룹 이름 — 그 아래 홈·폴더·휴지통이 계층으로 (파일 체계 통일) */}
             <button
               className={`cf-desktree-item side-ic-folder${
                 cwd === null && !trashOpen && !homeOpen ? ' cur' : ''
@@ -2219,9 +2210,33 @@ export default function CollabFiles({
                 else void moveMany(ids, null);
               }}
             >
+              <span
+                className={`side-chevron${sideRootOpen ? ' open' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSideRootOpen((v) => !v);
+                }}
+              >
+                <ChevronIcon size={10} />
+              </span>
               <FolderIcon size={13} /> {rootName}
             </button>
-            {(function renderSideFolders(pid: number | null, depth: number): React.ReactNode[] {
+            {sideRootOpen && (
+              <button
+                className={`cf-desktree-item side-ic-home${homeOpen ? ' cur' : ''}`}
+                style={{ paddingLeft: 20 }}
+                onClick={() => {
+                  clearSel();
+                  setTrashOpen(false);
+                  setHomeOpen(true);
+                }}
+              >
+                <span className="side-chevron" />
+                <HomeIcon size={13} /> 홈
+              </button>
+            )}
+            {sideRootOpen &&
+            (function renderSideFolders(pid: number | null, depth: number): React.ReactNode[] {
               return (byParent.get(pid) ?? [])
                 .filter((x) => x.type === 'folder')
                 .sort(byNameNat)
@@ -2267,12 +2282,13 @@ export default function CollabFiles({
                     ...(open && hasKids ? renderSideFolders(f.id, depth + 1) : []),
                   ];
                 });
-            })(null, 0)}
-            <div className="cf-desktree-sep" />
+            })(null, 1)}
+            {sideRootOpen && (
             <button
               className={`cf-desktree-item side-ic-trash${trashOpen ? ' cur' : ''}${
                 dropTarget === 'trash' ? ' droptarget danger' : ''
               }`}
+              style={{ paddingLeft: 20 }}
               onClick={() => {
                 clearSel();
                 setHomeOpen(false);
@@ -2296,8 +2312,10 @@ export default function CollabFiles({
                 void deleteSelection(targets);
               }}
             >
+              <span className="side-chevron" />
               <TrashIcon size={13} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
             </button>
+            )}
           </aside>
         )}
         {/* 홈 — 상단 즐겨찾기, 하단 최근 방문 (탐색기 홈) */}

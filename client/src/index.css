@@ -11871,7 +11871,10 @@ input:focus {
   align-items: center;
   gap: 2px;
   margin: 0 6px;
-  padding: 4px 12px;
+  padding: 0 12px;
+  /* 크럼 모드·편집 모드 내용물이 달라도 높이 고정 — 검색창과 동일 */
+  height: 30px;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
@@ -11932,9 +11935,11 @@ input:focus {
 
 .cf-search {
   width: 200px;
+  height: 30px;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 6px 14px;
+  padding: 0 14px;
   font-size: 13px;
   background: var(--surface);
   color: var(--text);
