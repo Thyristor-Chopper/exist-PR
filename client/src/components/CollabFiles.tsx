@@ -1407,6 +1407,25 @@ export default function CollabFiles({
     }
   }
 
+  /** 휴지통 비우기 — 권한 있는 항목 전부 영구 삭제 (권한 없는 건 서버가 남김) */
+  async function emptyTrash() {
+    if (!confirm('휴지통을 비우면 안의 항목이 완전히 사라져요. 계속할까요?')) return;
+    try {
+      const r = await api<{ purged: number; skipped: number }>(
+        `/api/meetings/${code}/files/trash`,
+        { method: 'DELETE' },
+      );
+      await loadTrash();
+      toast(
+        r.skipped > 0
+          ? `휴지통 비우기 완료 — 권한이 없는 ${r.skipped}개는 남았어요`
+          : '휴지통을 비웠어요',
+      );
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
   // ── 문서 열람 서명 (회람 사인) ──
   async function loadAcks(fileId: number) {
     try {
@@ -2456,6 +2475,11 @@ export default function CollabFiles({
               <div className="cf-empty">휴지통이 비어 있어요</div>
             ) : (
               <>
+                <div className="cf-trash-toolbar">
+                  <button className="cf-trash-empty" onClick={() => void emptyTrash()}>
+                    휴지통 비우기
+                  </button>
+                </div>
                 <div className="cf-listhead cf-trashhead-row">
                   <span className="cf-trashhead-name">이름</span>
                   <span className="cf-trashhead-meta">지운 사람</span>

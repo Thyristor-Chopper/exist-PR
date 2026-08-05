@@ -13027,6 +13027,14 @@ input:focus {
   word-break: break-all;
 }
 
+/* 세부정보 패널 안 액션 버튼 폭 통일 — 홀로 놓인 알약(DM 보내기 등)이
+ * 내용폭으로 떠서 컨테이너 안 버튼(서명 요청 등)과 들쭉날쭉하던 것 */
+.cf-details .cf-ack-req,
+.cf-details .cf-ack-off {
+  width: 100%;
+  text-align: center;
+}
+
 .cf-details-open {
   margin-top: auto;
   width: 100%;
@@ -19831,6 +19839,26 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 .cf-trashmain .cf-trash-meta {
   width: 110px;
   font-size: 12px;
+}
+
+/* 휴지통 비우기 — 목록 위 볼드 텍스트 버튼 (탐색기식) */
+.cf-trash-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 10px 8px;
+}
+.cf-trash-empty {
+  border: none;
+  background: none;
+  color: var(--red);
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.cf-trash-empty:hover {
+  background: var(--red-soft);
 }
 
 .cf-trashhead-name {

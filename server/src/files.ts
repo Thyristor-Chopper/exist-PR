@@ -828,6 +828,42 @@ function collectSubtree(rootId: number): number[] {
   return ids;
 }
 
+/** 휴지통 비우기 — 내가 지울 권한이 있는 항목 전부 영구 삭제 (권한 없는 건 남김) */
+router.delete('/trash', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const roots = db
+    .prepare('SELECT id, created_by FROM collab_files WHERE meeting_id = ? AND deleted_root = id')
+    .all(r.meeting.id) as FileRow[];
+  let purged = 0;
+  let skipped = 0;
+  for (const f of roots) {
+    if (!canManageFile(f, r.meeting, req.userId!)) {
+      skipped++;
+      continue;
+    }
+    const rooms = db
+      .prepare('SELECT room FROM collab_files WHERE deleted_root = ? AND room IS NOT NULL')
+      .all(f.id) as { room: string }[];
+    for (const row of rooms) deleteYdoc(row.room);
+    const blobs = db
+      .prepare('SELECT blob_path FROM collab_files WHERE deleted_root = ? AND blob_path IS NOT NULL')
+      .all(f.id) as { blob_path: string }[];
+    for (const row of blobs) deleteBlob(row.blob_path);
+    const vers = db
+      .prepare(
+        'SELECT v.blob_path FROM file_versions v JOIN collab_files f2 ON f2.id = v.file_id WHERE f2.deleted_root = ?',
+      )
+      .all(f.id) as { blob_path: string }[];
+    for (const v of vers) deleteBlob(v.blob_path);
+    db.prepare(
+      'DELETE FROM file_versions WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
+    ).run(f.id);
+    purged += db.prepare('DELETE FROM collab_files WHERE deleted_root = ?').run(f.id).changes;
+  }
+  res.json({ ok: true, purged, skipped });
+});
+
 /** 삭제 → 휴지통 (소프트) — 만든 사람·호스트·조직 관리자. 폴더는 하위까지 묶어서. Yjs는 보존 */
 router.delete('/:fileId', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
