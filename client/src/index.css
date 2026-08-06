@@ -12346,6 +12346,14 @@ input:focus {
   white-space: nowrap;
   margin-left: 6px;
 }
+/* 권한 제외 사유 — 선택 개수와 배지 숫자가 다를 때 그 이유를 즉석에서 */
+.cf-dragghost-excl {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--red);
+  white-space: nowrap;
+  margin-left: 6px;
+}
 
 @keyframes dragghost-in {
   from {

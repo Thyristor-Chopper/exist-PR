@@ -404,6 +404,7 @@ export default function CollabFiles({
   const [dragGhost, setDragGhost] = useState<{
     count: number;
     folders: number; // 내역 표기 "폴더 N · 파일 M" — 카드 스택(최대 3장)과 실제 개수 혼동 방지
+    excluded: number; // 편집 권한 없어 빠진 개수 — 선택 개수와 배지가 다른 이유를 표시
     types: FileType[];
     x: number;
     y: number;
@@ -2778,16 +2779,23 @@ export default function CollabFiles({
                 draggable
                 onDragStart={(e) => {
                   if (!selectedIds.has(f.id)) selectOnly(f.id);
-                  const base = selectedIds.has(f.id) ? [...selectedIds, f.id] : [f.id];
-                  const ids = [...new Set(base)].filter((id) => {
+                  const base = [...new Set(selectedIds.has(f.id) ? [...selectedIds, f.id] : [f.id])];
+                  const ids = base.filter((id) => {
                     const x = byId.get(id);
                     return x && canEdit(x);
                   });
+                  const excluded = base.length - ids.length; // 편집 권한 없어 이동에서 빠지는 항목
+                  if (ids.length === 0) {
+                    // 전부 권한 없음 — 조용히 빈 드래그가 되느니 시작을 막고 이유를 말한다
+                    e.preventDefault();
+                    toast('만든 사람·호스트·관리자만 이동할 수 있는 항목이에요', 'error');
+                    return;
+                  }
                   dragIdsRef.current = ids;
                   e.dataTransfer.effectAllowed = 'copyMove'; // Ctrl 누르고 놓으면 복사
                   e.dataTransfer.setData('text/plain', '');
-                  // 여러 개 들었으면 네이티브 프리뷰 대신 커스텀 고스트 (개수 배지 + 애니메이션)
-                  if (ids.length > 1 && dragEmptyImg.current) {
+                  // 여러 개 들었거나 제외가 생겼으면 커스텀 고스트 (개수 배지 + 제외 사유)
+                  if ((ids.length > 1 || excluded > 0) && dragEmptyImg.current) {
                     e.dataTransfer.setDragImage(dragEmptyImg.current, 0, 0);
                     // 폴더를 스택 앞에 — 카드 3장에 폴더가 안 보이면 구성이 왜곡돼 보임
                     const sorted = [...ids].sort((a, b) => {
@@ -2798,6 +2806,7 @@ export default function CollabFiles({
                     setDragGhost({
                       count: ids.length,
                       folders: ids.filter((id) => byId.get(id)?.type === 'folder').length,
+                      excluded,
                       types: sorted.slice(0, 3).map((id) => byId.get(id)?.type ?? 'doc'),
                       x: e.clientX,
                       y: e.clientY,
@@ -3300,6 +3309,9 @@ export default function CollabFiles({
                 <span className="cf-dragghost-break">
                   폴더 {dragGhost.folders} · 파일 {dragGhost.count - dragGhost.folders}
                 </span>
+              )}
+              {dragGhost.excluded > 0 && (
+                <span className="cf-dragghost-excl">권한 없는 {dragGhost.excluded}개 제외</span>
               )}
               <span className="cf-dragghost-plus">＋복사</span>
             </div>
