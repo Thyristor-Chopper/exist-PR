@@ -11,6 +11,8 @@ services:
       DATA_DIR: /data
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      # 회의 후 원음 재전사 모델 (stt.ts) — 기록·결정 추출 품질용
+      OPENAI_STT_MODEL: ${OPENAI_STT_MODEL:-gpt-4o-mini-transcribe}
       ANNOUNCED_IP: ${ANNOUNCED_IP}
       # 같은 공유기(LAN) 안 통화용 사설 IP — 헤어핀 NAT 회피. 맥미니 LAN IP.
       LOCAL_IP: ${LOCAL_IP:-192.168.0.82}

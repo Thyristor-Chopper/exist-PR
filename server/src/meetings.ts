@@ -30,6 +30,7 @@ import {
 import { generateAgenda, generateDecisionHistory, invalidateAgenda, ensureAgentUser } from './steward.js';
 import { draftHandover, publishHandover, listHandovers, ackHandover, reviewHandover, listChecklist, addChecklistItem, removeChecklistItem } from './handover.js';
 import filesRouter, { deleteMeetingFiles } from './files.js';
+import sttRouter from './stt.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.join(process.env.DATA_DIR || path.join(__dirname, '..'), 'uploads');
@@ -40,6 +41,8 @@ const router = Router();
 router.use(requireAuth);
 // 공동편집 파일시스템 — /:code/files (files.ts, mergeParams)
 router.use('/:code/files', filesRouter);
+// 통화 원음 청크 — /:code/stt (stt.ts, 회의 후 whisper 재전사용)
+router.use('/:code/stt', sttRouter);
 
 // 모든 변경 요청 후 AI 브리핑 캐시 무효화
 router.use((req: AuthedRequest, _res, next) => {

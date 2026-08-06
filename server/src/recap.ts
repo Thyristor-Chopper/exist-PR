@@ -3,6 +3,7 @@ import db from './db.js';
 import { notifyUser } from './notify.js';
 import { invalidateBrief } from './agent.js';
 import { invalidateAgenda, ensureAgentUser, settleAgendaAfterRecap } from './steward.js';
+import { transcribeMeetingAudio } from './stt.js';
 
 /*
  * exist P1 — 회의 통화가 끝나면 그 회의의 채팅에서 결정·할 일을 추출해
@@ -16,6 +17,7 @@ import { invalidateAgenda, ensureAgentUser, settleAgendaAfterRecap } from './ste
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+// 회의 후 원음 재전사 (stt.ts) — recap 재료의 품질을 Web Speech 위로 끌어올린다
 /** 방이 비워진 뒤 이만큼 기다렸다 요약 — 새로고침·재입장이면 취소 (데모 땐 env로 줄임) */
 const GRACE_MS = Number(process.env.RECAP_GRACE_MS ?? 30_000);
 /** 요약할 최소 메시지 수 — 미만이면 조용히 스킵 */
@@ -375,6 +377,16 @@ export async function runRecapForMeeting(
     .get(meeting.id) as { t: string | null };
   const since = last.t ?? new Date(Date.now() - 24 * 3600_000).toISOString().replace('T', ' ').slice(0, 19);
 
+  // 통화 원음 청크가 쌓여 있으면 먼저 whisper 재전사 — 아래 voiceMsgs가 whisper 행을 우선 쓴다.
+  // 실패해도 Web Speech 기록으로 폴백되므로 recap 자체는 계속 간다
+  if (trigger === 'call') {
+    try {
+      await transcribeMeetingAudio(meeting.id);
+    } catch (e) {
+      console.error('[recap] whisper 전사 실패 — Web Speech 기록으로 진행:', e);
+    }
+  }
+
   // 채팅 + 통화 음성 전사를 시간순으로 합쳐서 요약 재료로 쓴다.
   // AI 자신의 메시지는 제외 — 과거 AI 답변("내용이 부족…")을 다시 먹고 그대로 요약하는 자기 오염 방지
   const agentId = ensureAgentUser();
@@ -389,14 +401,27 @@ export async function runRecapForMeeting(
       .all(meeting.id, agentId, since) as (ChatMsg & { at: string })[]
   ) // "@AI"처럼 멘션만 있고 내용이 없는 메시지도 재료가 아님
     .filter((m) => m.text.replace(/@[\w가-힣.-]+/g, '').trim().length > 0);
-  const voiceMsgs = db
+  // whisper 재전사(고품질)가 있으면 그것만, 없으면 Web Speech(live) 기록 —
+  // 둘을 합치면 같은 발화가 두 번 들어가 요약·결정 추출이 왜곡된다
+  const whisperMsgs = db
     .prepare(
       `SELECT u.username AS "from", t.text, t.created_at AS at FROM call_transcripts t
        JOIN users u ON u.id = t.user_id
-       WHERE t.meeting_id = ? AND t.created_at > ?
+       WHERE t.meeting_id = ? AND t.created_at > ? AND t.source = 'whisper'
        ORDER BY t.id ASC LIMIT 300`,
     )
     .all(meeting.id, since) as (ChatMsg & { at: string })[];
+  const voiceMsgs =
+    whisperMsgs.length > 0
+      ? whisperMsgs
+      : (db
+          .prepare(
+            `SELECT u.username AS "from", t.text, t.created_at AS at FROM call_transcripts t
+             JOIN users u ON u.id = t.user_id
+             WHERE t.meeting_id = ? AND t.created_at > ? AND t.source != 'whisper'
+             ORDER BY t.id ASC LIMIT 300`,
+          )
+          .all(meeting.id, since) as (ChatMsg & { at: string })[]);
   // 화자명은 순수 username 유지 — ruleBasedRecap의 담당자 매칭("제가 …게요")이 깨지지 않도록
   const msgs: ChatMsg[] = [...chatMsgs, ...voiceMsgs]
     .sort((a, b) => (a.at < b.at ? -1 : 1))
@@ -642,14 +667,26 @@ export function getRecapSource(
        ORDER BY m.id ASC LIMIT 500`,
     )
     .all(meetingId, agentId, since, cur.call_ended_at) as { from: string; text: string; at: string }[];
-  const voice = db
+  // whisper 재전사가 있으면 그것만 (runRecapForMeeting과 동일한 이유 — 중복 발화 방지)
+  const voiceWhisper = db
     .prepare(
       `SELECT u.username AS "from", t.text, t.created_at AS at FROM call_transcripts t
        JOIN users u ON u.id = t.user_id
-       WHERE t.meeting_id = ? AND t.created_at > ? AND t.created_at <= ?
+       WHERE t.meeting_id = ? AND t.created_at > ? AND t.created_at <= ? AND t.source = 'whisper'
        ORDER BY t.id ASC LIMIT 800`,
     )
     .all(meetingId, since, cur.call_ended_at) as { from: string; text: string; at: string }[];
+  const voice =
+    voiceWhisper.length > 0
+      ? voiceWhisper
+      : (db
+          .prepare(
+            `SELECT u.username AS "from", t.text, t.created_at AS at FROM call_transcripts t
+             JOIN users u ON u.id = t.user_id
+             WHERE t.meeting_id = ? AND t.created_at > ? AND t.created_at <= ? AND t.source != 'whisper'
+             ORDER BY t.id ASC LIMIT 800`,
+          )
+          .all(meetingId, since, cur.call_ended_at) as { from: string; text: string; at: string }[]);
   const items = [
     ...chat.map((m) => ({ from: m.from, text: m.text, ts: new Date(m.at + 'Z').getTime(), kind: 'chat' as const })),
     ...voice.map((m) => ({ from: m.from, text: m.text, ts: new Date(m.at + 'Z').getTime(), kind: 'voice' as const })),

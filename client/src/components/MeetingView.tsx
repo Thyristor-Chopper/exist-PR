@@ -927,6 +927,71 @@ export default function MeetingView({
     };
   }, [code, user?.username, phase, rejoinTick]);
 
+  // ── 원음 녹음 — 회의 후 분석(recap·결정 추출)용. 자막(Web Speech)과 별개 트랙.
+  // sttOn && micOn 동안 30초 청크로 잘라 서버에 올리면, 통화가 끝날 때 서버가
+  // OpenAI로 재전사해 Web Speech보다 정확한 기록을 만든다 (stt.ts) ──
+  useEffect(() => {
+    if (phase !== 'live' || !micOn || !sttOn) return;
+    const track = producersRef.current.audio?.track;
+    if (!track || track.readyState !== 'live' || typeof MediaRecorder === 'undefined') return;
+    const mime = 'audio/webm;codecs=opus';
+    if (!MediaRecorder.isTypeSupported?.(mime)) return;
+    const token = useAuthStore.getState().token;
+    let stopped = false;
+    let rec: MediaRecorder | null = null;
+    let timer: number | undefined;
+    const stream = new MediaStream([track]);
+    // 타임슬라이스 대신 30초마다 레코더를 새로 시작 — 청크마다 컨테이너 헤더가 붙어
+    // 각 파일이 독립적으로 디코딩 가능해야 서버가 청크 단위로 전사할 수 있다
+    const startOne = () => {
+      if (stopped) return;
+      const startTs = Date.now();
+      let r: MediaRecorder;
+      try {
+        r = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 32_000 });
+      } catch {
+        return;
+      }
+      rec = r;
+      r.ondataavailable = (e) => {
+        if (e.data && e.data.size > 2000) {
+          void fetch(`/api/meetings/${code}/stt/audio?ts=${startTs}`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'audio/webm' },
+            body: e.data,
+          }).catch(() => {
+            /* 청크 하나 유실은 치명적이지 않음 */
+          });
+        }
+      };
+      r.onstop = () => {
+        if (!stopped) startOne();
+      };
+      try {
+        r.start();
+      } catch {
+        return;
+      }
+      timer = window.setTimeout(() => {
+        try {
+          r.stop();
+        } catch {
+          /* 이미 종료 */
+        }
+      }, 30_000);
+    };
+    startOne();
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+      try {
+        rec?.stop(); // 마지막 조각 flush → ondataavailable에서 업로드 시도
+      } catch {
+        /* 이미 종료 */
+      }
+    };
+  }, [phase, micOn, sttOn, code]);
+
   // ── 음성 전사(STT) — 통화 중 + 마이크 켜짐 + 자막 켜짐일 때 내 발화를 전사해 서버로 ──
   useEffect(() => {
     if (!sttSupported || phase !== 'live' || !micOn || !sttOn) {
