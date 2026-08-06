@@ -51,17 +51,26 @@ export interface ChatMessage {
   unread?: boolean;
 }
 
+/** 마이크 오디오 처리 제약 — 에코 제거·소음 억제·자동 게인.
+ * 브라우저 대부분 기본 on이지만 deviceId를 지정하면 구현마다 기본값이 갈릴 수 있어 명시.
+ * 에코(스피커→마이크 되돌이)가 한국어 STT를 제일 많이 깨뜨린다 */
+const MIC_PROCESSING = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+} as const;
+
 /** 선택한 장치 우선 getUserMedia — 선택 장치가 뽑혔거나 못 잡으면 기본 장치로 재시도 */
 async function getUserMediaPreferred(camId: string, micId: string): Promise<MediaStream> {
   const prefer: MediaStreamConstraints = {
     video: camId ? { deviceId: { exact: camId } } : true,
-    audio: micId ? { deviceId: { exact: micId } } : true,
+    audio: micId ? { deviceId: { exact: micId }, ...MIC_PROCESSING } : { ...MIC_PROCESSING },
   };
   try {
     return await navigator.mediaDevices.getUserMedia(prefer);
   } catch (err) {
     if (!camId && !micId) throw err;
-    return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    return navigator.mediaDevices.getUserMedia({ video: true, audio: { ...MIC_PROCESSING } });
   }
 }
 
@@ -1131,7 +1140,7 @@ export default function MeetingView({
     try {
       const stream = await navigator.mediaDevices.getUserMedia(
         kind === 'mic'
-          ? { audio: id ? { deviceId: { exact: id } } : true }
+          ? { audio: id ? { deviceId: { exact: id }, ...MIC_PROCESSING } : { ...MIC_PROCESSING } }
           : { video: id ? { deviceId: { exact: id } } : true },
       );
       const track = kind === 'mic' ? stream.getAudioTracks()[0] : stream.getVideoTracks()[0];
