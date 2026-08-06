@@ -1930,6 +1930,32 @@ export default function CollabFiles({
               <UploadIcon size={14} /> 업로드
             </button>
           </div>
+          {/* 휴지통 모드 — 일괄 액션을 메인 툴바에 (윈도우 탐색기식) */}
+          {trashOpen && (
+            <>
+              <button className="cf-tool labeled cf-tool-danger" onClick={() => void emptyTrash()}>
+                <TrashIcon size={13} /> 휴지통 비우기
+              </button>
+              <button
+                className="cf-tool labeled cf-tool-green"
+                disabled={trashItems.length === 0}
+                onClick={() => {
+                  if (!confirm(`휴지통의 ${trashItems.length}개 항목을 모두 복원할까요?`)) return;
+                  void restoreMany(trashItems.map((t) => t.id));
+                }}
+              >
+                <UndoIcon size={13} /> 모든 항목 복원
+              </button>
+              {trashSelIds.size > 0 && (
+                <button
+                  className="cf-tool labeled cf-tool-green"
+                  onClick={() => void restoreMany([...trashSelIds])}
+                >
+                  <UndoIcon size={13} /> 선택한 항목 복원 ({trashSelIds.size})
+                </button>
+              )}
+            </>
+          )}
           {/* 구글 드라이브식 툴바 — 라운드 바 하나에 아이콘 버튼 + 얇은 구분선, 라벨은 툴팁 */}
           <div className="cf-gbar">
             <button
@@ -2484,29 +2510,6 @@ export default function CollabFiles({
               <div className="cf-empty">휴지통이 비어 있어요</div>
             ) : (
               <>
-                {/* 휴지통 툴바 — 행 알약 대신 상단 일괄 액션 (윈도우식) */}
-                <div className="cf-trash-toolbar">
-                  <button className="cf-trash-empty" onClick={() => void emptyTrash()}>
-                    휴지통 비우기
-                  </button>
-                  <button
-                    className="cf-trash-tool"
-                    onClick={() => {
-                      if (!confirm(`휴지통의 ${trashItems.length}개 항목을 모두 복원할까요?`)) return;
-                      void restoreMany(trashItems.map((t) => t.id));
-                    }}
-                  >
-                    모든 항목 복원
-                  </button>
-                  {trashSelIds.size > 0 && (
-                    <button
-                      className="cf-trash-tool"
-                      onClick={() => void restoreMany([...trashSelIds])}
-                    >
-                      선택한 항목 복원 ({trashSelIds.size})
-                    </button>
-                  )}
-                </div>
                 <div className="cf-listhead cf-trashhead-row">
                   <span className="cf-trashhead-name">이름</span>
                   <span className="cf-trashhead-meta">지운 사람</span>
