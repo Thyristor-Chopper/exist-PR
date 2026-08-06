@@ -40,6 +40,7 @@ import {
   FilterIcon,
   ClockIcon,
   UsersIcon,
+  MusicIcon,
   ListViewIcon,
   HomeIcon,
   RenameIcon,
@@ -100,13 +101,17 @@ function BlobFileIcon({ size = 15 }: { size?: number }) {
   );
 }
 
-function TypeIcon({ type, size = 15 }: { type: FileType; size?: number }) {
+function TypeIcon({ type, size = 15, name }: { type: FileType; size?: number; name?: string }) {
   if (type === 'folder') return <FolderIcon size={size} />;
   if (type === 'code') return <CodeIcon size={size} />;
   if (type === 'doc') return <DocIcon size={size} />;
   if (type === 'sheet') return <SheetIcon size={size} />;
   if (type === 'canvas') return <WhiteboardIcon size={size} />;
-  if (type === 'file') return <BlobFileIcon size={size} />;
+  if (type === 'file') {
+    // 업로드 파일 — 이름을 알면 종류별 아이콘 (음악 등)
+    if (name && viewKindOf(name) === 'audio') return <MusicIcon size={size} />;
+    return <BlobFileIcon size={size} />;
+  }
   return <SlideIcon size={size} />;
 }
 
@@ -2431,7 +2436,7 @@ export default function CollabFiles({
                         </span>
                       ) : (
                         <span className={`cf-icon ${f.type}`}>
-                          <TypeIcon type={f.type} size={28} />
+                          <TypeIcon type={f.type} size={28} name={f.name} />
                         </span>
                       )}
                       <span className="cf-home-name">{f.name}</span>
@@ -2466,7 +2471,7 @@ export default function CollabFiles({
                         onClick={() => openFile(f)}
                       >
                         <span className={`cf-icon ${f.type}`}>
-                          <TypeIcon type={f.type} size={15} />
+                          <TypeIcon type={f.type} size={15} name={f.name} />
                         </span>
                         <span className="cf-home-row-name">{f.name}</span>
                         <PresenceStack fileId={f.id} />
@@ -2496,7 +2501,7 @@ export default function CollabFiles({
                         }}
                       >
                         <span className={`cf-icon ${rf.type}`}>
-                          <TypeIcon type={rf.type} size={15} />
+                          <TypeIcon type={rf.type} size={15} name={rf.name} />
                         </span>
                         <span className="cf-home-row-name">{rf.name}</span>
                         <span className="cf-home-row-meta">
@@ -2543,7 +2548,7 @@ export default function CollabFiles({
                     }}
                   >
                     <span className={`cf-icon ${t.type}`}>
-                      <TypeIcon type={t.type} size={15} />
+                      <TypeIcon type={t.type} size={15} name={t.name} />
                     </span>
                     <span className="cf-trash-name" title={t.name}>
                       {t.name}
@@ -2920,7 +2925,7 @@ export default function CollabFiles({
                   </span>
                 ) : (
                   <span className={`cf-entry-icon cf-icon ${f.type}`}>
-                    <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} />
+                    <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} name={f.name} />
                   </span>
                 )}
                 {/* 열람 서명 배지 — 빨강: 내 서명 필요 / 초록: 서명 완료 */}
@@ -3009,7 +3014,7 @@ export default function CollabFiles({
                       }}
                     >
                       <span className={`cf-icon ${h.type}`}>
-                        <TypeIcon type={h.type} size={14} />
+                        <TypeIcon type={h.type} size={14} name={h.name} />
                       </span>
                       <b>{h.name}</b>
                       <span className="cf-contenthit-snip">…{h.snippet}…</span>
@@ -3099,7 +3104,7 @@ export default function CollabFiles({
         {!trashOpen && selected && (
           <aside className="cf-details">
             <div className={`cf-details-icon cf-icon ${selected.type}`}>
-              <TypeIcon type={selected.type} size={42} />
+              <TypeIcon type={selected.type} size={42} name={selected.name} />
             </div>
             <div className="cf-details-name">
               {selected.name}
@@ -3686,7 +3691,7 @@ export default function CollabFiles({
               })()}
             </span>
             <span className={`cf-icon ${active.type}`}>
-              <TypeIcon type={active.type} />
+              <TypeIcon type={active.type} name={active.name} />
             </span>
             <Marquee className="cf-editor-name">{active.name}</Marquee>
             <span className="cf-editor-right">

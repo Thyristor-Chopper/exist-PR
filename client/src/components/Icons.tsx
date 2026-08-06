@@ -761,6 +761,16 @@ export function DocIcon({ size }: IconProps) {
   );
 }
 
+export function MusicIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M9.5 17.5V6.8l9-1.8v10.5" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <circle cx="7" cy="17.5" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="16" cy="15.5" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+    </Svg>
+  );
+}
+
 export function SlideIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
