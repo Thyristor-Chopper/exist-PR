@@ -2163,43 +2163,7 @@ export default function CollabFiles({
             >
               ⋯
             </button>
-            {moreMenu && trashOpen && (
-              /* 휴지통 모드 — 일괄 액션은 ⋯ 안에 (실행취소·선택 3종은 본문용이라 숨김) */
-              <div className="cf-type-menu cf-more-menu">
-                <button
-                  className="cf-menu-danger"
-                  disabled={trashItems.length === 0}
-                  onClick={() => {
-                    setMoreMenu(false);
-                    void emptyTrash();
-                  }}
-                >
-                  <TrashIcon size={13} /> 휴지통 비우기
-                </button>
-                <div className="cf-menu-sep" />
-                <button
-                  disabled={trashItems.length === 0}
-                  onClick={() => {
-                    setMoreMenu(false);
-                    if (!confirm(`휴지통의 ${trashItems.length}개 항목을 모두 복원할까요?`)) return;
-                    void restoreMany(trashItems.map((t) => t.id));
-                  }}
-                >
-                  <UndoIcon size={13} /> 모든 항목 복원
-                </button>
-                <button
-                  disabled={trashSelIds.size === 0}
-                  onClick={() => {
-                    setMoreMenu(false);
-                    void restoreMany([...trashSelIds]);
-                  }}
-                >
-                  <UndoIcon size={13} /> 선택한 항목 복원
-                  {trashSelIds.size > 0 ? ` (${trashSelIds.size})` : ''}
-                </button>
-              </div>
-            )}
-            {moreMenu && !trashOpen && (
+            {moreMenu && (
               <div className="cf-type-menu cf-more-menu">
                 <button
                   disabled={undoStack.current.length === 0}
@@ -2211,6 +2175,42 @@ export default function CollabFiles({
                   <UndoIcon size={13} /> 실행 취소
                   {undoStack.current.at(-1) ? ` — ${undoStack.current.at(-1)!.label}` : ''}
                 </button>
+                {trashOpen && (
+                  /* 휴지통 모드 — 일괄 액션은 실행 취소 아래에 */
+                  <>
+                    <div className="cf-menu-sep" />
+                    <button
+                      className="cf-menu-danger"
+                      disabled={trashItems.length === 0}
+                      onClick={() => {
+                        setMoreMenu(false);
+                        void emptyTrash();
+                      }}
+                    >
+                      <TrashIcon size={13} /> 휴지통 비우기
+                    </button>
+                    <button
+                      disabled={trashItems.length === 0}
+                      onClick={() => {
+                        setMoreMenu(false);
+                        if (!confirm(`휴지통의 ${trashItems.length}개 항목을 모두 복원할까요?`)) return;
+                        void restoreMany(trashItems.map((t) => t.id));
+                      }}
+                    >
+                      <UndoIcon size={13} /> 모든 항목 복원
+                    </button>
+                    <button
+                      disabled={trashSelIds.size === 0}
+                      onClick={() => {
+                        setMoreMenu(false);
+                        void restoreMany([...trashSelIds]);
+                      }}
+                    >
+                      <UndoIcon size={13} /> 선택한 항목 복원
+                      {trashSelIds.size > 0 ? ` (${trashSelIds.size})` : ''}
+                    </button>
+                  </>
+                )}
                 <div className="cf-menu-sep" />
                 <button
                   disabled={items.length === 0}
