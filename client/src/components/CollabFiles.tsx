@@ -403,6 +403,7 @@ export default function CollabFiles({
   // 다중 드래그 고스트 — 네이티브 프리뷰 대신 포인터를 따라다니는 카드 스택 + 개수 배지
   const [dragGhost, setDragGhost] = useState<{
     count: number;
+    folders: number; // 내역 표기 "폴더 N · 파일 M" — 카드 스택(최대 3장)과 실제 개수 혼동 방지
     types: FileType[];
     x: number;
     y: number;
@@ -2788,9 +2789,16 @@ export default function CollabFiles({
                   // 여러 개 들었으면 네이티브 프리뷰 대신 커스텀 고스트 (개수 배지 + 애니메이션)
                   if (ids.length > 1 && dragEmptyImg.current) {
                     e.dataTransfer.setDragImage(dragEmptyImg.current, 0, 0);
+                    // 폴더를 스택 앞에 — 카드 3장에 폴더가 안 보이면 구성이 왜곡돼 보임
+                    const sorted = [...ids].sort((a, b) => {
+                      const fa = byId.get(a)?.type === 'folder' ? 0 : 1;
+                      const fb = byId.get(b)?.type === 'folder' ? 0 : 1;
+                      return fa - fb;
+                    });
                     setDragGhost({
                       count: ids.length,
-                      types: ids.slice(0, 3).map((id) => byId.get(id)?.type ?? 'doc'),
+                      folders: ids.filter((id) => byId.get(id)?.type === 'folder').length,
+                      types: sorted.slice(0, 3).map((id) => byId.get(id)?.type ?? 'doc'),
                       x: e.clientX,
                       y: e.clientY,
                     });
@@ -3288,6 +3296,11 @@ export default function CollabFiles({
                 ))}
               </div>
               <span className="cf-dragghost-count">{dragGhost.count}</span>
+              {dragGhost.folders > 0 && dragGhost.folders < dragGhost.count && (
+                <span className="cf-dragghost-break">
+                  폴더 {dragGhost.folders} · 파일 {dragGhost.count - dragGhost.folders}
+                </span>
+              )}
               <span className="cf-dragghost-plus">＋복사</span>
             </div>
           </div>

@@ -12338,6 +12338,15 @@ input:focus {
   animation: dragghost-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* 드래그 내역 — "폴더 N · 파일 M" (스택 3장 고정과 실제 개수 혼동 방지) */
+.cf-dragghost-break {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sub);
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
 @keyframes dragghost-in {
   from {
     opacity: 0;
