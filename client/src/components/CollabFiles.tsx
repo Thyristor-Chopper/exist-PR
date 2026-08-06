@@ -1930,96 +1930,63 @@ export default function CollabFiles({
               <UploadIcon size={14} /> 업로드
             </button>
           </div>
-          {/* 구글 드라이브식 툴바 — 라운드 바 하나에 아이콘 버튼 + 얇은 구분선, 라벨은 툴팁.
-           * 휴지통 모드에선 편집 클러스터 대신 일괄 액션(비우기·복원)이 이 바에 통합된다 */}
+          {/* 구글 드라이브식 툴바 — 라운드 바 하나에 아이콘 버튼 + 얇은 구분선, 라벨은 툴팁 */}
           <div className="cf-gbar">
-            {trashOpen ? (
-              <>
-                <button
-                  className="cf-tool labeled cf-tool-danger"
-                  disabled={trashItems.length === 0}
-                  onClick={() => void emptyTrash()}
-                >
-                  <TrashIcon size={13} /> 휴지통 비우기
-                </button>
-                <button
-                  className="cf-tool labeled cf-tool-green"
-                  disabled={trashItems.length === 0}
-                  onClick={() => {
-                    if (!confirm(`휴지통의 ${trashItems.length}개 항목을 모두 복원할까요?`)) return;
-                    void restoreMany(trashItems.map((t) => t.id));
-                  }}
-                >
-                  <UndoIcon size={13} /> 모든 항목 복원
-                </button>
-                {trashSelIds.size > 0 && (
-                  <button
-                    className="cf-tool labeled cf-tool-green"
-                    onClick={() => void restoreMany([...trashSelIds])}
-                  >
-                    <UndoIcon size={13} /> 선택한 항목 복원 ({trashSelIds.size})
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <button
-                  className="cf-tool"
-                  title="잘라내기"
-                  aria-label="잘라내기"
-                  disabled={cantTouch}
-                  onClick={() => setClipboard({ op: 'cut', ids: editables.map((f) => f.id) })}
-                >
-                  <ScissorsIcon size={15} />
-                </button>
-                <button
-                  className="cf-tool"
-                  title="복사"
-                  aria-label="복사"
-                  disabled={disabledSel}
-                  onClick={() => setClipboard({ op: 'copy', ids: [...selectedIds] })}
-                >
-                  <CopyIcon size={15} />
-                </button>
-                <button
-                  className="cf-tool"
-                  title="붙여넣기"
-                  aria-label="붙여넣기"
-                  disabled={!clipboard}
-                  onClick={() => void paste()}
-                >
-                  <ClipboardIcon size={15} />
-                </button>
-                <span className="cf-gsep" />
-                <button
-                  className="cf-tool"
-                  title="이름 바꾸기"
-                  aria-label="이름 바꾸기"
-                  disabled={!selected || !canEdit(selected)}
-                  onClick={() => selected && startRename(selected)}
-                >
-                  <RenameIcon size={15} />
-                </button>
-                <button
-                  className="cf-tool"
-                  title="공유"
-                  aria-label="공유"
-                  disabled={!selected}
-                  onClick={() => selected && share(selected)}
-                >
-                  <ShareIcon size={15} />
-                </button>
-                <button
-                  className="cf-tool danger"
-                  title="삭제"
-                  aria-label="삭제"
-                  disabled={cantTouch}
-                  onClick={() => void deleteSelection()}
-                >
-                  <TrashIcon size={15} />
-                </button>
-              </>
-            )}
+            <button
+              className="cf-tool"
+              title="잘라내기"
+              aria-label="잘라내기"
+              disabled={cantTouch}
+              onClick={() => setClipboard({ op: 'cut', ids: editables.map((f) => f.id) })}
+            >
+              <ScissorsIcon size={15} />
+            </button>
+            <button
+              className="cf-tool"
+              title="복사"
+              aria-label="복사"
+              disabled={disabledSel}
+              onClick={() => setClipboard({ op: 'copy', ids: [...selectedIds] })}
+            >
+              <CopyIcon size={15} />
+            </button>
+            <button
+              className="cf-tool"
+              title="붙여넣기"
+              aria-label="붙여넣기"
+              disabled={!clipboard}
+              onClick={() => void paste()}
+            >
+              <ClipboardIcon size={15} />
+            </button>
+            <span className="cf-gsep" />
+            <button
+              className="cf-tool"
+              title="이름 바꾸기"
+              aria-label="이름 바꾸기"
+              disabled={!selected || !canEdit(selected)}
+              onClick={() => selected && startRename(selected)}
+            >
+              <RenameIcon size={15} />
+            </button>
+            <button
+              className="cf-tool"
+              title="공유"
+              aria-label="공유"
+              disabled={!selected}
+              onClick={() => selected && share(selected)}
+            >
+              <ShareIcon size={15} />
+            </button>
+            <button
+              className="cf-tool danger"
+              title="삭제"
+              aria-label="삭제"
+              disabled={cantTouch}
+              onClick={() => void deleteSelection()}
+            >
+              <TrashIcon size={15} />
+            </button>
             <span className="cf-gsep" />
             <div className="cf-tool-wrap">
             <button
@@ -2196,7 +2163,43 @@ export default function CollabFiles({
             >
               ⋯
             </button>
-            {moreMenu && (
+            {moreMenu && trashOpen && (
+              /* 휴지통 모드 — 일괄 액션은 ⋯ 안에 (실행취소·선택 3종은 본문용이라 숨김) */
+              <div className="cf-type-menu cf-more-menu">
+                <button
+                  className="cf-menu-danger"
+                  disabled={trashItems.length === 0}
+                  onClick={() => {
+                    setMoreMenu(false);
+                    void emptyTrash();
+                  }}
+                >
+                  <TrashIcon size={13} /> 휴지통 비우기
+                </button>
+                <div className="cf-menu-sep" />
+                <button
+                  disabled={trashItems.length === 0}
+                  onClick={() => {
+                    setMoreMenu(false);
+                    if (!confirm(`휴지통의 ${trashItems.length}개 항목을 모두 복원할까요?`)) return;
+                    void restoreMany(trashItems.map((t) => t.id));
+                  }}
+                >
+                  <UndoIcon size={13} /> 모든 항목 복원
+                </button>
+                <button
+                  disabled={trashSelIds.size === 0}
+                  onClick={() => {
+                    setMoreMenu(false);
+                    void restoreMany([...trashSelIds]);
+                  }}
+                >
+                  <UndoIcon size={13} /> 선택한 항목 복원
+                  {trashSelIds.size > 0 ? ` (${trashSelIds.size})` : ''}
+                </button>
+              </div>
+            )}
+            {moreMenu && !trashOpen && (
               <div className="cf-type-menu cf-more-menu">
                 <button
                   disabled={undoStack.current.length === 0}

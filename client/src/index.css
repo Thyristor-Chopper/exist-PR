@@ -12669,28 +12669,12 @@ input:focus {
 }
 
 /* 데스크탑 폴더 트리 — 탐색기 왼쪽 패널 */
-/* 휴지통 모드 툴바 버튼 — 메인 툴바 안, 색으로 위험/복원 구분 */
-.cf-tool.cf-tool-danger {
+/* ⋯ 메뉴 위험 항목 — 휴지통 비우기 */
+.cf-more-menu .cf-menu-danger {
   color: var(--red);
-  font-weight: 800;
 }
-.cf-tool.cf-tool-danger:hover {
+.cf-more-menu .cf-menu-danger:hover {
   background: var(--red-soft);
-}
-.cf-tool.cf-tool-green {
-  color: var(--green);
-  font-weight: 800;
-}
-.cf-tool.cf-tool-green:hover {
-  background: var(--green-soft);
-}
-.cf-tool.cf-tool-green:disabled {
-  color: var(--text-sub);
-  opacity: 0.5;
-  cursor: default;
-}
-.cf-tool.cf-tool-green:disabled:hover {
-  background: none;
 }
 
 /* 사이드 패널 슬라이드 — 탐색 창(왼쪽)·세부 정보(오른쪽) 여닫기.
