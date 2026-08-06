@@ -20,6 +20,7 @@ import { canManageMeeting } from './perm.js';
 import { audit as orgAudit } from './orgs.js';
 import { resolveChannel, notifyModeOf } from './channels.js';
 import { notifyUser, emitToUser } from './notify.js';
+import { correctCaption } from './stt.js';
 import { AGENT_MENTION, handleAgentQuery, maybeSuggestDecision } from './steward.js';
 
 /*
@@ -413,21 +414,33 @@ export function attachSfu(io: Server) {
       if (!room || !peer) return; // 통화 중인 사람만
       const trimmed = String(text ?? '').trim().slice(0, 500);
       if (!trimmed) return;
-      const meeting = db.prepare('SELECT id FROM meetings WHERE code = ?').get(room.code) as
-        | { id: number }
+      const meeting = db.prepare('SELECT id, title FROM meetings WHERE code = ?').get(room.code) as
+        | { id: number; title: string }
         | undefined;
       if (!meeting) return;
-      db.prepare('INSERT INTO call_transcripts (meeting_id, user_id, text) VALUES (?, ?, ?)').run(
-        meeting.id,
-        peer.userId,
-        trimmed,
-      );
+      const info = db
+        .prepare('INSERT INTO call_transcripts (meeting_id, user_id, text) VALUES (?, ?, ?)')
+        .run(meeting.id, peer.userId, trimmed);
       // 라이브 자막 (본인 포함 전원에게)
       io.to(`room:${room.code}`).emit('voice:caption', {
         peerId: socket.id,
         username: peer.username,
         text: trimmed,
         ts: Date.now(),
+      });
+      // 즉석 교정(미트식 소급 수정) — 교정본이 오면 이미 띄운 자막을 교체 + 저장본 갱신.
+      // 실패·저신뢰는 null → 원문 유지. 룸이 그새 닫혀도 방송은 무해(수신자 없음)
+      const roomCode = room.code;
+      const username = peer.username;
+      const rowId = info.lastInsertRowid as number;
+      void correctCaption(trimmed, meeting.title).then((fixed) => {
+        if (!fixed) return;
+        db.prepare('UPDATE call_transcripts SET text = ? WHERE id = ?').run(fixed, rowId);
+        io.to(`room:${roomCode}`).emit('voice:caption-fix', {
+          username,
+          orig: trimmed,
+          text: fixed,
+        });
       });
     });
 

@@ -862,6 +862,17 @@ export default function MeetingView({
           );
         },
       );
+      // 자막 소급 수정 — 서버가 LLM 교정을 마치면 같은 줄이 아직 떠 있을 때만 교체 (미트식)
+      socket.on(
+        'voice:caption-fix',
+        ({ username, orig, text }: { username: string; orig: string; text: string }) => {
+          setCaptions((prev) => {
+            const cur = prev[username];
+            if (!cur || cur.interim || cur.text !== orig) return prev; // 이미 다음 발화로 넘어감
+            return { ...prev, [username]: { ...cur, text } };
+          });
+        },
+      );
       socket.on('room:locked', ({ locked }: { locked: boolean }) => setLocked(locked));
       socket.on('room:kicked', () => {
         onLeaveRef.current('호스트가 회의에서 내보냈습니다');
@@ -912,6 +923,7 @@ export default function MeetingView({
       socket.off('chat:ai-thinking');
       if (aiThinkingTimer.current) clearTimeout(aiThinkingTimer.current);
       socket.off('voice:caption');
+      socket.off('voice:caption-fix');
       captionTimers.current.forEach((t) => clearTimeout(t));
       captionTimers.current.clear();
       speakingTimers.current.forEach((t) => clearTimeout(t));

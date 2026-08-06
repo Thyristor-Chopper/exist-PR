@@ -82,6 +82,50 @@ router.post('/audio', (req: AuthedRequest, res) => {
 
 export default router;
 
+/* ── 자막 즉석 교정 — 미트식 소급 수정.
+ * Web Speech 확정본 한 줄을 용어집과 함께 LLM에 던져 띄어쓰기·오인식만 고친다.
+ * 교정된 줄은 sfu가 voice:caption-fix로 재방송해 이미 띄운 자막을 갈아치운다.
+ * 이 함수만 바꾸면 로컬 LLM(Ollama 등)으로 교체 가능하게 격리해 둠. ── */
+
+/** 기본 용어집 — 제조 현장·우리 도메인에서 Web Speech가 자주 깨뜨리는 말들 */
+const BASE_GLOSSARY = [
+  '방열판', '완제라인', '인수인계', '결정 원장', '검사 기준', '품의서', '절차서',
+  'GMP', 'CAPA', 'QA', 'QC', '교대조', '야간조', '작업표준', 'SOP', '부적합',
+];
+
+/** 자막 한 줄 교정 — 실패·저신뢰면 null (원문 유지) */
+export async function correctCaption(text: string, meetingTitle?: string): Promise<string | null> {
+  if (!openai || text.length < 6) return null; // 짧은 추임새는 교정 가치 없음
+  try {
+    const glossary = [...BASE_GLOSSARY, ...(meetingTitle ? [meetingTitle] : [])].join(', ');
+    const res = await openai.chat.completions.create(
+      {
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        temperature: 0,
+        max_tokens: 300,
+        messages: [
+          {
+            role: 'system',
+            content:
+              `너는 한국어 회의 자막 교정기다. 음성인식이 깨뜨린 띄어쓰기·오인식 단어·숫자 표기만 고쳐서 자막 한 줄만 출력한다.\n` +
+              `규칙: 내용을 요약·창작·추가·삭제하지 않는다. 확신이 없으면 원문 그대로 출력한다. 설명·따옴표 없이 교정된 문장만 출력한다.\n` +
+              `자주 나오는 용어: ${glossary}`,
+          },
+          { role: 'user', content: text },
+        ],
+      },
+      { timeout: 8000 },
+    );
+    const fixed = res.choices[0]?.message?.content?.trim();
+    if (!fixed || fixed === text) return null;
+    // 폭주 방어 — 길이가 원문의 절반~2배를 벗어나면 창작으로 보고 버림
+    if (fixed.length < text.length * 0.5 || fixed.length > text.length * 2) return null;
+    return fixed.slice(0, 500);
+  } catch {
+    return null; // 교정 실패는 조용히 — 원문 자막 유지
+  }
+}
+
 /** epoch ms → call_transcripts.created_at 형식(UTC 'YYYY-MM-DD HH:MM:SS') */
 function toDbTime(ms: number): string {
   return new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
