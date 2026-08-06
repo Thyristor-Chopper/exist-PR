@@ -1440,6 +1440,31 @@ export default function CollabFiles({
     }
   }
 
+  /** 선택 항목 영구 삭제 — 휴지통 모드 gbar 삭제 버튼용 (실패는 건너뛰고 개수만 보고) */
+  async function purgeMany(ids: number[]) {
+    if (ids.length === 0) return;
+    if (!confirm(`${ids.length}개 항목을 영구 삭제할까요? 내용까지 완전히 사라져요.`)) return;
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        await api(`/api/meetings/${code}/files/trash/${id}`, { method: 'DELETE' });
+        ok++;
+      } catch {
+        /* 개별 실패 무시 — 아래에서 집계 */
+      }
+    }
+    await loadTrash();
+    if (ok > 0) {
+      toast(
+        ok === ids.length
+          ? `${ok}개 항목을 영구 삭제했어요`
+          : `${ok}개 영구 삭제 — 나머지 ${ids.length - ok}개는 삭제하지 못했어요`,
+      );
+    } else {
+      toast('영구 삭제하지 못했어요', 'error');
+    }
+  }
+
   // ── 문서 열람 서명 (회람 사인) ──
   async function loadAcks(fileId: number) {
     try {
@@ -1779,7 +1804,13 @@ export default function CollabFiles({
         setSortDir('asc');
       }
     };
-    const hdrInd = (k: SortKey) => (sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
+    // Win11 탐색기식 정렬 표시 — 현재 정렬 컬럼명 위 중앙에 작은 셰브론
+    const hdrMark = (k: SortKey) =>
+      sortKey === k ? (
+        <span className="cf-listhead-sortmark" aria-hidden="true">
+          {sortDir === 'asc' ? <ChevronUpIcon size={9} /> : <ChevronIcon size={9} />}
+        </span>
+      ) : null;
 
     return (
       <div
@@ -1939,27 +1970,27 @@ export default function CollabFiles({
           <div className="cf-gbar">
             <button
               className="cf-tool"
-              title="잘라내기"
+              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : '잘라내기'}
               aria-label="잘라내기"
-              disabled={cantTouch}
+              disabled={trashOpen || cantTouch}
               onClick={() => setClipboard({ op: 'cut', ids: editables.map((f) => f.id) })}
             >
               <ScissorsIcon size={15} />
             </button>
             <button
               className="cf-tool"
-              title="복사"
+              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : '복사'}
               aria-label="복사"
-              disabled={disabledSel}
+              disabled={trashOpen || disabledSel}
               onClick={() => setClipboard({ op: 'copy', ids: [...selectedIds] })}
             >
               <CopyIcon size={15} />
             </button>
             <button
               className="cf-tool"
-              title="붙여넣기"
+              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : '붙여넣기'}
               aria-label="붙여넣기"
-              disabled={!clipboard}
+              disabled={trashOpen || !clipboard}
               onClick={() => void paste()}
             >
               <ClipboardIcon size={15} />
@@ -1967,28 +1998,30 @@ export default function CollabFiles({
             <span className="cf-gsep" />
             <button
               className="cf-tool"
-              title="이름 바꾸기"
+              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : '이름 바꾸기'}
               aria-label="이름 바꾸기"
-              disabled={!selected || !canEdit(selected)}
+              disabled={trashOpen || !selected || !canEdit(selected)}
               onClick={() => selected && startRename(selected)}
             >
               <RenameIcon size={15} />
             </button>
             <button
               className="cf-tool"
-              title="공유"
+              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : '공유'}
               aria-label="공유"
-              disabled={!selected}
+              disabled={trashOpen || !selected}
               onClick={() => selected && share(selected)}
             >
               <ShareIcon size={15} />
             </button>
             <button
               className="cf-tool danger"
-              title="삭제"
-              aria-label="삭제"
-              disabled={cantTouch}
-              onClick={() => void deleteSelection()}
+              title={trashOpen ? '영구 삭제' : '삭제'}
+              aria-label={trashOpen ? '영구 삭제' : '삭제'}
+              disabled={trashOpen ? trashSelIds.size === 0 : cantTouch}
+              onClick={() =>
+                trashOpen ? void purgeMany([...trashSelIds]) : void deleteSelection()
+              }
             >
               <TrashIcon size={15} />
             </button>
@@ -2691,46 +2724,56 @@ export default function CollabFiles({
           {view === 'list' && items.length > 0 && (
             <div className="cf-listhead">
               <button
+                type="button"
+                title="이름으로 정렬"
                 onClick={(e) => {
                   e.stopPropagation();
                   hdrClick('name');
                 }}
               >
-                이름{hdrInd('name')}
+                {hdrMark('name')}이름
               </button>
               <button
+                type="button"
+                title="종류로 정렬"
                 onClick={(e) => {
                   e.stopPropagation();
                   hdrClick('type');
                 }}
               >
-                종류{hdrInd('type')}
+                {hdrMark('type')}종류
               </button>
               <button
+                type="button"
+                title="만든 사람으로 정렬"
                 onClick={(e) => {
                   e.stopPropagation();
                   hdrClick('author');
                 }}
               >
-                만든 사람{hdrInd('author')}
+                {hdrMark('author')}만든 사람
               </button>
               <button
+                type="button"
                 className="cf-listhead-date"
+                title="날짜로 정렬"
                 onClick={(e) => {
                   e.stopPropagation();
                   hdrClick('date');
                 }}
               >
-                날짜{hdrInd('date')}
+                {hdrMark('date')}날짜
               </button>
               <button
+                type="button"
                 className="cf-listhead-size"
+                title="크기로 정렬"
                 onClick={(e) => {
                   e.stopPropagation();
                   hdrClick('size');
                 }}
               >
-                크기{hdrInd('size')}
+                {hdrMark('size')}크기
               </button>
               {/* 접속 중 — 지금 이 파일을 편집·열람 중인 사람 (정렬 없음) */}
               <span className="cf-listhead-online">접속 중</span>
