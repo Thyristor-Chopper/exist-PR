@@ -2774,6 +2774,8 @@ export default function CollabFiles({
                   else entryRefs.current.delete(f.id);
                 }}
                 className={`cf-entry${isSel ? ' selected' : ''}${
+                  isSel && !canEdit(f) ? ' readonly' : ''
+                }${
                   clipboard?.op === 'cut' && clipboard.ids.includes(f.id) ? ' cutting' : ''
                 }${dropTarget === f.id ? ' droptarget' : ''}`}
                 draggable
@@ -2856,7 +2858,9 @@ export default function CollabFiles({
                   if (!selectedIds.has(f.id)) selectOnly(f.id);
                   setCtxMenu({ x: e.clientX, y: e.clientY, targetId: f.id });
                 }}
-                title={`${f.name} · ${f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]} · ${dn(f.author)}`}
+                title={`${f.name} · ${f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]} · ${dn(f.author)}${
+                  !canEdit(f) ? ' · 이동·삭제는 만든 사람·호스트만' : ''
+                }`}
               >
                 {f.type === 'file' && viewKindOf(f.name) === 'image' ? (
                   /* 이미지 썸네일 — 현장 사진을 아이콘이 아니라 실물로 (지연 로드) */

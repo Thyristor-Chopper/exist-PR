@@ -13142,6 +13142,13 @@ input:focus {
   border-color: rgba(33, 200, 24, 0.35);
 }
 
+/* 선택했지만 이동 권한이 없는 항목 — 회색 하이라이트로 "안 끌려갈 애" 표시.
+ * 상시 회색 처리는 비호스트에게 탐색기 전체가 비활성처럼 보여서 선택 시에만 */
+.cf-entry.selected.readonly {
+  background: rgba(120, 120, 120, 0.1);
+  border-color: rgba(120, 120, 120, 0.4);
+}
+
 .cf-entry.cutting {
   opacity: 0.45; /* 잘라내기 대기 — 윈도우처럼 반투명 */
 }
