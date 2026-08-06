@@ -19896,6 +19896,31 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 .cf-trash-empty:hover {
   background: var(--red-soft);
 }
+/* 복원 계열 텍스트 버튼 — 비우기와 같은 볼드체, 초록 */
+.cf-trash-tool {
+  border: none;
+  background: none;
+  color: var(--green);
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.cf-trash-tool:hover {
+  background: var(--green-soft);
+}
+/* 휴지통 행 선택 — 본문 탐색기와 같은 문법 */
+.cf-trash-row {
+  cursor: default;
+  user-select: none;
+}
+.cf-trash-row.selected {
+  background: rgba(33, 200, 24, 0.08);
+}
+.cf-trash-row.selected:hover {
+  background: rgba(33, 200, 24, 0.12);
+}
 
 .cf-trashhead-name {
   flex: 1;

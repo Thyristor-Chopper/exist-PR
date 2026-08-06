@@ -424,6 +424,8 @@ export default function CollabFiles({
   const [trashItems, setTrashItems] = useState<
     { id: number; name: string; type: FileType; deleted_at: string; author: string; children: number }[]
   >([]);
+  // 휴지통 행 선택 — 툴바 "선택한 항목 복원"용 (클릭 선택, Ctrl 다중)
+  const [trashSelIds, setTrashSelIds] = useState<Set<number>>(new Set());
   // 선택 파일 미리보기 (안에 뭐가 들었는지)
   const [preview, setPreview] = useState<{ id: number; items: string[]; count?: number } | null>(null);
   // 즐겨찾기 (기기별)
@@ -1384,28 +1386,33 @@ export default function CollabFiles({
       setTrashItems(
         await api<typeof trashItems>(`/api/meetings/${code}/files/trash/list`),
       );
+      setTrashSelIds(new Set()); // 목록이 바뀌면 선택 초기화
     } catch {
       /* 전역 토스트 */
     }
   }
 
-  async function restoreTrash(id: number) {
-    try {
-      await api(`/api/meetings/${code}/files/trash/${id}/restore`, { method: 'POST' });
-      await loadTrash();
-      load();
-    } catch {
-      /* 전역 토스트 */
+  /** 여러 항목 복원 — 실패는 건너뛰고 개수만 보고 (권한 없는 항목 등) */
+  async function restoreMany(ids: number[]) {
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        await api(`/api/meetings/${code}/files/trash/${id}/restore`, { method: 'POST' });
+        ok++;
+      } catch {
+        /* 개별 실패 무시 — 아래에서 집계 */
+      }
     }
-  }
-
-  async function purgeTrash(id: number) {
-    if (!confirm('영구 삭제하면 내용까지 완전히 사라져요. 계속할까요?')) return;
-    try {
-      await api(`/api/meetings/${code}/files/trash/${id}`, { method: 'DELETE' });
-      await loadTrash();
-    } catch {
-      /* 전역 토스트 */
+    await loadTrash();
+    load();
+    if (ok > 0) {
+      toast(
+        ok === ids.length
+          ? `${ok}개 항목을 복원했어요`
+          : `${ok}개 복원 — 나머지 ${ids.length - ok}개는 복원하지 못했어요`,
+      );
+    } else {
+      toast('복원하지 못했어요', 'error');
     }
   }
 
@@ -2477,19 +2484,51 @@ export default function CollabFiles({
               <div className="cf-empty">휴지통이 비어 있어요</div>
             ) : (
               <>
+                {/* 휴지통 툴바 — 행 알약 대신 상단 일괄 액션 (윈도우식) */}
                 <div className="cf-trash-toolbar">
                   <button className="cf-trash-empty" onClick={() => void emptyTrash()}>
                     휴지통 비우기
                   </button>
+                  <button
+                    className="cf-trash-tool"
+                    onClick={() => {
+                      if (!confirm(`휴지통의 ${trashItems.length}개 항목을 모두 복원할까요?`)) return;
+                      void restoreMany(trashItems.map((t) => t.id));
+                    }}
+                  >
+                    모든 항목 복원
+                  </button>
+                  {trashSelIds.size > 0 && (
+                    <button
+                      className="cf-trash-tool"
+                      onClick={() => void restoreMany([...trashSelIds])}
+                    >
+                      선택한 항목 복원 ({trashSelIds.size})
+                    </button>
+                  )}
                 </div>
                 <div className="cf-listhead cf-trashhead-row">
                   <span className="cf-trashhead-name">이름</span>
                   <span className="cf-trashhead-meta">지운 사람</span>
                   <span className="cf-trashhead-meta">지운 날짜</span>
-                  <span className="cf-trashhead-actions" />
                 </div>
                 {trashItems.map((t) => (
-                  <div key={t.id} className="cf-trash-row">
+                  <div
+                    key={t.id}
+                    className={`cf-trash-row${trashSelIds.has(t.id) ? ' selected' : ''}`}
+                    onClick={(e) => {
+                      // 클릭 선택, Ctrl 다중 — 탐색기 본문과 동일 문법
+                      setTrashSelIds((prev) => {
+                        if (e.ctrlKey || e.metaKey) {
+                          const next = new Set(prev);
+                          if (next.has(t.id)) next.delete(t.id);
+                          else next.add(t.id);
+                          return next;
+                        }
+                        return prev.has(t.id) && prev.size === 1 ? new Set() : new Set([t.id]);
+                      });
+                    }}
+                  >
                     <span className={`cf-icon ${t.type}`}>
                       <TypeIcon type={t.type} size={15} />
                     </span>
@@ -2505,14 +2544,6 @@ export default function CollabFiles({
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
-                    </span>
-                    <span className="cf-trash-actions">
-                      <button className="cf-trash-restore" onClick={() => void restoreTrash(t.id)}>
-                        복원
-                      </button>
-                      <button className="danger" onClick={() => void purgeTrash(t.id)}>
-                        영구 삭제
-                      </button>
                     </span>
                   </div>
                 ))}
