@@ -12338,21 +12338,33 @@ input:focus {
   animation: dragghost-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* 드래그 내역 — "폴더 N · 파일 M" (스택 3장 고정과 실제 개수 혼동 방지) */
+/* 드래그 내역 칩 — 스택 오른쪽에 붙는 설명 ("폴더 N · 파일 M", 권한 제외 사유) */
+.cf-dragghost-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cf-dragghost-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 9px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+}
 .cf-dragghost-break {
   font-size: 11px;
   font-weight: 700;
   color: var(--text-sub);
   white-space: nowrap;
-  margin-left: 6px;
 }
-/* 권한 제외 사유 — 선택 개수와 배지 숫자가 다를 때 그 이유를 즉석에서 */
 .cf-dragghost-excl {
   font-size: 10.5px;
   font-weight: 700;
   color: var(--red);
   white-space: nowrap;
-  margin-left: 6px;
 }
 
 @keyframes dragghost-in {

@@ -2799,17 +2799,18 @@ export default function CollabFiles({
                   // 여러 개 들었거나 제외가 생겼으면 커스텀 고스트 (개수 배지 + 제외 사유)
                   if ((ids.length > 1 || excluded > 0) && dragEmptyImg.current) {
                     e.dataTransfer.setDragImage(dragEmptyImg.current, 0, 0);
-                    // 폴더를 스택 앞에 — 카드 3장에 폴더가 안 보이면 구성이 왜곡돼 보임
+                    // 폴더가 스택 맨 위에 보이게 — 나중에 렌더된 카드가 위로 오므로 폴더를 뒤로
                     const sorted = [...ids].sort((a, b) => {
-                      const fa = byId.get(a)?.type === 'folder' ? 0 : 1;
-                      const fb = byId.get(b)?.type === 'folder' ? 0 : 1;
+                      const fa = byId.get(a)?.type === 'folder' ? 1 : 0;
+                      const fb = byId.get(b)?.type === 'folder' ? 1 : 0;
                       return fa - fb;
                     });
                     setDragGhost({
                       count: ids.length,
                       folders: ids.filter((id) => byId.get(id)?.type === 'folder').length,
                       excluded,
-                      types: sorted.slice(0, 3).map((id) => byId.get(id)?.type ?? 'doc'),
+                      // 뒤 3개 — 폴더를 뒤로 정렬했으니 slice(0,3)이면 폴더가 스택에서 통째로 빠진다
+                      types: sorted.slice(-3).map((id) => byId.get(id)?.type ?? 'doc'),
                       x: e.clientX,
                       y: e.clientY,
                     });
@@ -3307,15 +3308,21 @@ export default function CollabFiles({
                     <TypeIcon type={tp} size={17} />
                   </span>
                 ))}
+                {/* 개수 배지 — 스택 모서리에 귀속 (inner 기준이면 라벨 폭만큼 떨어져 나감) */}
+                <span className="cf-dragghost-count">{dragGhost.count}</span>
               </div>
-              <span className="cf-dragghost-count">{dragGhost.count}</span>
-              {dragGhost.folders > 0 && dragGhost.folders < dragGhost.count && (
-                <span className="cf-dragghost-break">
-                  폴더 {dragGhost.folders} · 파일 {dragGhost.count - dragGhost.folders}
-                </span>
-              )}
-              {dragGhost.excluded > 0 && (
-                <span className="cf-dragghost-excl">권한 없는 {dragGhost.excluded}개 제외</span>
+              {(dragGhost.excluded > 0 ||
+                (dragGhost.folders > 0 && dragGhost.folders < dragGhost.count)) && (
+                <div className="cf-dragghost-labels">
+                  {dragGhost.folders > 0 && dragGhost.folders < dragGhost.count && (
+                    <span className="cf-dragghost-break">
+                      폴더 {dragGhost.folders} · 파일 {dragGhost.count - dragGhost.folders}
+                    </span>
+                  )}
+                  {dragGhost.excluded > 0 && (
+                    <span className="cf-dragghost-excl">권한 없는 {dragGhost.excluded}개 제외</span>
+                  )}
+                </div>
               )}
               <span className="cf-dragghost-plus">＋복사</span>
             </div>
