@@ -2199,16 +2199,16 @@ export default function CollabFiles({
                     >
                       <UndoIcon size={13} /> 모든 항목 복원
                     </button>
-                    <button
-                      disabled={trashSelIds.size === 0}
-                      onClick={() => {
-                        setMoreMenu(false);
-                        void restoreMany([...trashSelIds]);
-                      }}
-                    >
-                      <UndoIcon size={13} /> 선택한 항목 복원
-                      {trashSelIds.size > 0 ? ` (${trashSelIds.size})` : ''}
-                    </button>
+                    {trashSelIds.size > 0 && (
+                      <button
+                        onClick={() => {
+                          setMoreMenu(false);
+                          void restoreMany([...trashSelIds]);
+                        }}
+                      >
+                        <UndoIcon size={13} /> 선택한 항목 복원 ({trashSelIds.size})
+                      </button>
+                    )}
                   </>
                 )}
                 <div className="cf-menu-sep" />
