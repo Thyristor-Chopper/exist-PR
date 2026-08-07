@@ -13082,6 +13082,11 @@ input:focus {
   color: #fff;
   font-weight: 700;
   font-size: 13px;
+  /* 버전 기록·서명 현황으로 패널이 길어져도 핵심 버튼은 항상 보이게 (스크롤 하단 고정) */
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  box-shadow: 0 -8px 12px -6px rgba(0, 0, 0, 0.12);
 }
 
 .cf-main.grid {
@@ -13135,7 +13140,9 @@ input:focus {
 
 .cf-main.list .cf-entry-name {
   flex: 1;
-  min-width: 0;
+  /* 0이면 좁은 화면에서 고정폭 컬럼들에 밀려 이름이 통째로 사라진다(노트북 폭+세부정보 패널).
+   * 최소폭을 확보하고 넘치면 행이 가로 스크롤로 밀리게 */
+  min-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -19772,7 +19779,8 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 
 .cf-listhead button:first-child {
   flex: 1;
-  min-width: 0;
+  /* 행의 이름 컬럼(min-width 140px)과 동일 — 0이면 좁은 화면에서 '이름'이 짜부라져 '종류'와 겹친다 */
+  min-width: 166px;
   padding-left: 26px; /* 아이콘 자리만큼 */
 }
 

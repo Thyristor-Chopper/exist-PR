@@ -25,6 +25,7 @@ import {
 import { notifyUser, emitToUser } from './notify.js';
 import { canManageMeeting } from './perm.js';
 import { sendDmCore } from './dm.js';
+import { audit as orgAudit } from './orgs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** 업로드 파일(blob) 저장소 — DATA_DIR/uploads-files */
@@ -179,6 +180,26 @@ function checkParticipant(
   return { ok: true, meeting };
 }
 
+/** 감사 로그용 그룹 이름 — 제목이 없으면 코드로 */
+function meetingLabel(meeting: MeetingRef): string {
+  const row = db.prepare('SELECT title FROM meetings WHERE id = ?').get(meeting.id) as
+    | { title: string | null }
+    | undefined;
+  return row?.title || meeting.code;
+}
+
+/** 영구 삭제 조직 감사 로그 — 조직 소속 그룹만 기록 (개인 그룹은 org 감사 대상 아님).
+ * GMP 등 산업용 신뢰 요건: 되돌릴 수 없는 삭제는 조직에 흔적이 남아야 한다.
+ * 기록 실패가 본 동작(삭제)을 막으면 안 되므로 여기서 삼킨다 */
+function auditPurge(meeting: MeetingRef, userId: number, action: string, detail: string) {
+  if (meeting.org_id == null) return;
+  try {
+    orgAudit(meeting.org_id, userId, action, null, detail);
+  } catch (e) {
+    console.error('[files.audit]', e);
+  }
+}
+
 const router = Router({ mergeParams: true });
 
 /* ── files:changed 푸시 — 파일 생성·이동·삭제·업로드·서명 등 모든 변경을 그룹 멤버 전원에게 즉시 방송.
@@ -309,6 +330,49 @@ router.post('/:fileId/ack', (req: AuthedRequest, res) => {
     });
   }
   res.json({ ok: true });
+});
+
+/** 열람 서명 리마인드 쿨다운 — 파일당 1시간 (결정 리마인드와 동일 정책) */
+const ackRemindLast = new Map<number, number>();
+
+/** 미서명자 리마인드 — 결정 리마인드의 문서판. 만든 사람·호스트·관리자만 */
+router.post('/:fileId/ack-remind', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare(
+      'SELECT id, name, created_by, ack_required FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+    )
+    .get(req.params.fileId, r.meeting.id) as
+    | { id: number; name: string; created_by: number; ack_required: number }
+    | undefined;
+  if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  if (!f.ack_required) return res.status(400).json({ error: '열람 서명이 요청되지 않은 문서예요' });
+  if (!canManageFile(f, r.meeting, req.userId!)) {
+    return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 리마인드할 수 있어요' });
+  }
+  const last = ackRemindLast.get(f.id) ?? 0;
+  if (Date.now() - last < 60 * 60_000) {
+    return res.status(429).json({ error: '이미 최근에 리마인드했어요 — 1시간 뒤에 다시' });
+  }
+  const targets = db
+    .prepare(
+      `SELECT mp.user_id FROM meeting_participants mp
+       WHERE mp.meeting_id = ?
+         AND mp.user_id != ?
+         AND NOT EXISTS(SELECT 1 FROM file_acks a WHERE a.file_id = ? AND a.user_id = mp.user_id)`,
+    )
+    .all(r.meeting.id, req.userId!, f.id) as { user_id: number }[];
+  for (const t of targets) {
+    notifyUser(t.user_id, {
+      from: 'exist AI',
+      text: `"${f.name}" 문서 열람 서명이 아직이에요 — 확인 부탁해요`,
+      kind: 'file-ack',
+      meetingCode: r.meeting.code,
+    });
+  }
+  if (targets.length > 0) ackRemindLast.set(f.id, Date.now());
+  res.json({ reminded: targets.length });
 });
 
 /** 이 문서를 다룬 회의들 — recap.files 역조회 (문서 → 회의 다리) */
@@ -861,6 +925,15 @@ router.delete('/trash', (req: AuthedRequest, res) => {
     ).run(f.id);
     purged += db.prepare('DELETE FROM collab_files WHERE deleted_root = ?').run(f.id).changes;
   }
+  // 되돌릴 수 없는 삭제 — 조직 감사 로그에 기록 (실제로 지운 게 있을 때만)
+  if (purged > 0) {
+    auditPurge(
+      r.meeting,
+      req.userId!,
+      'files.purge-all',
+      `그룹 "${meetingLabel(r.meeting)}" 휴지통 비우기 — ${purged}개 삭제${skipped > 0 ? `, ${skipped}개 건너뜀(권한 없음)` : ''}`,
+    );
+  }
   res.json({ ok: true, purged, skipped });
 });
 
@@ -1173,7 +1246,7 @@ router.delete('/trash/:fileId', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   const f = db
-    .prepare('SELECT id, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_root = id')
+    .prepare('SELECT id, name, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_root = id')
     .get(req.params.fileId, r.meeting.id) as FileRow | undefined;
   if (!f) return res.status(404).json({ error: '휴지통에 없는 항목이에요' });
   if (!canManageFile(f, r.meeting, req.userId!)) {
@@ -1198,6 +1271,14 @@ router.delete('/trash/:fileId', (req: AuthedRequest, res) => {
     'DELETE FROM file_versions WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
   ).run(f.id);
   const info = db.prepare('DELETE FROM collab_files WHERE deleted_root = ?').run(f.id);
+  // 되돌릴 수 없는 삭제 — 조직 감사 로그에 기록
+  const sub = info.changes - 1; // 루트 제외 하위 개수
+  auditPurge(
+    r.meeting,
+    req.userId!,
+    'files.purge',
+    `그룹 "${meetingLabel(r.meeting)}" 파일 "${f.name}" 영구 삭제${sub > 0 ? ` (하위 ${sub}개 포함)` : ''}`,
+  );
   res.json({ ok: true, purged: info.changes });
 });
 

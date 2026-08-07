@@ -1567,47 +1567,15 @@ export default function CollabFiles({
     return Math.max(1, cols);
   }
 
-  /** 탐색기 키보드 — Enter 열기 / F2 이름 / Delete 삭제 / Ctrl+C·X·V·A / 방향키 */
+  /** 탐색기 키보드 (포커스 종속) — Enter 열기 / 타이핑 점프 / 방향키
+   *  잘라내기·복사·삭제 등 단축키는 아래 전역(window) 리스너가 담당 — 중복 발동 방지 */
   function onExplorerKey(e: React.KeyboardEvent) {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return; // 검색·이름 입력 중엔 무시
     const ctrl = e.ctrlKey || e.metaKey;
 
-    if (e.key === 'Escape') {
-      setCtxMenu(null);
-      setSortMenu(false);
-      clearSel();
-      return;
-    }
-    if (ctrl && (e.key === 'a' || e.key === 'A')) {
-      e.preventDefault();
-      setSelectedIds(new Set(items.map((f) => f.id)));
-      setTrashSel(false);
-      return;
-    }
-    if (ctrl && (e.key === 'c' || e.key === 'C')) {
-      if (selectedIds.size > 0) setClipboard({ op: 'copy', ids: [...selectedIds] });
-      return;
-    }
-    if (ctrl && (e.key === 'x' || e.key === 'X')) {
-      const ids = selList.filter(canEdit).map((f) => f.id);
-      if (ids.length > 0) setClipboard({ op: 'cut', ids });
-      return;
-    }
-    if (ctrl && (e.key === 'v' || e.key === 'V')) {
-      void paste();
-      return;
-    }
     if (e.key === 'Enter') {
       if (selected) openFile(selected);
-      return;
-    }
-    if (e.key === 'F2') {
-      if (selected) startRename(selected);
-      return;
-    }
-    if (e.key === 'Delete') {
-      void deleteSelection();
       return;
     }
     // 타이핑 점프 — 이름이 입력 문자로 시작하는 항목으로 (한글은 IME 특성상 완성 입력만 잡힘)
@@ -1636,6 +1604,88 @@ export default function CollabFiles({
       entryRefs.current.get(items[next].id)?.scrollIntoView({ block: 'nearest' });
     }
   }
+
+  // 윈도우 탐색기식 전역 단축키 — Ctrl+X·C·V / Delete / F2 / Ctrl+A / Ctrl+Z / Escape
+  // 탭이 보일 때만 발동, 입력 요소·에디터(파일 열림) 상태에선 무시 — 에디터의 Ctrl+C/V를 뺏으면 안 됨
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!visible || active) return; // 다른 탭이거나 파일 편집 화면
+      const ae = document.activeElement as HTMLElement | null;
+      if (
+        ae &&
+        (ae.tagName === 'INPUT' ||
+          ae.tagName === 'TEXTAREA' ||
+          ae.tagName === 'SELECT' ||
+          ae.isContentEditable)
+      )
+        return; // 검색·이름·경로 등 입력 중엔 무시
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      if (e.key === 'Escape') {
+        // 선택 해제 + 열려 있는 메뉴 닫기 (기본 동작 충돌 없음 — preventDefault 불필요)
+        setCtxMenu(null);
+        closeMenus();
+        clearSel();
+        return;
+      }
+      if (ctrl && (e.key === 'a' || e.key === 'A')) {
+        if (trashOpen || homeOpen) return; // 본문 뷰에서만
+        e.preventDefault();
+        setSelectedIds(new Set(items.map((f) => f.id)));
+        setTrashSel(false);
+        return;
+      }
+      if (ctrl && (e.key === 'x' || e.key === 'X')) {
+        if (trashOpen) return; // 휴지통에선 잘라내기 없음
+        const ids = selList.filter(canEdit).map((f) => f.id); // 편집 가능 선택만
+        if (ids.length === 0) return;
+        e.preventDefault();
+        setClipboard({ op: 'cut', ids });
+        return;
+      }
+      if (ctrl && (e.key === 'c' || e.key === 'C')) {
+        if (trashOpen || selectedIds.size === 0) return; // 선택 없으면 브라우저 기본 복사 유지
+        e.preventDefault();
+        setClipboard({ op: 'copy', ids: [...selectedIds] });
+        return;
+      }
+      if (ctrl && (e.key === 'v' || e.key === 'V')) {
+        if (trashOpen || !clipboard) return;
+        e.preventDefault();
+        void paste();
+        return;
+      }
+      if (ctrl && (e.key === 'z' || e.key === 'Z')) {
+        if (undoStack.current.length === 0) return;
+        e.preventDefault();
+        void undo();
+        return;
+      }
+      if (e.key === 'F2') {
+        if (trashOpen || !selected || !canEdit(selected)) return; // 단일 선택 + 편집 가능일 때만
+        e.preventDefault();
+        startRename(selected);
+        return;
+      }
+      if (e.key === 'Delete') {
+        if (trashOpen) {
+          // 휴지통 — 선택 항목 영구 삭제 (확인창은 purgeMany 안에)
+          if (trashSelIds.size === 0) return;
+          e.preventDefault();
+          void purgeMany([...trashSelIds]);
+        } else {
+          const list = selList.filter(canEdit);
+          if (list.length === 0) return;
+          e.preventDefault();
+          void deleteSelection();
+        }
+        return;
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, active, trashOpen, homeOpen, selectedIds, selList, clipboard, items, selected, trashSelIds]);
 
   // 우클릭 메뉴 — 바깥 클릭·Escape로 닫기
   useEffect(() => {
@@ -3286,6 +3336,29 @@ export default function CollabFiles({
                         }}
                       >
                         읽고 서명하기
+                      </button>
+                    )}
+                    {/* 미서명자 리마인드 — 결정 리마인드의 문서판 (서버 쿨다운 1시간) */}
+                    {canEdit(selected) && ackStatus && ackStatus.acks.length < ackStatus.total && (
+                      <button
+                        className="cf-ack-req"
+                        onClick={async () => {
+                          try {
+                            const r = await api<{ reminded: number }>(
+                              `/api/meetings/${code}/files/${selected.id}/ack-remind`,
+                              { method: 'POST' },
+                            );
+                            toast(
+                              r.reminded > 0
+                                ? `미서명자 ${r.reminded}명에게 리마인드를 보냈어요`
+                                : '보낼 대상이 없어요',
+                            );
+                          } catch {
+                            /* 전역 토스트 (쿨다운 429 포함) */
+                          }
+                        }}
+                      >
+                        🔔 미서명자 리마인드
                       </button>
                     )}
                     {canEdit(selected) && (
