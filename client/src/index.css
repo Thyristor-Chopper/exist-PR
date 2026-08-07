@@ -13151,6 +13151,14 @@ input:focus {
 .cf-main.list .cf-ackdot {
   margin-right: 10px;
 }
+/* 구분선 오른쪽 컬럼들 — 헤더와 동일한 왼쪽 숨통 8px (정렬 유지) */
+.cf-main.list .cf-entry-type,
+.cf-main.list .cf-entry-author,
+.cf-main.list .cf-entry-date,
+.cf-main.list .cf-entry-size,
+.cf-main.list .cf-entry-online {
+  padding-left: 8px;
+}
 .cf-main.list .cf-entry-name {
   flex: 1;
   /* 0이면 좁은 화면에서 고정폭 컬럼들에 밀려 이름이 통째로 사라진다(노트북 폭+세부정보 패널).
@@ -19772,6 +19780,9 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 }
 .cf-listhead > *:not(:last-child) {
   padding-right: 10px; /* gap 대체 — 하이라이트가 구분선까지 닿게 */
+}
+.cf-listhead > *:not(:first-child) {
+  padding-left: 8px; /* 구분선과 글자 사이 숨통 (행 컬럼과 동일하게) */
 }
 .cf-listhead > *:not(:last-child)::after {
   content: '';
