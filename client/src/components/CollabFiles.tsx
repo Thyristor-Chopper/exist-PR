@@ -3107,8 +3107,12 @@ export default function CollabFiles({
                     <span className="cf-entry-author">{dn(f.author)}</span>
                     <span className="cf-entry-date">{fmtDate(f.created_at)}</span>
                     <span className="cf-entry-size">
-                      {/* 문서는 Yjs 상태 크기, 폴더는 하위 합산 — 서버가 채워줌. 빈 폴더만 — */}
-                      {f.type === 'folder' && !f.size ? '—' : fmtSize(f.size)}
+                      {/* 윈도우 문법 — 파일은 항상 숫자(빈 것도 0B), 폴더만 빈 경우 공란 */}
+                      {f.type === 'folder'
+                        ? f.size
+                          ? fmtSize(f.size)
+                          : '—'
+                        : fmtSize(f.size ?? 0)}
                     </span>
                     <span className="cf-entry-online">
                       {(presence[f.id]?.length ?? 0) > 0 ? (
