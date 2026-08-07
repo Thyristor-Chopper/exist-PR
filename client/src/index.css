@@ -13134,19 +13134,28 @@ input:focus {
 .cf-main.list .cf-entry {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: 8px;
+  gap: 0; /* 헤더와 동일 — 컬럼 간격은 셀 패딩으로 */
+  /* 가로 패딩은 헤더와 동일해야 컬럼이 안 어긋난다 — 하이라이트는 폭 전체,
+   * 내용만 왼쪽 8px 인셋 (윈도우식) */
+  padding: 7px 0 7px 8px;
+  border-radius: 0;
   border: 1px solid transparent;
   cursor: default;
   user-select: none;
 }
 
+.cf-main.list .cf-entry > *:not(:last-child) {
+  padding-right: 10px; /* 헤더와 동일한 gap 대체 패딩 */
+}
+/* 서명 점(고정폭 원)은 패딩이 안 먹으니 마진으로 간격 확보 */
+.cf-main.list .cf-ackdot {
+  margin-right: 10px;
+}
 .cf-main.list .cf-entry-name {
   flex: 1;
   /* 0이면 좁은 화면에서 고정폭 컬럼들에 밀려 이름이 통째로 사라진다(노트북 폭+세부정보 패널).
    * 최소폭을 확보하고 넘치면 행이 가로 스크롤로 밀리게 */
-  min-width: 140px;
+  min-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -19746,8 +19755,8 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 .cf-listhead {
   display: flex;
   align-items: stretch;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 0; /* 컬럼 간격은 셀 패딩으로 — gap이면 구분선이 버튼에서 5px 떠버린다 */
+  padding: 0; /* 행과 함께 플러시 — 컬럼 정렬 유지하려면 행 가로 패딩과 항상 같아야 함 */
   border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
 }
@@ -19761,12 +19770,15 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   color: var(--text-sub);
   text-align: left;
 }
+.cf-listhead > *:not(:last-child) {
+  padding-right: 10px; /* gap 대체 — 하이라이트가 구분선까지 닿게 */
+}
 .cf-listhead > *:not(:last-child)::after {
   content: '';
   position: absolute;
   top: 4px;
   bottom: 4px;
-  right: -5px; /* gap(10px) 한가운데 */
+  right: 0; /* 버튼 모서리에 딱 붙는 구분선 */
   width: 1px;
   background: var(--border);
 }
@@ -19784,8 +19796,8 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 .cf-listhead button:first-child {
   flex: 1;
   /* 행의 이름 컬럼(min-width 140px)과 동일 — 0이면 좁은 화면에서 '이름'이 짜부라져 '종류'와 겹친다 */
-  min-width: 166px;
-  padding-left: 26px; /* 아이콘 자리만큼 */
+  min-width: 184px;
+  padding-left: 34px; /* 행 인셋 8px + 아이콘 자리 26px */
 }
 
 /* 컬럼 폭은 행(.cf-entry-*)과 1:1로 맞춰야 구분선이 데이터 경계에 붙는다
