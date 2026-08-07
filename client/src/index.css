@@ -19751,7 +19751,7 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 /* 컬럼 공통 — 위쪽 셰브론 자리 확보 + 컬럼 사이 얇은 세로 구분선 */
 .cf-listhead > * {
   position: relative;
-  padding: 12px 0 5px;
+  padding: 8px 0 4px; /* 위 여백 = 셰브론 자리 — 12px는 과했음 */
   font-size: 11.5px;
   font-weight: 600;
   color: var(--text-sub);
@@ -19792,7 +19792,7 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 /* 현재 정렬 컬럼 표시 — 컬럼명 위 중앙의 작은 셰브론 (Win11식) */
 .cf-listhead-sortmark {
   position: absolute;
-  top: 1px;
+  top: -2px;
   left: 50%;
   transform: translateX(-50%);
   display: inline-flex;
