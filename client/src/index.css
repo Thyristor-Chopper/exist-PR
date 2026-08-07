@@ -12992,6 +12992,10 @@ input:focus {
   overflow-y: auto;
   padding: 12px;
 }
+/* 목록 뷰 — 윈도우 탐색기처럼 가장자리 패딩 없이 행이 폭 전체를 쓴다 */
+.cf-main.list {
+  padding: 0;
+}
 
 /* 세부 정보 — 윈도우 탐색기 오른쪽 정보창 */
 .cf-details {
