@@ -1222,7 +1222,18 @@ router.get('/trash/list', (req: AuthedRequest, res) => {
        WHERE f.meeting_id = ? AND f.deleted_root = f.id
        ORDER BY f.deleted_at DESC`,
     )
-    .all(r.meeting.id);
+    .all(r.meeting.id) as { id: number; type: FileType; size?: number | null }[];
+  // 크기 — 본문 목록과 동일 기준 (문서=Yjs 상태, 업로드=blob, 폴더=하위 합산)
+  for (const row of rows) {
+    const subs = db
+      .prepare('SELECT type, room, size FROM collab_files WHERE deleted_root = ?')
+      .all(row.id) as { type: FileType; room: string | null; size: number | null }[];
+    row.size = subs.reduce((sum, s) => {
+      if (s.type === 'folder') return sum;
+      if (s.size != null) return sum + s.size;
+      return sum + (s.room ? (ydocSize(s.room) ?? 0) : 0);
+    }, 0);
+  }
   res.json(rows);
 });
 

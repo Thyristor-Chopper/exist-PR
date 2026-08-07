@@ -427,17 +427,17 @@ export default function CollabFiles({
     () => localStorage.getItem('exist:cf-details') !== '0',
   );
   const [trashItems, setTrashItems] = useState<
-    { id: number; name: string; type: FileType; deleted_at: string; author: string; children: number }[]
+    { id: number; name: string; type: FileType; deleted_at: string; author: string; children: number; size: number | null }[]
   >([]);
   // 휴지통 행 선택 — 툴바 "선택한 항목 복원"용 (클릭 선택, Ctrl 다중)
   const [trashSelIds, setTrashSelIds] = useState<Set<number>>(new Set());
   // 휴지통 우클릭 메뉴 — 윈도우 휴지통처럼 복원/영구 삭제
   const [trashCtx, setTrashCtx] = useState<{ x: number; y: number } | null>(null);
   // 휴지통 헤더 정렬 — 본문 목록과 같은 문법 (기본: 최근 지운 것부터)
-  const [trashSort, setTrashSort] = useState<{ key: 'name' | 'author' | 'date'; dir: 'asc' | 'desc' }>({
-    key: 'date',
-    dir: 'desc',
-  });
+  const [trashSort, setTrashSort] = useState<{
+    key: 'name' | 'type' | 'author' | 'date' | 'size';
+    dir: 'asc' | 'desc';
+  }>({ key: 'date', dir: 'desc' });
   // 선택 파일 미리보기 (안에 뭐가 들었는지)
   const [preview, setPreview] = useState<{ id: number; items: string[]; count?: number } | null>(null);
   // 즐겨찾기 (기기별)
@@ -1872,9 +1872,9 @@ export default function CollabFiles({
         </span>
       ) : null;
     // 휴지통 헤더 정렬 — 본문과 같은 문법의 축소판
-    const trashHdrClick = (k: 'name' | 'author' | 'date') =>
+    const trashHdrClick = (k: 'name' | 'type' | 'author' | 'date' | 'size') =>
       setTrashSort((s) => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }));
-    const trashHdrMark = (k: 'name' | 'author' | 'date') =>
+    const trashHdrMark = (k: 'name' | 'type' | 'author' | 'date' | 'size') =>
       trashSort.key === k ? (
         <span className="cf-listhead-sortmark" aria-hidden="true">
           {trashSort.dir === 'asc' ? <ChevronUpIcon size={9} /> : <ChevronIcon size={9} />}
@@ -1884,9 +1884,13 @@ export default function CollabFiles({
       const v =
         trashSort.key === 'name'
           ? a.name.localeCompare(b.name, 'ko', { numeric: true, sensitivity: 'base' })
-          : trashSort.key === 'author'
-            ? dn(a.author).localeCompare(dn(b.author), 'ko')
-            : a.deleted_at.localeCompare(b.deleted_at);
+          : trashSort.key === 'type'
+            ? a.type.localeCompare(b.type)
+            : trashSort.key === 'author'
+              ? dn(a.author).localeCompare(dn(b.author), 'ko')
+              : trashSort.key === 'size'
+                ? (a.size ?? 0) - (b.size ?? 0)
+                : a.deleted_at.localeCompare(b.deleted_at);
       return trashSort.dir === 'asc' ? v : -v;
     });
 
@@ -1980,6 +1984,7 @@ export default function CollabFiles({
                 </button>
               </span>
             )}
+            {/* 윈도우처럼 현재 위치 뒤에도 › — 다음 단계로 들어갈 수 있다는 신호 */}
             {!trashOpen && !homeOpen && crumbs.map((c) => (
               <span key={c.id} className="cf-crumb-seg">
                 <ChevronRightIcon size={11} />
@@ -2004,6 +2009,12 @@ export default function CollabFiles({
                 </button>
               </span>
             ))}
+            {/* 윈도우처럼 현재 위치 뒤에도 › — 하위로 더 들어갈 수 있다는 신호 */}
+            {!trashOpen && !homeOpen && (
+              <span className="cf-crumb-tail" aria-hidden>
+                <ChevronRightIcon size={11} />
+              </span>
+            )}
             </>)}
           </div>
           <input
@@ -2129,36 +2140,40 @@ export default function CollabFiles({
                   <button
                     key={k}
                     onClick={() => {
-                      setSortKey(k);
+                      // 휴지통 모드에선 휴지통 목록 정렬을 조작 (본문 정렬은 그대로 보존)
+                      if (trashOpen) setTrashSort((s) => ({ ...s, key: k }));
+                      else setSortKey(k);
                       setSortMenu(false);
                     }}
                   >
                     <span className="cf-menu-check">
-                      {sortKey === k && <CheckMarkIcon size={12} />}
+                      {(trashOpen ? trashSort.key === k : sortKey === k) && <CheckMarkIcon size={12} />}
                     </span>
-                    {label}
+                    {trashOpen && k === 'author' ? '지운 사람' : trashOpen && k === 'date' ? '지운 날짜' : label}
                   </button>
                 ))}
                 <div className="cf-menu-sep" />
                 <button
                   onClick={() => {
-                    setSortDir('asc');
+                    if (trashOpen) setTrashSort((s) => ({ ...s, dir: 'asc' }));
+                    else setSortDir('asc');
                     setSortMenu(false);
                   }}
                 >
                   <span className="cf-menu-check">
-                    {sortDir === 'asc' && <CheckMarkIcon size={12} />}
+                    {(trashOpen ? trashSort.dir === 'asc' : sortDir === 'asc') && <CheckMarkIcon size={12} />}
                   </span>
                   오름차순
                 </button>
                 <button
                   onClick={() => {
-                    setSortDir('desc');
+                    if (trashOpen) setTrashSort((s) => ({ ...s, dir: 'desc' }));
+                    else setSortDir('desc');
                     setSortMenu(false);
                   }}
                 >
                   <span className="cf-menu-check">
-                    {sortDir === 'desc' && <CheckMarkIcon size={12} />}
+                    {(trashOpen ? trashSort.dir === 'desc' : sortDir === 'desc') && <CheckMarkIcon size={12} />}
                   </span>
                   내림차순
                 </button>
@@ -2169,6 +2184,8 @@ export default function CollabFiles({
           <div className="cf-tool-wrap">
             <button
               className="cf-tool labeled"
+              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : undefined}
+              disabled={trashOpen}
               onClick={() => {
                 const next = !viewMenu;
                 closeMenus();
@@ -2222,6 +2239,8 @@ export default function CollabFiles({
           <div className="cf-tool-wrap">
             <button
               className={`cf-tool labeled${typeFilter ? ' on' : ''}`}
+              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : undefined}
+              disabled={trashOpen}
               onClick={() => {
                 const next = !filterMenu;
                 closeMenus();
@@ -2646,6 +2665,9 @@ export default function CollabFiles({
                   <button type="button" title="지운 날짜로 정렬" onClick={() => trashHdrClick('date')}>
                     {trashHdrMark('date')}지운 날짜
                   </button>
+                  <button type="button" title="크기로 정렬" onClick={() => trashHdrClick('size')}>
+                    {trashHdrMark('size')}크기
+                  </button>
                 </div>
                 {sortedTrashItems.map((t) => (
                   <div
@@ -2685,6 +2707,9 @@ export default function CollabFiles({
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
+                    </span>
+                    <span className="cf-trash-size">
+                      {t.type === 'folder' && !t.size ? '—' : fmtSize(t.size ?? 0)}
                     </span>
                   </div>
                 ))}
@@ -2932,8 +2957,11 @@ export default function CollabFiles({
               <span className="cf-entry-name">휴지통</span>
               {view === 'list' && (
                 <>
+                  {/* 컬럼 셀은 일반 행과 같은 5칸 구조 — 빠지면 열이 통째로 어긋난다 */}
                   <span className="cf-entry-type">시스템</span>
                   <span className="cf-entry-author">항목 {trashItems.length}개</span>
+                  <span className="cf-entry-date">—</span>
+                  <span className="cf-entry-size">—</span>
                   <span className="cf-entry-online">
                     <span className="cf-online-none">—</span>
                   </span>
