@@ -3067,7 +3067,8 @@ export default function CollabFiles({
                     <span className="cf-entry-author">{dn(f.author)}</span>
                     <span className="cf-entry-date">{fmtDate(f.created_at)}</span>
                     <span className="cf-entry-size">
-                      {f.type === 'file' ? fmtSize(f.size) : '—'}
+                      {/* 공동편집 문서도 서버가 Yjs 상태 크기를 채워준다 — 폴더만 — */}
+                      {f.type === 'folder' ? '—' : fmtSize(f.size)}
                     </span>
                     <span className="cf-entry-online">
                       {(presence[f.id]?.length ?? 0) > 0 ? (

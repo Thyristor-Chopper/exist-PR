@@ -7,6 +7,7 @@ import db from './db.js';
 import type { AuthedRequest } from './auth.js';
 import {
   ydocExists,
+  ydocSize,
   deleteYdoc,
   copyYdoc,
   readYdocSnapshot,
@@ -253,7 +254,13 @@ router.get('/', (req: AuthedRequest, res) => {
        FROM collab_files f JOIN users u ON u.id = f.created_by
        WHERE f.meeting_id = ? AND f.deleted_at IS NULL ORDER BY f.type = 'folder' DESC, f.name`,
     )
-    .all(req.userId!, r.meeting.id);
+    .all(req.userId!, r.meeting.id) as { type: FileType; room: string | null; size: number | null }[];
+  // 공동편집 문서(Yjs)는 DB에 size가 없다 — 룸 상태(.bin) 크기로 채워 '크기' 컬럼이 비지 않게
+  for (const row of rows) {
+    if (row.size == null && row.room && row.type !== 'folder') {
+      row.size = ydocSize(row.room);
+    }
+  }
   res.json(rows);
 });
 

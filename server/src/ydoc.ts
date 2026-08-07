@@ -160,6 +160,23 @@ export function ydocExists(name: string): boolean {
   return docs.has(name) || fs.existsSync(filePath(name));
 }
 
+/** 룸 상태 크기(byte) — 파일 목록의 '크기' 컬럼용. 열려 있으면 메모리 상태, 아니면 .bin */
+export function ydocSize(name: string): number | null {
+  const open = docs.get(name);
+  if (open) {
+    try {
+      return Y.encodeStateAsUpdate(open).byteLength;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return fs.statSync(filePath(name)).size;
+  } catch {
+    return null; // 아직 편집된 적 없는 빈 문서
+  }
+}
+
 /** 룸 상태 복사 — 파일 복제용. 열려 있는 문서는 현재 메모리 상태를, 아니면 .bin을 복사 */
 export function copyYdoc(src: string, dst: string) {
   const open = docs.get(src);
