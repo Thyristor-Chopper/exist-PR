@@ -19959,16 +19959,33 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   font-size: 12px;
 }
 
-/* 휴지통 헤더 — 본문과 같은 클릭 정렬. 컬럼 폭은 행(110px)에 맞춤 (본문 90px 규칙 무시) */
-.cf-trashhead-row button:nth-child(2),
-.cf-trashhead-row button:nth-child(3) {
-  width: 110px;
+/* 휴지통 헤더 — 본문과 같은 클릭 정렬. 컬럼: 이름(flex)·원래 위치(140)·지운 사람(110)·지운 날짜(110)·크기(64) */
+.cf-trashhead-row button:nth-child(2) {
+  width: 140px; /* 원래 위치 */
   flex: none;
 }
+.cf-trashhead-row button:nth-child(3),
 .cf-trashhead-row button:nth-child(4) {
+  width: 110px; /* 지운 사람 · 지운 날짜 */
+  flex: none;
+}
+.cf-trashhead-row button:nth-child(5) {
   width: 64px; /* 크기 — 본문과 동일 폭·우측 정렬 */
   flex: none;
   text-align: right;
+}
+.cf-trashmain .cf-trash-name {
+  min-width: 150px; /* 본문 이름 컬럼과 동일 — 0이면 고정폭 컬럼들에 짜부라진다 */
+}
+.cf-trashmain .cf-trash-loc {
+  width: 140px;
+  flex: none;
+  padding-left: 8px;
+  font-size: 12px;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* 홈 즐겨찾기 목록 — 위치 컬럼 (Win11 홈 문법) */
 .cf-home-row-loc {
