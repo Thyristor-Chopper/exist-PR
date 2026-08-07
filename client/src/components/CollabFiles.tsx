@@ -431,6 +431,11 @@ export default function CollabFiles({
   >([]);
   // 휴지통 행 선택 — 툴바 "선택한 항목 복원"용 (클릭 선택, Ctrl 다중)
   const [trashSelIds, setTrashSelIds] = useState<Set<number>>(new Set());
+  // 휴지통 헤더 정렬 — 본문 목록과 같은 문법 (기본: 최근 지운 것부터)
+  const [trashSort, setTrashSort] = useState<{ key: 'name' | 'author' | 'date'; dir: 'asc' | 'desc' }>({
+    key: 'date',
+    dir: 'desc',
+  });
   // 선택 파일 미리보기 (안에 뭐가 들었는지)
   const [preview, setPreview] = useState<{ id: number; items: string[]; count?: number } | null>(null);
   // 즐겨찾기 (기기별)
@@ -1861,6 +1866,24 @@ export default function CollabFiles({
           {sortDir === 'asc' ? <ChevronUpIcon size={9} /> : <ChevronIcon size={9} />}
         </span>
       ) : null;
+    // 휴지통 헤더 정렬 — 본문과 같은 문법의 축소판
+    const trashHdrClick = (k: 'name' | 'author' | 'date') =>
+      setTrashSort((s) => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }));
+    const trashHdrMark = (k: 'name' | 'author' | 'date') =>
+      trashSort.key === k ? (
+        <span className="cf-listhead-sortmark" aria-hidden="true">
+          {trashSort.dir === 'asc' ? <ChevronUpIcon size={9} /> : <ChevronIcon size={9} />}
+        </span>
+      ) : null;
+    const sortedTrashItems = [...trashItems].sort((a, b) => {
+      const v =
+        trashSort.key === 'name'
+          ? a.name.localeCompare(b.name, 'ko', { numeric: true, sensitivity: 'base' })
+          : trashSort.key === 'author'
+            ? dn(a.author).localeCompare(dn(b.author), 'ko')
+            : a.deleted_at.localeCompare(b.deleted_at);
+      return trashSort.dir === 'asc' ? v : -v;
+    });
 
     return (
       <div
@@ -2609,11 +2632,17 @@ export default function CollabFiles({
             ) : (
               <>
                 <div className="cf-listhead cf-trashhead-row">
-                  <span className="cf-trashhead-name">이름</span>
-                  <span className="cf-trashhead-meta">지운 사람</span>
-                  <span className="cf-trashhead-meta">지운 날짜</span>
+                  <button type="button" title="이름으로 정렬" onClick={() => trashHdrClick('name')}>
+                    {trashHdrMark('name')}이름
+                  </button>
+                  <button type="button" title="지운 사람으로 정렬" onClick={() => trashHdrClick('author')}>
+                    {trashHdrMark('author')}지운 사람
+                  </button>
+                  <button type="button" title="지운 날짜로 정렬" onClick={() => trashHdrClick('date')}>
+                    {trashHdrMark('date')}지운 날짜
+                  </button>
                 </div>
-                {trashItems.map((t) => (
+                {sortedTrashItems.map((t) => (
                   <div
                     key={t.id}
                     className={`cf-trash-row${trashSelIds.has(t.id) ? ' selected' : ''}`}

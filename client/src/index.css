@@ -19959,10 +19959,29 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   font-size: 12px;
 }
 
-/* 휴지통 행 선택 — 본문 탐색기와 같은 문법 */
+/* 휴지통 헤더 — 본문과 같은 클릭 정렬. 컬럼 폭은 행(110px)에 맞춤 (본문 90px 규칙 무시) */
+.cf-trashhead-row button:nth-child(2),
+.cf-trashhead-row button:nth-child(3) {
+  width: 110px;
+  flex: none;
+}
+/* 휴지통 행 선택 — 본문 탐색기와 같은 문법 + 본문 목록과 동일한 플러시 컬럼 체계 */
 .cf-trash-row {
   cursor: default;
   user-select: none;
+}
+.cf-trashmain .cf-trash-row {
+  gap: 0;
+  padding: 7px 0 7px 8px;
+  border-radius: 0;
+}
+.cf-trash-row > *:not(:last-child) {
+  padding-right: 10px;
+}
+.cf-trashmain .cf-trash-meta {
+  width: 110px;
+  flex: none;
+  padding-left: 8px;
 }
 .cf-trash-row.selected {
   background: rgba(33, 200, 24, 0.08);
