@@ -970,8 +970,8 @@ router.delete('/:fileId', (req: AuthedRequest, res) => {
   const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   const f = db
-    .prepare('SELECT id, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
-    .get(req.params.fileId, r.meeting.id) as FileRow | undefined;
+    .prepare('SELECT id, name, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
+    .get(req.params.fileId, r.meeting.id) as (FileRow & { name: string }) | undefined;
   if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
   if (!canManageFile(f, r.meeting, req.userId!)) {
     return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 삭제할 수 있어요' });
@@ -979,9 +979,17 @@ router.delete('/:fileId', (req: AuthedRequest, res) => {
 
   const ids = collectSubtree(f.id);
   const ph = ids.map(() => '?').join(',');
+  // deleted_by — "지운 사람" 추적 (예전엔 created_by를 지운 사람으로 잘못 표시했다)
   db.prepare(
-    `UPDATE collab_files SET deleted_at = datetime('now'), deleted_root = ? WHERE id IN (${ph})`,
-  ).run(f.id, ...ids);
+    `UPDATE collab_files SET deleted_at = datetime('now'), deleted_root = ?, deleted_by = ? WHERE id IN (${ph})`,
+  ).run(f.id, req.userId!, ...ids);
+  // 기록 보존 — 소프트 삭제도 감사 추적에 (GMP: 누가 언제 무엇을 지웠는가)
+  auditPurge(
+    r.meeting,
+    req.userId!,
+    'files.trash',
+    `그룹 "${meetingLabel(r.meeting)}" 파일 "${f.name}" 휴지통으로 이동${ids.length > 1 ? ` (하위 ${ids.length - 1}개 포함)` : ''}`,
+  );
   res.json({ ok: true, trashed: ids.length });
 });
 
@@ -1216,13 +1224,37 @@ router.get('/trash/list', (req: AuthedRequest, res) => {
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   const rows = db
     .prepare(
-      `SELECT f.id, f.name, f.type, f.deleted_at, u.username AS author,
+      // author = 실제로 지운 사람 (deleted_by). 마이그레이션 전 레거시 행은 만든 사람으로 폴백
+      `SELECT f.id, f.name, f.type, f.deleted_at, f.parent_id,
+              COALESCE(du.username, u.username) AS author,
               (SELECT COUNT(*) - 1 FROM collab_files c WHERE c.deleted_root = f.id) AS children
-       FROM collab_files f JOIN users u ON u.id = f.created_by
+       FROM collab_files f
+       JOIN users u ON u.id = f.created_by
+       LEFT JOIN users du ON du.id = f.deleted_by
        WHERE f.meeting_id = ? AND f.deleted_root = f.id
        ORDER BY f.deleted_at DESC`,
     )
-    .all(r.meeting.id) as { id: number; type: FileType; size?: number | null }[];
+    .all(r.meeting.id) as {
+    id: number;
+    type: FileType;
+    parent_id: number | null;
+    size?: number | null;
+    location?: string;
+  }[];
+  // 원래 위치 — 부모 체인을 이름으로 (부모가 삭제됐어도 행은 남아 있어 추적 가능)
+  const nameOf = db.prepare('SELECT parent_id, name FROM collab_files WHERE id = ?');
+  for (const row of rows) {
+    const segs: string[] = [];
+    let p = row.parent_id;
+    let guard = 0;
+    while (p != null && guard++ < 20) {
+      const parent = nameOf.get(p) as { parent_id: number | null; name: string } | undefined;
+      if (!parent) break;
+      segs.unshift(parent.name);
+      p = parent.parent_id;
+    }
+    row.location = segs.join(' › '); // 빈 문자열 = 루트
+  }
   // 크기 — 본문 목록과 동일 기준 (문서=Yjs 상태, 업로드=blob, 폴더=하위 합산)
   for (const row of rows) {
     const subs = db
@@ -1277,7 +1309,15 @@ router.post('/trash/:fileId/restore', (req: AuthedRequest, res) => {
     f.id,
   );
   db.prepare('UPDATE collab_files SET parent_id = ?, name = ? WHERE id = ?').run(target, name, f.id);
-  res.json({ ok: true, parent_id: target, name });
+  // 기록 보존 — 복원도 감사 추적에 (삭제·복원 짝이 맞아야 이력이 완결된다)
+  auditPurge(
+    r.meeting,
+    req.userId!,
+    'files.restore',
+    `그룹 "${meetingLabel(r.meeting)}" 파일 "${name}" 복원${f.parent_id != null && target === null ? ' (원래 폴더 소실 — 루트로)' : ''}`,
+  );
+  // fellBack — 원래 폴더가 사라져 루트로 떨어진 경우 (클라가 토스트로 알림)
+  res.json({ ok: true, parent_id: target, name, fellBack: f.parent_id != null && target === null });
 });
 
 /** 휴지통 영구 삭제 — Yjs 상태까지 제거 */

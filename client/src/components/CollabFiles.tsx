@@ -427,7 +427,16 @@ export default function CollabFiles({
     () => localStorage.getItem('exist:cf-details') !== '0',
   );
   const [trashItems, setTrashItems] = useState<
-    { id: number; name: string; type: FileType; deleted_at: string; author: string; children: number; size: number | null }[]
+    {
+      id: number;
+      name: string;
+      type: FileType;
+      deleted_at: string;
+      author: string;
+      children: number;
+      size: number | null;
+      location: string; // 원래 위치 (빈 문자열 = 루트)
+    }[]
   >([]);
   // 휴지통 행 선택 — 툴바 "선택한 항목 복원"용 (클릭 선택, Ctrl 다중)
   const [trashSelIds, setTrashSelIds] = useState<Set<number>>(new Set());
@@ -435,7 +444,7 @@ export default function CollabFiles({
   const [trashCtx, setTrashCtx] = useState<{ x: number; y: number } | null>(null);
   // 휴지통 헤더 정렬 — 본문 목록과 같은 문법 (기본: 최근 지운 것부터)
   const [trashSort, setTrashSort] = useState<{
-    key: 'name' | 'type' | 'author' | 'date' | 'size';
+    key: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc';
     dir: 'asc' | 'desc';
   }>({ key: 'date', dir: 'desc' });
   // 선택 파일 미리보기 (안에 뭐가 들었는지)
@@ -1407,10 +1416,15 @@ export default function CollabFiles({
   /** 여러 항목 복원 — 실패는 건너뛰고 개수만 보고 (권한 없는 항목 등) */
   async function restoreMany(ids: number[]) {
     let ok = 0;
+    let fellBack = 0; // 원래 폴더 소실 → 루트로 떨어진 개수 (윈도우는 경로 재생성, 우리는 알림)
     for (const id of ids) {
       try {
-        await api(`/api/meetings/${code}/files/trash/${id}/restore`, { method: 'POST' });
+        const r = await api<{ fellBack?: boolean }>(
+          `/api/meetings/${code}/files/trash/${id}/restore`,
+          { method: 'POST' },
+        );
         ok++;
+        if (r.fellBack) fellBack++;
       } catch {
         /* 개별 실패 무시 — 아래에서 집계 */
       }
@@ -1418,10 +1432,14 @@ export default function CollabFiles({
     await loadTrash();
     load();
     if (ok > 0) {
-      toast(
+      const base =
         ok === ids.length
           ? `${ok}개 항목을 복원했어요`
-          : `${ok}개 복원 — 나머지 ${ids.length - ok}개는 복원하지 못했어요`,
+          : `${ok}개 복원 — 나머지 ${ids.length - ok}개는 복원하지 못했어요`;
+      toast(
+        fellBack > 0
+          ? `${base} · 원래 폴더가 없어 ${fellBack}개는 루트로 복원했어요`
+          : base,
       );
     } else {
       toast('복원하지 못했어요', 'error');
@@ -1872,9 +1890,9 @@ export default function CollabFiles({
         </span>
       ) : null;
     // 휴지통 헤더 정렬 — 본문과 같은 문법의 축소판
-    const trashHdrClick = (k: 'name' | 'type' | 'author' | 'date' | 'size') =>
+    const trashHdrClick = (k: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc') =>
       setTrashSort((s) => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }));
-    const trashHdrMark = (k: 'name' | 'type' | 'author' | 'date' | 'size') =>
+    const trashHdrMark = (k: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc') =>
       trashSort.key === k ? (
         <span className="cf-listhead-sortmark" aria-hidden="true">
           {trashSort.dir === 'asc' ? <ChevronUpIcon size={9} /> : <ChevronIcon size={9} />}
@@ -1886,6 +1904,8 @@ export default function CollabFiles({
           ? a.name.localeCompare(b.name, 'ko', { numeric: true, sensitivity: 'base' })
           : trashSort.key === 'type'
             ? a.type.localeCompare(b.type)
+            : trashSort.key === 'loc'
+              ? a.location.localeCompare(b.location, 'ko')
             : trashSort.key === 'author'
               ? dn(a.author).localeCompare(dn(b.author), 'ko')
               : trashSort.key === 'size'
@@ -2665,6 +2685,9 @@ export default function CollabFiles({
                   <button type="button" title="이름으로 정렬" onClick={() => trashHdrClick('name')}>
                     {trashHdrMark('name')}이름
                   </button>
+                  <button type="button" title="원래 위치로 정렬" onClick={() => trashHdrClick('loc')}>
+                    {trashHdrMark('loc')}원래 위치
+                  </button>
                   <button type="button" title="지운 사람으로 정렬" onClick={() => trashHdrClick('author')}>
                     {trashHdrMark('author')}지운 사람
                   </button>
@@ -2704,6 +2727,12 @@ export default function CollabFiles({
                     <span className="cf-trash-name" title={t.name}>
                       {t.name}
                       {t.children > 0 ? ` (+${t.children})` : ''}
+                    </span>
+                    <span
+                      className="cf-trash-loc"
+                      title={[rootName, t.location].filter(Boolean).join(' › ')}
+                    >
+                      {[rootName, t.location].filter(Boolean).join(' › ')}
                     </span>
                     <span className="cf-trash-meta">{dn(t.author)}</span>
                     <span className="cf-trash-meta">

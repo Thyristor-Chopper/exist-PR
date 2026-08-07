@@ -623,6 +623,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_transcripts_meeting ON call_transcripts(meeting_id, id);
 `);
 
+// 마이그레이션: 지운 사람 — 휴지통 "지운 사람" 표시·감사용 (created_by와 별개)
+try {
+  db.exec(`ALTER TABLE collab_files ADD COLUMN deleted_by INTEGER`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 마이그레이션: 전사 출처 — 'live'(브라우저 Web Speech) / 'whisper'(회의 후 OpenAI 재전사).
 // recap은 whisper 행이 있으면 그것만 쓴다 (stt.ts)
 try {
