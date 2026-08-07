@@ -19788,9 +19788,21 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   padding-left: 26px; /* 아이콘 자리만큼 */
 }
 
-.cf-listhead button:not(:first-child) {
-  width: 90px;
+/* 컬럼 폭은 행(.cf-entry-*)과 1:1로 맞춰야 구분선이 데이터 경계에 붙는다
+ * (일괄 90px였을 땐 날짜 110·크기 64와 어긋나 헤더가 붕 떠 보였음) */
+.cf-listhead button:nth-child(2),
+.cf-listhead button:nth-child(3) {
+  width: 90px; /* 종류 · 만든 사람 */
   flex: none;
+}
+.cf-listhead button:nth-child(4) {
+  width: 110px; /* 날짜 (.cf-entry-date와 동일) */
+  flex: none;
+}
+.cf-listhead button:nth-child(5) {
+  width: 64px; /* 크기 (.cf-entry-size와 동일) */
+  flex: none;
+  text-align: right;
 }
 
 /* 현재 정렬 컬럼 표시 — 컬럼명 위 중앙의 작은 셰브론 (Win11식) */
