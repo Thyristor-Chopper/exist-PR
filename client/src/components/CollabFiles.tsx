@@ -2547,31 +2547,37 @@ export default function CollabFiles({
                   파일을 선택하고 세부정보의 ★을 누르면 여기에 고정돼요
                 </div>
               ) : (
-                <div className="cf-home-grid">
-                  {favFiles.map((f) => (
-                    <button
-                      key={f.id}
-                      className="cf-home-tile"
-                      title={f.name}
-                      onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
-                    >
-                      {f.type === 'file' && viewKindOf(f.name) === 'image' ? (
-                        <span className="cf-thumbwrap">
-                          <img
-                            className="cf-thumb"
-                            loading="lazy"
-                            src={`/api/meetings/${code}/files/${f.id}/download?token=${encodeURIComponent(token ?? '')}`}
-                            alt=""
-                          />
-                        </span>
-                      ) : (
+                /* Win11 홈처럼 목록형 — 이름 · 위치 · 종류 (최근 방문과 같은 문법) */
+                <div className="cf-home-list">
+                  {favFiles.map((f) => {
+                    const segs: string[] = [];
+                    let p = f.parent_id;
+                    while (p != null) {
+                      const parent = byId.get(p);
+                      if (!parent) break;
+                      segs.unshift(parent.name);
+                      p = parent.parent_id;
+                    }
+                    return (
+                      <button
+                        key={f.id}
+                        className="cf-home-row"
+                        title={f.name}
+                        onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
+                      >
                         <span className={`cf-icon ${f.type}`}>
-                          <TypeIcon type={f.type} size={28} name={f.name} />
+                          <TypeIcon type={f.type} size={15} name={f.name} />
                         </span>
-                      )}
-                      <span className="cf-home-name">{f.name}</span>
-                    </button>
-                  ))}
+                        <span className="cf-home-row-name">{f.name}</span>
+                        <span className="cf-home-row-meta cf-home-row-loc">
+                          {[rootName, ...segs].join(' › ')}
+                        </span>
+                        <span className="cf-home-row-meta">
+                          {f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type as Exclude<FileType, 'folder'>]}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

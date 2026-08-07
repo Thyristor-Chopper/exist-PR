@@ -19970,6 +19970,14 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   flex: none;
   text-align: right;
 }
+/* 홈 즐겨찾기 목록 — 위치 컬럼 (Win11 홈 문법) */
+.cf-home-row-loc {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 경로 끝 › — 현재 위치 뒤 (윈도우식) */
 .cf-crumb-tail {
   display: inline-flex;
