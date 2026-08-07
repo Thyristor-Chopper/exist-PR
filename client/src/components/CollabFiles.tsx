@@ -431,6 +431,8 @@ export default function CollabFiles({
   >([]);
   // 휴지통 행 선택 — 툴바 "선택한 항목 복원"용 (클릭 선택, Ctrl 다중)
   const [trashSelIds, setTrashSelIds] = useState<Set<number>>(new Set());
+  // 휴지통 우클릭 메뉴 — 윈도우 휴지통처럼 복원/영구 삭제
+  const [trashCtx, setTrashCtx] = useState<{ x: number; y: number } | null>(null);
   // 휴지통 헤더 정렬 — 본문 목록과 같은 문법 (기본: 최근 지운 것부터)
   const [trashSort, setTrashSort] = useState<{ key: 'name' | 'author' | 'date'; dir: 'asc' | 'desc' }>({
     key: 'date',
@@ -1694,13 +1696,16 @@ export default function CollabFiles({
 
   // 우클릭 메뉴 — 바깥 클릭·Escape로 닫기
   useEffect(() => {
-    if (!ctxMenu) return;
+    if (!ctxMenu && !trashCtx) return;
     function onDown(e: PointerEvent) {
-      if (!(e.target as HTMLElement).closest('.cf-ctx')) setCtxMenu(null);
+      if (!(e.target as HTMLElement).closest('.cf-ctx')) {
+        setCtxMenu(null);
+        setTrashCtx(null);
+      }
     }
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [ctxMenu]);
+  }, [ctxMenu, trashCtx]);
 
   // 정렬·새로 만들기 드롭다운 — 바깥 클릭으로 닫기
   useEffect(() => {
@@ -1961,7 +1966,7 @@ export default function CollabFiles({
             </button>
             {trashOpen && (
               <span className="cf-crumb-seg">
-                <ChevronIcon size={11} />
+                <ChevronRightIcon size={11} />
                 <button className="cf-crumb cf-crumb-trash">
                   <TrashIcon size={12} /> 휴지통
                 </button>
@@ -1969,7 +1974,7 @@ export default function CollabFiles({
             )}
             {homeOpen && (
               <span className="cf-crumb-seg">
-                <ChevronIcon size={11} />
+                <ChevronRightIcon size={11} />
                 <button className="cf-crumb cf-crumb-home">
                   <HomeIcon size={12} /> 홈
                 </button>
@@ -1977,7 +1982,7 @@ export default function CollabFiles({
             )}
             {!trashOpen && !homeOpen && crumbs.map((c) => (
               <span key={c.id} className="cf-crumb-seg">
-                <ChevronIcon size={11} />
+                <ChevronRightIcon size={11} />
                 <button
                   className={`cf-crumb${dropTarget === c.id ? ' droptarget' : ''}`}
                   onClick={() => navigate(c.id)}
@@ -2646,6 +2651,12 @@ export default function CollabFiles({
                   <div
                     key={t.id}
                     className={`cf-trash-row${trashSelIds.has(t.id) ? ' selected' : ''}`}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      // 윈도우 문법 — 선택 밖 행을 우클릭하면 그 행만 선택하고 메뉴
+                      setTrashSelIds((prev) => (prev.has(t.id) ? prev : new Set([t.id])));
+                      setTrashCtx({ x: e.clientX, y: e.clientY });
+                    }}
                     onClick={(e) => {
                       // 클릭 선택, Ctrl 다중 — 탐색기 본문과 동일 문법
                       setTrashSelIds((prev) => {
@@ -3096,8 +3107,8 @@ export default function CollabFiles({
                     <span className="cf-entry-author">{dn(f.author)}</span>
                     <span className="cf-entry-date">{fmtDate(f.created_at)}</span>
                     <span className="cf-entry-size">
-                      {/* 공동편집 문서도 서버가 Yjs 상태 크기를 채워준다 — 폴더만 — */}
-                      {f.type === 'folder' ? '—' : fmtSize(f.size)}
+                      {/* 문서는 Yjs 상태 크기, 폴더는 하위 합산 — 서버가 채워줌. 빈 폴더만 — */}
+                      {f.type === 'folder' && !f.size ? '—' : fmtSize(f.size)}
                     </span>
                     <span className="cf-entry-online">
                       {(presence[f.id]?.length ?? 0) > 0 ? (
@@ -3542,6 +3553,34 @@ export default function CollabFiles({
         </div>
 
         {/* 우클릭 컨텍스트 메뉴 */}
+        {/* 휴지통 우클릭 — 윈도우 휴지통과 동일 (복원·영구 삭제) */}
+        {trashCtx && trashOpen && trashSelIds.size > 0 && (
+          <div
+            className="cf-ctx"
+            style={{
+              left: Math.min(trashCtx.x, window.innerWidth - 210),
+              top: Math.min(trashCtx.y, window.innerHeight - 120),
+            }}
+          >
+            <button
+              onClick={() => {
+                setTrashCtx(null);
+                void restoreMany([...trashSelIds]);
+              }}
+            >
+              <UndoIcon size={13} /> 복원{trashSelIds.size > 1 ? ` (${trashSelIds.size})` : ''}
+            </button>
+            <button
+              className="danger"
+              onClick={() => {
+                setTrashCtx(null);
+                void purgeMany([...trashSelIds]);
+              }}
+            >
+              <TrashIcon size={13} /> 영구 삭제{trashSelIds.size > 1 ? ` (${trashSelIds.size})` : ''}
+            </button>
+          </div>
+        )}
         {ctxMenu && (
           <div
             className="cf-ctx"
