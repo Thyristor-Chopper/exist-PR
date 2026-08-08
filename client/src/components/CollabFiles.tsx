@@ -415,6 +415,7 @@ export default function CollabFiles({
     y: number;
   } | null>(null);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
+  const explorerRef = useRef<HTMLDivElement | null>(null);
   const dragEmptyImg = useRef<HTMLImageElement | null>(null);
   if (!dragEmptyImg.current && typeof Image !== 'undefined') {
     const img = new Image();
@@ -466,6 +467,7 @@ export default function CollabFiles({
     e.stopPropagation();
     if (colDrag.current) return; // 이미 드래그 중 — 중복 시작 방지
     colDrag.current = { k, startX: e.clientX, startW: colW[k] ?? COL_DEFAULTS[k] };
+    let lastW = colDrag.current.startW;
     const onMove = (ev: PointerEvent) => {
       const d = colDrag.current;
       // 내 드래그가 아니면(HMR 잔재 등 스테일 리스너) 스스로 해제 — 한 드래그에 여러 컬럼이 딸려오는 사고 방지
@@ -473,8 +475,10 @@ export default function CollabFiles({
         window.removeEventListener('pointermove', onMove);
         return;
       }
-      const w = Math.round(Math.max(48, Math.min(480, d.startW + (ev.clientX - d.startX))));
-      setColW((prev) => (prev[d.k] === w ? prev : { ...prev, [d.k]: w }));
+      lastW = Math.round(Math.max(48, Math.min(480, d.startW + (ev.clientX - d.startX))));
+      // 드래그 중엔 React를 안 거치고 CSS 변수만 직접 갱신 — 매 이동마다
+      // 탐색기 전체가 리렌더되면 끊긴다. 상태 커밋은 놓을 때 한 번
+      explorerRef.current?.style.setProperty(`--cf-col-${k}`, `${lastW}px`);
     };
     const onUp = () => {
       colDrag.current = null;
@@ -482,8 +486,9 @@ export default function CollabFiles({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       setColW((prev) => {
-        localStorage.setItem('exist:cf-colw', JSON.stringify(prev));
-        return prev;
+        const next = { ...prev, [k]: lastW };
+        localStorage.setItem('exist:cf-colw', JSON.stringify(next));
+        return next;
       });
     };
     window.addEventListener('pointermove', onMove);
@@ -1980,6 +1985,7 @@ export default function CollabFiles({
 
     return (
       <div
+        ref={explorerRef}
         className="cf-explorer"
         style={{ display: active ? 'none' : undefined, ...colVars }}
         tabIndex={0}
