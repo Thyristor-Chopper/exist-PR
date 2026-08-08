@@ -13151,9 +13151,9 @@ input:focus {
 .cf-main.list .cf-ackdot {
   margin-right: 10px;
 }
-/* 점이 있는 행은 이름 폭에서 점 몫(8+10px)을 빼야 뒤 컬럼들이 안 밀린다 */
+/* 점이 있는 행은 이름 폭에서 점 몫(10px + 마진 10px)을 빼야 뒤 컬럼들이 안 밀린다 */
 .cf-main.list .cf-ackdot + .cf-entry-name {
-  width: calc(var(--cf-col-name, 260px) - 18px);
+  width: calc(var(--cf-col-name, 260px) - 20px);
 }
 /* 구분선 오른쪽 컬럼들 — 헤더와 동일한 왼쪽 숨통 8px (정렬 유지) */
 .cf-main.list .cf-entry-type,
