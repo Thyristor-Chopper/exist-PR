@@ -13151,6 +13151,10 @@ input:focus {
 .cf-main.list .cf-ackdot {
   margin-right: 10px;
 }
+/* 점이 있는 행은 이름 폭에서 점 몫(8+10px)을 빼야 뒤 컬럼들이 안 밀린다 */
+.cf-main.list .cf-ackdot + .cf-entry-name {
+  width: calc(var(--cf-col-name, 260px) - 18px);
+}
 /* 구분선 오른쪽 컬럼들 — 헤더와 동일한 왼쪽 숨통 8px (정렬 유지) */
 .cf-main.list .cf-entry-type,
 .cf-main.list .cf-entry-author,
@@ -13160,10 +13164,10 @@ input:focus {
   padding-left: 8px;
 }
 .cf-main.list .cf-entry-name {
-  flex: 1;
-  /* 0이면 좁은 화면에서 고정폭 컬럼들에 밀려 이름이 통째로 사라진다(노트북 폭+세부정보 패널).
-   * 최소폭을 확보하고 넘치면 행이 가로 스크롤로 밀리게 */
-  min-width: 150px;
+  /* 윈도우식 — 이름도 고정폭 컬럼(직접 리사이즈). 다른 컬럼을 늘려도 이름은 안 줄고
+   * 행이 가로 스크롤로 밀린다 */
+  flex: none;
+  width: var(--cf-col-name, 260px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -19810,10 +19814,10 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 }
 
 .cf-listhead button:first-child {
-  flex: 1;
-  /* 행의 이름 컬럼(min-width 140px)과 동일 — 0이면 좁은 화면에서 '이름'이 짜부라져 '종류'와 겹친다 */
-  min-width: 184px;
-  padding-left: 34px; /* 행 인셋 8px + 아이콘 자리 26px */
+  flex: none;
+  /* 행 이름폭 + 인셋 8px + 아이콘 자리 26px — 행과 1:1 정렬 */
+  width: calc(var(--cf-col-name, 260px) + 34px);
+  padding-left: 34px;
 }
 
 /* 컬럼 폭은 행(.cf-entry-*)과 1:1로 맞춰야 구분선이 데이터 경계에 붙는다
@@ -20000,7 +20004,11 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   text-align: right;
 }
 .cf-trashmain .cf-trash-name {
-  min-width: 150px; /* 본문 이름 컬럼과 동일 — 0이면 고정폭 컬럼들에 짜부라진다 */
+  flex: none;
+  width: var(--cf-col-tname, 260px); /* 윈도우식 고정폭 — 헤더 이름 버튼과 1:1 */
+}
+.cf-trashhead-row button:first-child {
+  width: calc(var(--cf-col-tname, 260px) + 34px);
 }
 .cf-trashmain .cf-trash-loc {
   width: var(--cf-col-tloc, 140px);

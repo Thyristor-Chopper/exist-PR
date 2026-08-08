@@ -450,8 +450,8 @@ export default function CollabFiles({
   // ── 컬럼 폭 조절 — 헤더 구분선 드래그 (윈도우식). CSS 변수로 헤더·행 동시 적용,
   // localStorage에 전역 저장, 핸들 더블클릭이면 기본폭 복원 ──
   const COL_DEFAULTS: Record<string, number> = {
-    type: 90, author: 90, date: 110, size: 64, online: 130,
-    tloc: 140, tauthor: 110, tdate: 110, tsize: 64,
+    name: 260, type: 90, author: 90, date: 110, size: 64, online: 130,
+    tname: 260, tloc: 140, tauthor: 110, tdate: 110, tsize: 64,
   };
   const [colW, setColW] = useState<Record<string, number>>(() => {
     try {
@@ -464,17 +464,23 @@ export default function CollabFiles({
   function startColDrag(k: string, e: React.PointerEvent) {
     e.preventDefault();
     e.stopPropagation();
+    if (colDrag.current) return; // 이미 드래그 중 — 중복 시작 방지
     colDrag.current = { k, startX: e.clientX, startW: colW[k] ?? COL_DEFAULTS[k] };
     const onMove = (ev: PointerEvent) => {
       const d = colDrag.current;
-      if (!d) return;
-      const w = Math.max(48, Math.min(480, d.startW + (ev.clientX - d.startX)));
+      // 내 드래그가 아니면(HMR 잔재 등 스테일 리스너) 스스로 해제 — 한 드래그에 여러 컬럼이 딸려오는 사고 방지
+      if (!d || d.k !== k) {
+        window.removeEventListener('pointermove', onMove);
+        return;
+      }
+      const w = Math.round(Math.max(48, Math.min(480, d.startW + (ev.clientX - d.startX))));
       setColW((prev) => (prev[d.k] === w ? prev : { ...prev, [d.k]: w }));
     };
     const onUp = () => {
       colDrag.current = null;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       setColW((prev) => {
         localStorage.setItem('exist:cf-colw', JSON.stringify(prev));
         return prev;
@@ -482,6 +488,7 @@ export default function CollabFiles({
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   }
   /* 구분선 드래그 핸들 — 클릭이 정렬로 새지 않게 전파 차단 */
   const colHandle = (k: string) => (
@@ -2741,6 +2748,7 @@ export default function CollabFiles({
                 <div className="cf-listhead cf-trashhead-row">
                   <button type="button" title="이름으로 정렬" onClick={() => trashHdrClick('name')}>
                     {trashHdrMark('name')}이름
+                    {colHandle('tname')}
                   </button>
                   <button type="button" title="원래 위치로 정렬" onClick={() => trashHdrClick('loc')}>
                     {trashHdrMark('loc')}원래 위치
@@ -2943,6 +2951,7 @@ export default function CollabFiles({
                 }}
               >
                 {hdrMark('name')}이름
+                {colHandle('name')}
               </button>
               <button
                 type="button"
