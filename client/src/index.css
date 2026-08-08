@@ -19840,13 +19840,30 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   text-align: right;
 }
 
+/* 좁힌 컬럼은 윈도우처럼 … 말줄임 — 행·헤더 공통 */
+.cf-main.list .cf-entry-date,
+.cf-main.list .cf-entry-size,
+.cf-main.list .cf-entry-online,
+.cf-trashmain .cf-trash-meta,
+.cf-trashmain .cf-trash-size {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.cf-listhead > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 컬럼 폭 조절 핸들 — 구분선 위에 겹치는 드래그 영역 (윈도우식) */
 .cf-colresize {
   position: absolute;
   top: 0;
   bottom: 0;
-  right: -4px;
-  width: 8px;
+  right: 0; /* 헤더 overflow:hidden 안쪽에 완전히 들어오게 */
+  width: 6px;
   cursor: col-resize;
   z-index: 2;
 }
