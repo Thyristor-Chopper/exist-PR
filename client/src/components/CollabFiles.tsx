@@ -447,6 +447,63 @@ export default function CollabFiles({
     key: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc';
     dir: 'asc' | 'desc';
   }>({ key: 'date', dir: 'desc' });
+  // ── 컬럼 폭 조절 — 헤더 구분선 드래그 (윈도우식). CSS 변수로 헤더·행 동시 적용,
+  // localStorage에 전역 저장, 핸들 더블클릭이면 기본폭 복원 ──
+  const COL_DEFAULTS: Record<string, number> = {
+    type: 90, author: 90, date: 110, size: 64, online: 130,
+    tloc: 140, tauthor: 110, tdate: 110, tsize: 64,
+  };
+  const [colW, setColW] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('exist:cf-colw') ?? '{}') as Record<string, number>;
+    } catch {
+      return {};
+    }
+  });
+  const colDrag = useRef<{ k: string; startX: number; startW: number } | null>(null);
+  function startColDrag(k: string, e: React.PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    colDrag.current = { k, startX: e.clientX, startW: colW[k] ?? COL_DEFAULTS[k] };
+    const onMove = (ev: PointerEvent) => {
+      const d = colDrag.current;
+      if (!d) return;
+      const w = Math.max(48, Math.min(480, d.startW + (ev.clientX - d.startX)));
+      setColW((prev) => (prev[d.k] === w ? prev : { ...prev, [d.k]: w }));
+    };
+    const onUp = () => {
+      colDrag.current = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setColW((prev) => {
+        localStorage.setItem('exist:cf-colw', JSON.stringify(prev));
+        return prev;
+      });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+  /* 구분선 드래그 핸들 — 클릭이 정렬로 새지 않게 전파 차단 */
+  const colHandle = (k: string) => (
+    <span
+      className="cf-colresize"
+      title="드래그로 폭 조절 · 더블클릭 기본폭"
+      onPointerDown={(e) => startColDrag(k, e)}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        setColW((prev) => {
+          const next = { ...prev };
+          delete next[k];
+          localStorage.setItem('exist:cf-colw', JSON.stringify(next));
+          return next;
+        });
+      }}
+    />
+  );
+  const colVars = Object.fromEntries(
+    Object.entries(colW).map(([k, v]) => [`--cf-col-${k}`, `${v}px`]),
+  ) as React.CSSProperties;
   // 선택 파일 미리보기 (안에 뭐가 들었는지)
   const [preview, setPreview] = useState<{ id: number; items: string[]; count?: number } | null>(null);
   // 즐겨찾기 (기기별)
@@ -1917,7 +1974,7 @@ export default function CollabFiles({
     return (
       <div
         className="cf-explorer"
-        style={{ display: active ? 'none' : undefined }}
+        style={{ display: active ? 'none' : undefined, ...colVars }}
         tabIndex={0}
         onKeyDown={onExplorerKey}
       >
@@ -2687,15 +2744,19 @@ export default function CollabFiles({
                   </button>
                   <button type="button" title="원래 위치로 정렬" onClick={() => trashHdrClick('loc')}>
                     {trashHdrMark('loc')}원래 위치
+                    {colHandle('tloc')}
                   </button>
                   <button type="button" title="지운 사람으로 정렬" onClick={() => trashHdrClick('author')}>
                     {trashHdrMark('author')}지운 사람
+                    {colHandle('tauthor')}
                   </button>
                   <button type="button" title="지운 날짜로 정렬" onClick={() => trashHdrClick('date')}>
                     {trashHdrMark('date')}지운 날짜
+                    {colHandle('tdate')}
                   </button>
                   <button type="button" title="크기로 정렬" onClick={() => trashHdrClick('size')}>
                     {trashHdrMark('size')}크기
+                    {colHandle('tsize')}
                   </button>
                 </div>
                 {sortedTrashItems.map((t) => (
@@ -2734,8 +2795,8 @@ export default function CollabFiles({
                     >
                       {[rootName, t.location].filter(Boolean).join(' › ')}
                     </span>
-                    <span className="cf-trash-meta">{dn(t.author)}</span>
-                    <span className="cf-trash-meta">
+                    <span className="cf-trash-meta cf-trash-author">{dn(t.author)}</span>
+                    <span className="cf-trash-meta cf-trash-date">
                       {new Date(t.deleted_at + 'Z').toLocaleString('ko-KR', {
                         month: 'numeric',
                         day: 'numeric',
@@ -2892,6 +2953,7 @@ export default function CollabFiles({
                 }}
               >
                 {hdrMark('type')}종류
+                {colHandle('type')}
               </button>
               <button
                 type="button"
@@ -2902,6 +2964,7 @@ export default function CollabFiles({
                 }}
               >
                 {hdrMark('author')}만든 사람
+                {colHandle('author')}
               </button>
               <button
                 type="button"
@@ -2913,6 +2976,7 @@ export default function CollabFiles({
                 }}
               >
                 {hdrMark('date')}날짜
+                {colHandle('date')}
               </button>
               <button
                 type="button"
@@ -2924,9 +2988,12 @@ export default function CollabFiles({
                 }}
               >
                 {hdrMark('size')}크기
+                {colHandle('size')}
               </button>
               {/* 접속 중 — 지금 이 파일을 편집·열람 중인 사람 (정렬 없음) */}
-              <span className="cf-listhead-online">접속 중</span>
+              <span className="cf-listhead-online">
+                접속 중{colHandle('online')}
+              </span>
             </div>
           )}
           {creating && (
