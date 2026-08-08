@@ -12915,6 +12915,22 @@ input:focus {
   height: 22px;
   border-radius: 5px;
 }
+/* 목록 뷰 — 선두 슬롯(아이콘·썸네일·휴지통 아이콘) 폭 통일.
+ * 행마다 슬롯이 다르면(썸네일 22px vs 아이콘 16px) 뒤 컬럼 전체가 들쭉날쭉해진다 */
+.cf-main.list .cf-entry-icon {
+  width: 26px;
+  min-width: 26px;
+  flex: none;
+  box-sizing: border-box;
+  padding-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.cf-main.list .cf-thumbwrap.sm {
+  height: 18px;
+  border-radius: 4px;
+}
 
 /* 목록 뷰 — 날짜·크기 컬럼 */
 .cf-main.list .cf-entry-date,
