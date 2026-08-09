@@ -3074,14 +3074,12 @@ export default function CollabFiles({
               <span className="cf-entry-name">휴지통</span>
               {view === 'list' && (
                 <>
-                  {/* 컬럼 셀은 일반 행과 같은 5칸 구조 — 빠지면 열이 통째로 어긋난다 */}
-                  <span className="cf-entry-type">시스템</span>
-                  <span className="cf-entry-author">항목 {trashItems.length}개</span>
-                  <span className="cf-entry-date">—</span>
-                  <span className="cf-entry-size">—</span>
-                  <span className="cf-entry-online">
-                    <span className="cf-online-none">—</span>
-                  </span>
+                  {/* 컬럼 셀은 일반 행과 같은 5칸 구조(정렬 유지) — 시스템 항목이라 값은 비움 */}
+                  <span className="cf-entry-type" />
+                  <span className="cf-entry-author" />
+                  <span className="cf-entry-date" />
+                  <span className="cf-entry-size" />
+                  <span className="cf-entry-online" />
                 </>
               )}
             </div>
