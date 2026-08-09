@@ -40,6 +40,7 @@ import {
   FilterIcon,
   ClockIcon,
   UsersIcon,
+  PinIcon,
   MusicIcon,
   ListViewIcon,
   HomeIcon,
@@ -376,6 +377,8 @@ export default function CollabFiles({
   >([]);
   // 홈 탭 — 즐겨찾기 + 최근 방문 (탐색기 홈, 휴지통과 같은 "장소" 패턴)
   const [homeOpen, setHomeOpen] = useState(false);
+  // 홈 하단 알약 탭 — 최근 항목(기본) | 작업 중 (Win11 홈 하단 탭 문법)
+  const [homeTab, setHomeTab] = useState<'recent' | 'working'>('recent');
   // 주소줄 직접 입력 — 윈도우 탐색기식 (빈 영역 클릭 → 경로 타이핑해서 이동)
   const [pathEditing, setPathEditing] = useState(false);
   const [pathText, setPathText] = useState('');
@@ -439,6 +442,7 @@ export default function CollabFiles({
       name: string;
       type: FileType;
       deleted_at: string;
+      updated_at: string; // 수정한 날짜 (서버가 created_at 폴백 처리)
       author: string;
       children: number;
       size: number | null;
@@ -451,7 +455,7 @@ export default function CollabFiles({
   const [trashCtx, setTrashCtx] = useState<{ x: number; y: number } | null>(null);
   // 휴지통 헤더 정렬 — 본문 목록과 같은 문법 (기본: 최근 지운 것부터)
   const [trashSort, setTrashSort] = useState<{
-    key: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc';
+    key: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc' | 'mdate';
     dir: 'asc' | 'desc';
   }>({ key: 'date', dir: 'desc' });
   // ── 컬럼 폭 조절 — 헤더 구분선 드래그 (윈도우식). CSS 변수로 헤더·행 동시 적용,
@@ -460,7 +464,7 @@ export default function CollabFiles({
   // 구분선들이 항상 같은 굵기로 스냅됨 (아니면 하나 걸러 1px/2px 뒤죽박죽)
   const COL_DEFAULTS: Record<string, number> = {
     name: 260, type: 92, author: 92, date: 112, size: 64, online: 132,
-    tname: 260, tloc: 140, tauthor: 112, tdate: 112, tsize: 64,
+    tname: 260, tloc: 140, tauthor: 112, tdate: 112, tsize: 64, ttype: 92, tmdate: 112,
   };
   const [colW, setColW] = useState<Record<string, number>>(() => {
     try {
@@ -2017,9 +2021,9 @@ export default function CollabFiles({
         </span>
       ) : null;
     // 휴지통 헤더 정렬 — 본문과 같은 문법의 축소판
-    const trashHdrClick = (k: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc') =>
+    const trashHdrClick = (k: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc' | 'mdate') =>
       setTrashSort((s) => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }));
-    const trashHdrMark = (k: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc') =>
+    const trashHdrMark = (k: 'name' | 'type' | 'author' | 'date' | 'size' | 'loc' | 'mdate') =>
       trashSort.key === k ? (
         <span className="cf-listhead-sortmark" aria-hidden="true">
           {trashSort.dir === 'asc' ? <ChevronUpIcon size={9} /> : <ChevronIcon size={9} />}
@@ -2037,7 +2041,9 @@ export default function CollabFiles({
               ? dn(a.author).localeCompare(dn(b.author), 'ko')
               : trashSort.key === 'size'
                 ? (a.size ?? 0) - (b.size ?? 0)
-                : a.deleted_at.localeCompare(b.deleted_at);
+                : trashSort.key === 'mdate'
+                  ? a.updated_at.localeCompare(b.updated_at)
+                  : a.deleted_at.localeCompare(b.deleted_at);
       return trashSort.dir === 'asc' ? v : -v;
     });
     // 휴지통 선택 항목 — 세부정보 패널용 (정렬 순서 그대로)
@@ -2753,125 +2759,152 @@ export default function CollabFiles({
             )}
           </aside>
         </div>
-        {/* 홈 — 상단 즐겨찾기, 하단 최근 방문 (탐색기 홈) */}
-        {homeOpen && (
-          <div className="cf-main cf-homeview">
-            <div className="cf-home-sec">
-              <div className="cf-home-label">
-                <StarIcon size={13} /> 즐겨찾기
-              </div>
-              {favFiles.length === 0 ? (
-                <div className="cf-empty">
-                  파일을 선택하고 세부정보의 ★을 누르면 여기에 고정돼요
-                </div>
-              ) : (
-                /* Win11 홈처럼 목록형 — 이름 · 위치 · 종류 (최근 방문과 같은 문법) */
-                <div className="cf-home-list">
-                  {favFiles.map((f) => {
-                    const segs: string[] = [];
-                    let p = f.parent_id;
-                    while (p != null) {
-                      const parent = byId.get(p);
-                      if (!parent) break;
-                      segs.unshift(parent.name);
-                      p = parent.parent_id;
-                    }
-                    return (
-                      <button
-                        key={f.id}
-                        className="cf-home-row"
-                        title={f.name}
-                        onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
-                      >
-                        <span className={`cf-icon ${f.type}`}>
-                          <TypeIcon type={f.type} size={15} name={f.name} />
-                        </span>
-                        <span className="cf-home-row-name">{f.name}</span>
-                        <span className="cf-home-row-meta cf-home-row-loc">
-                          {[rootName, ...segs].join(' › ')}
-                        </span>
-                        <span className="cf-home-row-meta">
-                          {f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type as Exclude<FileType, 'folder'>]}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            {/* 작업 중 — 지금 누군가 열어 두고 있는 파일 (실시간 프레즌스) */}
-            <div className="cf-home-sec">
-              <div className="cf-home-label">
-                <UsersIcon size={13} /> 작업 중
-              </div>
-              {(() => {
-                const working = Object.entries(presence)
-                  .filter(([, ppl]) => ppl.length > 0)
-                  .map(([id, ppl]) => ({ f: byId.get(Number(id)), ppl }))
-                  .filter(
-                    (w): w is { f: CollabFile; ppl: { username: string; avatar: string | null }[] } =>
-                      !!w.f,
-                  );
-                if (working.length === 0)
-                  return (
-                    <div className="cf-empty">지금 열려 있는 문서가 없어요</div>
-                  );
-                return (
-                  <div className="cf-home-list">
-                    {working.map(({ f, ppl }) => (
-                      <button
-                        key={f.id}
-                        className="cf-home-row"
-                        onClick={() => openFile(f)}
-                      >
-                        <span className={`cf-icon ${f.type}`}>
-                          <TypeIcon type={f.type} size={15} name={f.name} />
-                        </span>
-                        <span className="cf-home-row-name">{f.name}</span>
-                        <PresenceStack fileId={f.id} />
-                        <span className="cf-home-row-meta">{ppl.length}명 작업 중</span>
-                      </button>
-                    ))}
+        {/* 홈 — Win11 탐색기 홈 문법: 상단 즐겨찾기 핀 타일 그리드, 하단 알약 탭(최근 항목|작업 중) 리스트 */}
+        {homeOpen &&
+          (() => {
+            // 부모 폴더 경로 라벨 — 핀 타일·리스트 서브라벨 공용 (루트 › 폴더 › …)
+            const homeLoc = (f: CollabFile) => {
+              const segs: string[] = [];
+              let p = f.parent_id;
+              while (p != null) {
+                const parent = byId.get(p);
+                if (!parent) break;
+                segs.unshift(parent.name);
+                p = parent.parent_id;
+              }
+              return [rootName, ...segs].join(' › ');
+            };
+            const working = Object.entries(presence)
+              .filter(([, ppl]) => ppl.length > 0)
+              .map(([id, ppl]) => ({ f: byId.get(Number(id)), ppl }))
+              .filter(
+                (w): w is { f: CollabFile; ppl: { username: string; avatar: string | null }[] } =>
+                  !!w.f,
+              );
+            return (
+              <div className="cf-main cf-homeview">
+                <div className="cf-home-sec">
+                  <div className="cf-home-label">
+                    <StarIcon size={13} /> 즐겨찾기
                   </div>
-                );
-              })()}
-            </div>
-            <div className="cf-home-sec">
-              <div className="cf-home-label">
-                <ClockIcon size={13} /> 최근 방문
-              </div>
-              {recent.length === 0 ? (
-                <div className="cf-empty">아직 활동이 없어요 — 문서를 열면 여기에 쌓여요</div>
-              ) : (
-                <div className="cf-home-list">
-                  {recent.map((rf) => {
-                    const f = byId.get(rf.id);
-                    return (
-                      <button
-                        key={rf.id}
-                        className="cf-home-row"
-                        onClick={() => {
-                          if (f) openFile(f);
-                        }}
-                      >
-                        <span className={`cf-icon ${rf.type}`}>
-                          <TypeIcon type={rf.type} size={15} name={rf.name} />
-                        </span>
-                        <span className="cf-home-row-name">{rf.name}</span>
-                        <span className="cf-home-row-meta">
-                          {rf.type === 'folder' ? '폴더' : TYPE_LABEL[rf.type as Exclude<FileType, 'folder'>]}
-                        </span>
-                        <span className="cf-home-row-meta">
-                          {rf.last_ts ? fmtDate(rf.last_ts) : ''}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {favFiles.length === 0 ? (
+                    <div className="cf-empty">
+                      자주 쓰는 파일을 고정해보세요 — 세부정보의 ★을 누르면 여기에 떠요
+                    </div>
+                  ) : (
+                    /* Win11 즐겨찾기 핀 타일 — 아이콘 + 이름/위치 두 줄 + 핀 표시 */
+                    <div className="cf-home-pins">
+                      {favFiles.map((f) => (
+                        <button
+                          key={f.id}
+                          className="cf-home-pin"
+                          title={f.name}
+                          onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
+                        >
+                          <span className={`cf-icon ${f.type}`}>
+                            <TypeIcon type={f.type} size={28} name={f.name} />
+                          </span>
+                          <span className="cf-home-pin-txt">
+                            <span className="cf-home-pin-name">{f.name}</span>
+                            <span className="cf-home-pin-loc">{homeLoc(f)}</span>
+                          </span>
+                          <span className="cf-home-pin-mark" aria-hidden>
+                            <PinIcon size={11} />
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+                {/* 하단 — 알약 탭이 옛 '작업 중'·'최근 방문' 섹션 나열을 대체 (Win11 홈 하단 탭) */}
+                <div className="cf-home-sec">
+                  <div className="cf-home-tabs" role="tablist">
+                    <button
+                      role="tab"
+                      aria-selected={homeTab === 'recent'}
+                      className={`cf-home-tab${homeTab === 'recent' ? ' on' : ''}`}
+                      onClick={() => setHomeTab('recent')}
+                    >
+                      <ClockIcon size={13} /> 최근 항목
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={homeTab === 'working'}
+                      className={`cf-home-tab${homeTab === 'working' ? ' on' : ''}`}
+                      onClick={() => setHomeTab('working')}
+                    >
+                      <UsersIcon size={13} /> 작업 중
+                      {working.length > 0 ? ` (${working.length})` : ''}
+                    </button>
+                  </div>
+                  {/* 흐린 컬럼 라벨 — 정렬 없음, 라벨만 (listhead와 같은 톤) */}
+                  <div className="cf-home-listhead" aria-hidden>
+                    <span>이름</span>
+                    <span className="cf-home-col-r">
+                      {homeTab === 'recent' ? '날짜' : '활동'}
+                    </span>
+                  </div>
+                  {homeTab === 'recent' ? (
+                    recent.length === 0 ? (
+                      <div className="cf-empty">아직 활동이 없어요 — 문서를 열면 여기에 쌓여요</div>
+                    ) : (
+                      <div className="cf-home-list">
+                        {recent.map((rf) => {
+                          const f = byId.get(rf.id);
+                          return (
+                            <button
+                              key={rf.id}
+                              className="cf-home-row"
+                              onClick={() => {
+                                if (f) openFile(f);
+                              }}
+                            >
+                              <span className={`cf-icon ${rf.type}`}>
+                                <TypeIcon type={rf.type} size={18} name={rf.name} />
+                              </span>
+                              <span className="cf-home-row-txt">
+                                <span className="cf-home-row-name">{rf.name}</span>
+                                <span className="cf-home-row-sub">
+                                  {f
+                                    ? homeLoc(f)
+                                    : rf.type === 'folder'
+                                      ? '폴더'
+                                      : TYPE_LABEL[rf.type as Exclude<FileType, 'folder'>]}
+                                </span>
+                              </span>
+                              <span className="cf-home-col-r">
+                                {rf.last_ts ? fmtDate(rf.last_ts) : ''}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : working.length === 0 ? (
+                    <div className="cf-empty">지금 열려 있는 문서가 없어요</div>
+                  ) : (
+                    <div className="cf-home-list">
+                      {working.map(({ f, ppl }) => (
+                        <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
+                          <span className={`cf-icon ${f.type}`}>
+                            <TypeIcon type={f.type} size={18} name={f.name} />
+                          </span>
+                          <span className="cf-home-row-txt">
+                            <span className="cf-home-row-name">{f.name}</span>
+                            <span className="cf-home-row-sub">{homeLoc(f)}</span>
+                          </span>
+                          <span className="cf-home-col-r">
+                            <PresenceStack fileId={f.id} />
+                            {ppl.length}명 작업 중
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         {/* 휴지통 뷰 — 팝오버가 아니라 본문 전체를 쓰는 "장소" (8/2) */}
         {trashOpen && (
           <div
@@ -2978,6 +3011,14 @@ export default function CollabFiles({
                     {trashHdrMark('size')}크기
                     {colHandle('tsize')}
                   </button>
+                  <button type="button" title="항목 유형으로 정렬" onClick={() => trashHdrClick('type')}>
+                    {trashHdrMark('type')}항목 유형
+                    {colHandle('ttype')}
+                  </button>
+                  <button type="button" title="수정한 날짜로 정렬" onClick={() => trashHdrClick('mdate')}>
+                    {trashHdrMark('mdate')}수정한 날짜
+                    {colHandle('tmdate')}
+                  </button>
                 </div>
                 {sortedTrashItems.map((t) => (
                   <div
@@ -3063,6 +3104,17 @@ export default function CollabFiles({
                     </span>
                     <span className="cf-trash-size">
                       {t.type === 'folder' && !t.size ? '—' : fmtSize(t.size ?? 0)}
+                    </span>
+                    <span className="cf-trash-meta cf-trash-type">
+                      {t.type === 'folder' ? '폴더' : `${TYPE_LABEL[t.type]} 파일`}
+                    </span>
+                    <span className="cf-trash-meta cf-trash-mdate">
+                      {new Date(t.updated_at + 'Z').toLocaleString('ko-KR', {
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                     </span>
                   </div>
                 ))}

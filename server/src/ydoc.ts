@@ -132,6 +132,10 @@ function scheduleSave(doc: SharedDoc) {
   doc.saveTimer = setTimeout(() => {
     try {
       fs.writeFileSync(filePath(doc.name), Buffer.from(Y.encodeStateAsUpdate(doc)));
+      // 내용 편집 = 수정한 날짜 갱신 (디바운스된 실제 저장 시점만)
+      db.prepare(
+        "UPDATE collab_files SET updated_at = datetime('now') WHERE room = ? AND deleted_at IS NULL",
+      ).run(doc.name);
     } catch {
       /* best effort */
     }

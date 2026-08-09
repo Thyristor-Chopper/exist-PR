@@ -12793,12 +12793,9 @@ input:focus {
 .cf-path > button.cf-crumb > svg {
   color: #e0a13f;
 }
-/* 홈 탭 섹션 라벨 — 별=노랑, 시계=파랑 */
-.cf-home-sec:first-child .cf-home-label svg {
+/* 홈 탭 섹션 라벨 — 별=노랑 (하단 섹션은 라벨 대신 알약 탭이라 아이콘 색은 탭 상태를 따름) */
+.cf-home-label svg {
   color: #f5a524;
-}
-.cf-home-sec:last-child .cf-home-label svg {
-  color: #4f7df9;
 }
 
 .cf-desktree-item.droptarget {
@@ -20064,6 +20061,14 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   flex: none;
   text-align: right;
 }
+.cf-trashhead-row button:nth-child(6) {
+  width: var(--cf-col-ttype, 92px); /* 항목 유형 */
+  flex: none;
+}
+.cf-trashhead-row button:nth-child(7) {
+  width: var(--cf-col-tmdate, 112px); /* 수정한 날짜 */
+  flex: none;
+}
 .cf-trashmain .cf-trash-name {
   flex: none;
   width: var(--cf-col-tname, 260px); /* 윈도우식 고정폭 — 헤더 이름 버튼과 1:1 */
@@ -20081,14 +20086,6 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 홈 즐겨찾기 목록 — 위치 컬럼 (Win11 홈 문법) */
-.cf-home-row-loc {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* 경로 끝 › — 현재 위치 뒤 (윈도우식) */
 .cf-crumb-tail {
   display: inline-flex;
@@ -20123,10 +20120,16 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   padding-left: 8px;
 }
 .cf-trashmain .cf-trash-meta.cf-trash-author {
-  width: var(--cf-col-tauthor, 110px);
+  width: var(--cf-col-tauthor, 112px);
 }
 .cf-trashmain .cf-trash-meta.cf-trash-date {
-  width: var(--cf-col-tdate, 110px);
+  width: var(--cf-col-tdate, 112px);
+}
+.cf-trashmain .cf-trash-meta.cf-trash-type {
+  width: var(--cf-col-ttype, 92px);
+}
+.cf-trashmain .cf-trash-meta.cf-trash-mdate {
+  width: var(--cf-col-tmdate, 112px);
 }
 .cf-trash-row.selected {
   background: rgba(33, 200, 24, 0.08);
@@ -20158,11 +20161,12 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   font-weight: 700;
 }
 
-/* 홈 탭 — 상단 즐겨찾기 타일, 하단 최근 방문 목록 */
+/* 홈 탭 — Win11 탐색기 홈: 상단 즐겨찾기 핀 타일 그리드, 하단 알약 탭(최근 항목|작업 중) 리스트.
+   새 폭·간격은 전부 4의 배수 — listhead와 같은 DPR 스냅 균일 규칙 */
 .cf-homeview {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 24px;
 }
 .cf-home-label {
   display: flex;
@@ -20173,49 +20177,131 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   margin-bottom: 10px;
   color: var(--text);
 }
-.cf-home-grid {
-  display: flex;
-  flex-wrap: wrap;
+/* 즐겨찾기 핀 타일 그리드 — 넓으면 4열+, 좁으면 1~2열 (auto-fill) */
+.cf-home-pins {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 8px;
 }
-.cf-home-tile {
-  width: 116px;
+/* 납작한 핀 타일 — 왼쪽 큰 타입 아이콘 + 오른쪽 이름/위치 두 줄, 우하단 핀 마크 */
+.cf-home-pin {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 14px 8px 11px;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 12px;
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
+  text-align: left;
+  color: var(--text);
 }
-.cf-home-tile:hover {
+.cf-home-pin:hover {
   background: var(--surface-2);
 }
-.cf-home-name {
-  font-size: 12px;
-  line-height: 1.3;
-  max-width: 100%;
+.cf-home-pin-txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cf-home-pin-name {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  word-break: break-all;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cf-home-pin-loc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 핀 마크와 겹치지 않게 우측 여백 */
+  padding-right: 12px;
+}
+.cf-home-pin-mark {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  color: var(--text-sub);
+  opacity: 0.7;
+}
+/* 하단 알약 탭 — 활성은 초록 틴트 채움(.on, 선택 행과 같은 톤), 비활성은 고스트 */
+.cf-home-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.cf-home-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+.cf-home-tab:hover {
+  background: var(--surface-2);
   color: var(--text);
+}
+.cf-home-tab.on {
+  background: rgba(33, 200, 24, 0.12);
+  color: var(--green);
+}
+.cf-home-tab.on:hover {
+  background: rgba(33, 200, 24, 0.16);
+}
+/* 흐린 컬럼 라벨 — 정렬 없음, 라벨만 (listhead 톤) */
+.cf-home-listhead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.cf-home-listhead > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+/* 오른쪽 컬럼 — 헤더 라벨·행 메타(날짜/프레즌스) 공용 폭 */
+.cf-home-col-r {
+  flex: none;
+  width: 160px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-sub);
+  white-space: nowrap;
 }
 .cf-home-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+/* 리스트 행 — Win11 최근 항목처럼 2줄 (이름 + 위치 서브라인) */
 .cf-home-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   border: none;
   background: none;
-  padding: 7px 10px;
+  padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
@@ -20225,18 +20311,33 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 .cf-home-row:hover {
   background: var(--surface-2);
 }
-.cf-home-row-name {
+.cf-home-row-txt {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cf-home-row-name {
+  min-width: 0;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cf-home-row-meta {
-  flex: none;
-  width: 110px;
+.cf-home-row-sub {
+  min-width: 0;
   font-size: 12px;
+  line-height: 1.4;
   color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 좁은 창 — 오른쪽 컬럼 다이어트 (핀 그리드는 auto-fill이 알아서 1열) */
+@media (max-width: 560px) {
+  .cf-home-col-r {
+    width: 96px;
+  }
 }
 
 .cf-trash-row {

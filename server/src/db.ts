@@ -630,6 +630,14 @@ try {
   /* 이미 존재 */
 }
 
+// 마이그레이션: 수정한 날짜 — 이름변경·이동·업로드 갱신·Yjs 저장 시 touch.
+// NULL이면 클라가 created_at으로 폴백 (기존 파일)
+try {
+  db.exec(`ALTER TABLE collab_files ADD COLUMN updated_at TEXT`);
+} catch {
+  /* 이미 존재 */
+}
+
 // 마이그레이션: 전사 출처 — 'live'(브라우저 Web Speech) / 'whisper'(회의 후 OpenAI 재전사).
 // recap은 whisper 행이 있으면 그것만 쓴다 (stt.ts)
 try {

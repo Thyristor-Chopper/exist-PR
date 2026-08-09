@@ -247,7 +247,7 @@ router.get('/', (req: AuthedRequest, res) => {
   ensureLegacyFiles(r.meeting.id, r.meeting.code, req.userId!);
   const rows = db
     .prepare(
-      `SELECT f.id, f.parent_id, f.name, f.type, f.room, f.mime, f.size, f.created_at, u.username AS author,
+      `SELECT f.id, f.parent_id, f.name, f.type, f.room, f.mime, f.size, f.created_at, f.updated_at, u.username AS author,
               f.ack_required,
               (SELECT COUNT(*) FROM file_acks a WHERE a.file_id = f.id) AS ack_count,
               EXISTS(SELECT 1 FROM file_acks a WHERE a.file_id = f.id AND a.user_id = ?) AS my_ack
@@ -813,7 +813,7 @@ router.patch('/:fileId', (req: AuthedRequest, res) => {
       .prepare('SELECT 1 FROM collab_files WHERE meeting_id = ? AND name = ? AND parent_id IS ? AND id != ? AND deleted_at IS NULL')
       .get(r.meeting.id, f.name, target, f.id);
     if (dup) return res.status(409).json({ error: '옮길 위치에 같은 이름이 있어요' });
-    db.prepare('UPDATE collab_files SET parent_id = ? WHERE id = ?').run(target, f.id);
+    db.prepare("UPDATE collab_files SET parent_id = ?, updated_at = datetime('now') WHERE id = ?").run(target, f.id);
     return res.json({ id: f.id, parent_id: target });
   }
 
@@ -825,7 +825,7 @@ router.patch('/:fileId', (req: AuthedRequest, res) => {
     )
     .get(r.meeting.id, name, f.parent_id, f.id);
   if (dup) return res.status(409).json({ error: '같은 위치에 같은 이름이 있어요' });
-  db.prepare('UPDATE collab_files SET name = ? WHERE id = ?').run(name, f.id);
+  db.prepare("UPDATE collab_files SET name = ?, updated_at = datetime('now') WHERE id = ?").run(name, f.id);
   res.json({ id: f.id, name });
 });
 
@@ -1226,6 +1226,7 @@ router.get('/trash/list', (req: AuthedRequest, res) => {
     .prepare(
       // author = 실제로 지운 사람 (deleted_by). 마이그레이션 전 레거시 행은 만든 사람으로 폴백
       `SELECT f.id, f.name, f.type, f.deleted_at, f.parent_id,
+              COALESCE(f.updated_at, f.created_at) AS updated_at,
               COALESCE(du.username, u.username) AS author,
               (SELECT COUNT(*) - 1 FROM collab_files c WHERE c.deleted_root = f.id) AS children
        FROM collab_files f
