@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { getSocket } from '../lib/socket';
+import { parseHwpx, type HwpxBlock } from '../lib/hwpx';
 import { useAuthStore } from '../store';
 import { useDisplayName } from '../names';
 import CodeDocEditor from './CodeDocEditor';
@@ -211,42 +212,9 @@ function TextPreview({ url }: { url: string }) {
 }
 
 /* ── 한글(hwpx) 미리보기 — OWPML zip에서 문단·표를 추출해 읽기 전용 렌더.
- * 제조 현업 격차 대응: 품의서·공문류가 hwp로 도는 환경. 구형 .hwp(바이너리)는 미지원 ── */
-type HwpxBlock = { kind: 'p'; text: string } | { kind: 'table'; rows: string[][] };
-
-function hwpxWalkPara(p: Element, blocks: HwpxBlock[]) {
-  let buf = '';
-  const flush = () => {
-    if (buf.trim()) blocks.push({ kind: 'p', text: buf });
-    buf = '';
-  };
-  for (const run of [...p.children]) {
-    for (const child of [...run.children]) {
-      if (child.localName === 't') {
-        buf += child.textContent ?? '';
-      } else if (child.localName === 'tbl') {
-        flush();
-        const rows: string[][] = [];
-        for (const tr of [...child.getElementsByTagNameNS('*', 'tr')]) {
-          const row: string[] = [];
-          for (const tc of [...tr.children].filter((e) => e.localName === 'tc')) {
-            row.push(
-              [...tc.getElementsByTagNameNS('*', 't')]
-                .map((t) => t.textContent ?? '')
-                .join(' ')
-                .trim(),
-            );
-          }
-          if (row.length > 0) rows.push(row);
-        }
-        if (rows.length > 0) blocks.push({ kind: 'table', rows });
-      }
-    }
-    // 문단 직속 텍스트(런 없이 오는 변형)도 수용
-    if (run.localName === 't') buf += run.textContent ?? '';
-  }
-  flush();
-}
+ * 제조 현업 격차 대응: 품의서·공문류가 hwp로 도는 환경. 구형 .hwp(바이너리)는 미지원 ──
+ * 파싱 로직은 lib/hwpx.ts(순수 함수)로 분리 — 섹션 발견(spine→글롭→전수 탐색)·
+ * 네임스페이스 변형·인코딩·서식 없는 텍스트 폴백까지 그쪽에서 처리 */
 
 function HwpxPreview({ url }: { url: string }) {
   const [state, setState] = useState<'loading' | 'error' | HwpxBlock[]>('loading');
@@ -257,21 +225,14 @@ function HwpxPreview({ url }: { url: string }) {
         const buf = await (await fetch(url)).arrayBuffer();
         const { default: JSZip } = await import('jszip');
         const zip = await JSZip.loadAsync(buf);
-        const sections = Object.keys(zip.files)
-          .filter((n) => /^Contents\/section\d+\.xml$/i.test(n))
-          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-          .slice(0, 20);
-        if (sections.length === 0) throw new Error('no sections');
-        const blocks: HwpxBlock[] = [];
-        const parser = new DOMParser();
-        for (const name of sections) {
-          const xml = parser.parseFromString(await zip.files[name].async('text'), 'application/xml');
-          for (const p of [...xml.documentElement.children].filter((el) => el.localName === 'p')) {
-            hwpxWalkPara(p, blocks);
-            if (blocks.length > 3000) break;
-          }
-          if (blocks.length > 3000) break;
+        // 파서가 볼 만한 엔트리만 추려 바이트로 넘긴다 (XML + spine(.hpf) + 미리보기 텍스트)
+        const files: Record<string, Uint8Array> = {};
+        for (const [name, entry] of Object.entries(zip.files)) {
+          if (entry.dir) continue;
+          if (!/\.(xml|hpf|txt)$/i.test(name)) continue;
+          files[name] = await entry.async('uint8array');
         }
+        const blocks = parseHwpx(files);
         if (!alive) return;
         setState(blocks);
       } catch {
@@ -4079,7 +4040,7 @@ export default function CollabFiles({
         )}
         {((trashOpen && trashSelList.length === 0) || (!trashOpen && trashSel && selCount === 0)) && (
           <aside className="cf-details">
-            <div className="cf-details-icon cf-icon file">
+            <div className="cf-details-icon cf-icon file cf-details-trashicon">
               <TrashIcon size={38} />
             </div>
             <div className="cf-details-name">휴지통</div>
