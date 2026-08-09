@@ -12498,6 +12498,15 @@ input:focus {
   background: color-mix(in srgb, var(--green) 12%, transparent);
   color: var(--green);
 }
+/* 열람 중 개정 감지 — 구본 경고 (호박색: 서명 빨강과 구분) */
+.cf-revbar {
+  padding: 8px 14px;
+  background: color-mix(in srgb, #e8a13a 16%, transparent);
+  color: #a06414;
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
 .cf-ackbar button {
   margin-left: auto;
   border: none;

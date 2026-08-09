@@ -662,6 +662,18 @@ export default function CollabFiles({
     if (prevActiveRef.current != null && activeId == null) load();
     prevActiveRef.current = activeId;
   }, [activeId, load]);
+  // 열람 시작 시점의 개정 번호 — 읽는 사이 개정이 발행되면 구본 경고 배너
+  const [openedRev, setOpenedRev] = useState<number | null>(null);
+  useEffect(() => {
+    if (activeId == null) {
+      setOpenedRev(null);
+      return;
+    }
+    const f = files.find((x) => x.id === activeId);
+    setOpenedRev(f ? (f.rev ?? 1) : null);
+    // files는 의도적으로 deps 제외 — 열람 "시작" 시점만 캡처해야 개정 감지가 된다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
   // 휴지통 항목 수 — 루트의 휴지통 아이콘 배지용으로 처음부터 로드
   useEffect(() => {
     void loadTrash();
@@ -4058,6 +4070,16 @@ export default function CollabFiles({
                           <a
                             className="cf-version-dl"
                             href={`/api/meetings/${code}/files/${selected.id}/versions/${v.id}/download?token=${encodeURIComponent(token ?? '')}`}
+                            onClick={(e) => {
+                              // 구본 경고 — GMP 문법: 지난 판은 참고용, 현장 사용 금지
+                              const vNo = fileVersions!.length - i;
+                              if (
+                                !confirm(
+                                  `v${vNo}은(는) 구본이에요 — 최신은 v${selected.rev ?? 1}. 참고용으로만 받아주세요.`,
+                                )
+                              )
+                                e.preventDefault();
+                            }}
                           >
                             다운로드
                           </a>
@@ -4737,6 +4759,11 @@ export default function CollabFiles({
               <TypeIcon type={active.type} name={active.name} />
             </span>
             <Marquee className="cf-editor-name">{active.name}</Marquee>
+            {(active.rev ?? 1) > 1 && (
+              <span className="cf-rev-badge" title="현재 개정 번호 — 이 화면은 항상 최신판이에요">
+                개정 v{active.rev}
+              </span>
+            )}
             <span className="cf-editor-right">
               <PresenceStack fileId={active.id} />
               <button
@@ -4747,6 +4774,12 @@ export default function CollabFiles({
                 {editorFull ? '⤡' : '⛶'}
               </button>
             </span>
+          </div>
+        )}
+        {/* 열람 중 개정 감지 — 지금 읽던 내용이 구본이 됐다는 경고 (GMP 구본 오용 방지) */}
+        {active && openedRev != null && (active.rev ?? 1) > openedRev && (
+          <div className="cf-revbar">
+            ⚠ 읽는 사이 문서가 v{active.rev}으로 개정됐어요 — 처음부터 다시 확인해 주세요
           </div>
         )}
         {/* 열람 서명 배너 — 서명이 필요한 문서를 열면 읽고 서명하도록 */}
