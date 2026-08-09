@@ -543,6 +543,8 @@ export default function CollabFiles({
   const rubberScrollRaf = useRef<number | null>(null);
   const entryRefs = useRef(new Map<number, HTMLElement>());
   const dragIdsRef = useRef<number[]>([]);
+  // 휴지통 행 드래그 — 일반 이동(moveMany) 경로와 섞이면 안 되므로 별도 ref
+  const trashDragIdsRef = useRef<number[]>([]);
   const [dropTarget, setDropTarget] = useState<number | 'root' | 'trash' | null>(null);
   const renameTimerRef = useRef<number | null>(null); // 선택된 항목 이름 재클릭 → 지연 후 인라인 편집
 
@@ -589,7 +591,8 @@ export default function CollabFiles({
       const el = dragGhostRef.current;
       if (el) {
         el.style.transform = `translate(${e.clientX + 14}px, ${e.clientY + 16}px)`;
-        el.classList.toggle('copy', e.ctrlKey); // Ctrl = 복사 배지
+        // Ctrl = 복사 배지 — 휴지통 드래그(복원)엔 복사가 없으니 표시하지 않음
+        el.classList.toggle('copy', e.ctrlKey && trashDragIdsRef.current.length === 0);
       }
     };
     document.addEventListener('dragover', onOver);
@@ -1483,14 +1486,21 @@ export default function CollabFiles({
   }
 
   /** 여러 항목 복원 — 실패는 건너뛰고 개수만 보고 (권한 없는 항목 등) */
-  async function restoreMany(ids: number[]) {
+  function restoreMany(ids: number[]) {
+    return restoreManyTo(ids);
+  }
+
+  /** target 지정 시 원래 위치 대신 그 폴더로 복원 — 휴지통 행 드래그 → 폴더 드롭 */
+  async function restoreManyTo(ids: number[], target?: number | null) {
     let ok = 0;
     let fellBack = 0; // 원래 폴더 소실 → 루트로 떨어진 개수 (윈도우는 경로 재생성, 우리는 알림)
     for (const id of ids) {
       try {
         const r = await api<{ fellBack?: boolean }>(
           `/api/meetings/${code}/files/trash/${id}/restore`,
-          { method: 'POST' },
+          target === undefined
+            ? { method: 'POST' }
+            : { method: 'POST', body: { parentId: target } },
         );
         ok++;
         if (r.fellBack) fellBack++;
@@ -1982,6 +1992,8 @@ export default function CollabFiles({
                 : a.deleted_at.localeCompare(b.deleted_at);
       return trashSort.dir === 'asc' ? v : -v;
     });
+    // 휴지통 선택 항목 — 세부정보 패널용 (정렬 순서 그대로)
+    const trashSelList = sortedTrashItems.filter((t) => trashSelIds.has(t.id));
 
     return (
       <div
@@ -2042,16 +2054,24 @@ export default function CollabFiles({
               className={`cf-crumb${dropTarget === 'root' ? ' droptarget' : ''}`}
               onClick={() => navigate(null)}
               onDragOver={(e) => {
-                if (dragIdsRef.current.length === 0) return;
+                if (dragIdsRef.current.length === 0 && trashDragIdsRef.current.length === 0)
+                  return;
                 e.preventDefault();
                 setDropTarget('root');
               }}
               onDragLeave={() => setDropTarget((t) => (t === 'root' ? null : t))}
               onDrop={(e) => {
                 e.preventDefault();
+                setDropTarget(null);
+                // 휴지통 행 드래그 — 루트로 복원 (휴지통 뷰의 크럼엔 루트만 보임)
+                if (trashDragIdsRef.current.length > 0) {
+                  const tids = trashDragIdsRef.current;
+                  trashDragIdsRef.current = [];
+                  void restoreManyTo(tids, null);
+                  return;
+                }
                 const ids = dragIdsRef.current;
                 dragIdsRef.current = [];
-                setDropTarget(null);
                 if (e.ctrlKey) void copyMany(ids, null);
                 else void moveMany(ids, null);
               }}
@@ -2500,17 +2520,26 @@ export default function CollabFiles({
               }${dropTarget === 'root' ? ' droptarget' : ''}`}
               onClick={() => navigate(null)}
               onDragOver={(e) => {
-                if (dragIdsRef.current.length === 0) return;
+                if (dragIdsRef.current.length === 0 && trashDragIdsRef.current.length === 0)
+                  return;
                 e.preventDefault();
-                e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
+                e.dataTransfer.dropEffect =
+                  trashDragIdsRef.current.length > 0 ? 'move' : e.ctrlKey ? 'copy' : 'move';
                 setDropTarget('root');
               }}
               onDragLeave={() => setDropTarget((t) => (t === 'root' ? null : t))}
               onDrop={(e) => {
                 e.preventDefault();
+                setDropTarget(null);
+                // 휴지통 행 드래그 — 이동이 아니라 루트로 복원
+                if (trashDragIdsRef.current.length > 0) {
+                  const tids = trashDragIdsRef.current;
+                  trashDragIdsRef.current = [];
+                  void restoreManyTo(tids, null);
+                  return;
+                }
                 const ids = dragIdsRef.current;
                 dragIdsRef.current = [];
-                setDropTarget(null);
                 if (e.ctrlKey) void copyMany(ids, null);
                 else void moveMany(ids, null);
               }}
@@ -2557,18 +2586,34 @@ export default function CollabFiles({
                       style={{ paddingLeft: 6 + depth * 14 }}
                       onClick={() => navigate(f.id)}
                       onDragOver={(e) => {
-                        if (dragIdsRef.current.length === 0 || dragIdsRef.current.includes(f.id))
+                        if (
+                          (dragIdsRef.current.length === 0 ||
+                            dragIdsRef.current.includes(f.id)) &&
+                          trashDragIdsRef.current.length === 0
+                        )
                           return;
                         e.preventDefault();
-                        e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
+                        e.dataTransfer.dropEffect =
+                          trashDragIdsRef.current.length > 0
+                            ? 'move'
+                            : e.ctrlKey
+                              ? 'copy'
+                              : 'move';
                         setDropTarget(f.id);
                       }}
                       onDragLeave={() => setDropTarget((t) => (t === f.id ? null : t))}
                       onDrop={(e) => {
                         e.preventDefault();
+                        setDropTarget(null);
+                        // 휴지통 행 드래그 — 이 폴더로 복원
+                        if (trashDragIdsRef.current.length > 0) {
+                          const tids = trashDragIdsRef.current;
+                          trashDragIdsRef.current = [];
+                          void restoreManyTo(tids, f.id);
+                          return;
+                        }
                         const ids = dragIdsRef.current;
                         dragIdsRef.current = [];
-                        setDropTarget(null);
                         if (e.ctrlKey) void copyMany(ids, f.id);
                         else void moveMany(ids, f.id);
                       }}
@@ -2775,6 +2820,40 @@ export default function CollabFiles({
                   <div
                     key={t.id}
                     className={`cf-trash-row${trashSelIds.has(t.id) ? ' selected' : ''}`}
+                    draggable
+                    onDragStart={(e) => {
+                      // 윈도우 문법 — 선택 밖 행을 끌면 그 행만 선택하고 시작, 선택 안이면 선택 전체
+                      const inSel = trashSelIds.has(t.id);
+                      if (!inSel) setTrashSelIds(new Set([t.id]));
+                      const ids = inSel ? [...new Set([...trashSelIds, t.id])] : [t.id];
+                      trashDragIdsRef.current = ids;
+                      e.dataTransfer.effectAllowed = 'move'; // 복원은 이동만 — Ctrl 복사 없음
+                      e.dataTransfer.setData('text/plain', '');
+                      // 여러 개 들었으면 커스텀 고스트 (본문 목록과 동일 문법 — 카드 스택 + 개수 배지)
+                      if (ids.length > 1 && dragEmptyImg.current) {
+                        e.dataTransfer.setDragImage(dragEmptyImg.current, 0, 0);
+                        const byTid = new Map(trashItems.map((x) => [x.id, x]));
+                        // 폴더가 스택 맨 위에 보이게 — 나중에 렌더된 카드가 위로 오므로 폴더를 뒤로
+                        const sorted = [...ids].sort((a, b) => {
+                          const fa = byTid.get(a)?.type === 'folder' ? 1 : 0;
+                          const fb = byTid.get(b)?.type === 'folder' ? 1 : 0;
+                          return fa - fb;
+                        });
+                        setDragGhost({
+                          count: ids.length,
+                          folders: ids.filter((id) => byTid.get(id)?.type === 'folder').length,
+                          excluded: 0,
+                          types: sorted.slice(-3).map((id) => byTid.get(id)?.type ?? 'doc'),
+                          x: e.clientX,
+                          y: e.clientY,
+                        });
+                      }
+                    }}
+                    onDragEnd={() => {
+                      trashDragIdsRef.current = [];
+                      setDropTarget(null);
+                      setDragGhost(null);
+                    }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       // 윈도우 문법 — 선택 밖 행을 우클릭하면 그 행만 선택하고 메뉴
@@ -3310,7 +3389,7 @@ export default function CollabFiles({
           className={`cf-slidewrap cf-slide-r${detailsOn && !homeOpen ? ' open' : ''}`}
           aria-hidden={!detailsOn || homeOpen}
         >
-        {(trashOpen || (trashSel && selCount === 0)) && (
+        {((trashOpen && trashSelList.length === 0) || (!trashOpen && trashSel && selCount === 0)) && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon file">
               <TrashIcon size={38} />
@@ -3336,6 +3415,97 @@ export default function CollabFiles({
                 휴지통 열기
               </button>
             )}
+          </aside>
+        )}
+        {/* 휴지통 단일 선택 — 일반 항목과 같은 레이아웃, 휴지통 필드로 (원래 위치·지운 사람·지운 날짜) */}
+        {trashOpen && trashSelList.length === 1 && (() => {
+          const t = trashSelList[0];
+          return (
+            <aside className="cf-details">
+              <div className={`cf-details-icon cf-icon ${t.type}`}>
+                <TypeIcon type={t.type} size={42} name={t.name} />
+              </div>
+              <div className="cf-details-name">{t.name}</div>
+              <div className="cf-details-sub">
+                {t.type === 'folder' ? '폴더' : `${TYPE_LABEL[t.type]} 파일`} · 휴지통
+              </div>
+              <div className="cf-details-rows">
+                <div className="cf-details-row">
+                  <span>원래 위치</span>
+                  <b>{[rootName, t.location].filter(Boolean).join(' › ')}</b>
+                </div>
+                <div className="cf-details-row">
+                  <span>지운 사람</span>
+                  <b>{dn(t.author) || '—'}</b>
+                </div>
+                <div className="cf-details-row">
+                  <span>지운 날짜</span>
+                  <b>
+                    {new Date(t.deleted_at + 'Z').toLocaleString('ko-KR', {
+                      year: 'numeric',
+                      month: 'numeric',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </b>
+                </div>
+                {t.type === 'folder' && t.children > 0 && (
+                  <div className="cf-details-row">
+                    <span>포함 항목</span>
+                    <b>{t.children}개</b>
+                  </div>
+                )}
+                <div className="cf-details-row">
+                  <span>크기</span>
+                  <b>{t.type === 'folder' && !t.size ? '—' : fmtSize(t.size ?? 0)}</b>
+                </div>
+              </div>
+              <div className="cf-details-acts">
+                <button className="cf-details-open" onClick={() => void restoreMany([t.id])}>
+                  <UndoIcon size={13} /> 복원
+                </button>
+                <button
+                  className="cf-details-open danger"
+                  onClick={() => void purgeMany([t.id])}
+                >
+                  <TrashIcon size={13} /> 영구 삭제
+                </button>
+              </div>
+            </aside>
+          );
+        })()}
+        {/* 휴지통 다중 선택 — 본문 다중 선택 문법 + 합산 크기 + 일괄 복원·영구 삭제 */}
+        {trashOpen && trashSelList.length > 1 && (
+          <aside className="cf-details">
+            <div className="cf-details-icon cf-icon folder">
+              <CopyIcon size={36} />
+            </div>
+            <div className="cf-details-name">{trashSelList.length}개 항목 선택</div>
+            <div className="cf-details-sub">
+              폴더 {trashSelList.filter((t) => t.type === 'folder').length}개 · 파일{' '}
+              {trashSelList.filter((t) => t.type !== 'folder').length}개
+            </div>
+            <div className="cf-details-rows">
+              <div className="cf-details-row">
+                <span>크기 합계</span>
+                <b>{fmtSize(trashSelList.reduce((s, t) => s + (t.size ?? 0), 0))}</b>
+              </div>
+            </div>
+            <div className="cf-details-acts">
+              <button
+                className="cf-details-open"
+                onClick={() => void restoreMany(trashSelList.map((t) => t.id))}
+              >
+                <UndoIcon size={13} /> 복원 ({trashSelList.length})
+              </button>
+              <button
+                className="cf-details-open danger"
+                onClick={() => void purgeMany(trashSelList.map((t) => t.id))}
+              >
+                <TrashIcon size={13} /> 영구 삭제 ({trashSelList.length})
+              </button>
+            </div>
           </aside>
         )}
         {!trashOpen && !homeOpen && !trashSel && selCount === 0 && (

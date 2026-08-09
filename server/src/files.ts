@@ -1285,11 +1285,20 @@ router.post('/trash/:fileId/restore', (req: AuthedRequest, res) => {
     return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 복원할 수 있어요' });
   }
 
-  // 원래 부모가 삭제됐거나 없어졌으면 루트로
-  let target: number | null = f.parent_id;
+  // 드래그 복원 — body.parentId 지정 시 원래 위치 대신 그 폴더로 (없으면 기존 동작)
+  const hasTarget = 'parentId' in ((req.body ?? {}) as Record<string, unknown>);
+  const wanted: number | null = hasTarget
+    ? req.body.parentId == null
+      ? null
+      : Number(req.body.parentId)
+    : f.parent_id;
+  // 대상(지정 폴더든 원래 부모든)이 삭제됐거나 없어졌으면 루트로
+  let target: number | null = wanted;
   if (target != null) {
     const parent = db
-      .prepare('SELECT 1 FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL')
+      .prepare(
+        "SELECT 1 FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL AND type = 'folder'",
+      )
       .get(target, r.meeting.id);
     if (!parent) target = null;
   }
@@ -1314,10 +1323,10 @@ router.post('/trash/:fileId/restore', (req: AuthedRequest, res) => {
     r.meeting,
     req.userId!,
     'files.restore',
-    `그룹 "${meetingLabel(r.meeting)}" 파일 "${name}" 복원${f.parent_id != null && target === null ? ' (원래 폴더 소실 — 루트로)' : ''}`,
+    `그룹 "${meetingLabel(r.meeting)}" 파일 "${name}" 복원${wanted != null && target === null ? ' (복원할 폴더 소실 — 루트로)' : ''}`,
   );
-  // fellBack — 원래 폴더가 사라져 루트로 떨어진 경우 (클라가 토스트로 알림)
-  res.json({ ok: true, parent_id: target, name, fellBack: f.parent_id != null && target === null });
+  // fellBack — 복원할 폴더가 사라져 루트로 떨어진 경우 (클라가 토스트로 알림)
+  res.json({ ok: true, parent_id: target, name, fellBack: wanted != null && target === null });
 });
 
 /** 휴지통 영구 삭제 — Yjs 상태까지 제거 */

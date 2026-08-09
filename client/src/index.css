@@ -13109,6 +13109,31 @@ input:focus {
   box-shadow: 0 -8px 12px -6px rgba(0, 0, 0, 0.12);
 }
 
+/* 휴지통 세부정보 — 복원·영구 삭제 나란히 (핵심 버튼 sticky 문법 그대로) */
+.cf-details-acts {
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.cf-details-acts .cf-details-open {
+  margin-top: 0;
+  position: static;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.cf-details-acts .cf-details-open.danger {
+  background: var(--red);
+}
+
 .cf-main.grid {
   display: flex;
   flex-wrap: wrap;
