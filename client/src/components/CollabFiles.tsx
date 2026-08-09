@@ -13,6 +13,8 @@ import Avatar from './Avatar';
 import SignPad from './SignPad';
 import {
   FolderIcon,
+  FolderGlyphIcon,
+  type FolderGlyph,
   CodeIcon,
   DocIcon,
   SheetIcon,
@@ -111,8 +113,21 @@ function BlobFileIcon({ size = 15 }: { size?: number }) {
   );
 }
 
+/* 기본 생성 폴더 → 폴더 안 글리프 (Win11 특수 폴더 문법) — 이름을 바꾸면 일반 폴더로 돌아간다 */
+const FOLDER_GLYPHS: Record<string, FolderGlyph> = {
+  '작업·교대 일지': 'log',
+  '설비·정비': 'gear',
+  '안전·환경': 'shield',
+  '품질·검사': 'check',
+  '작업표준·SOP': 'book',
+  '도면·설계': 'ruler',
+  '회의 자료': 'people',
+};
 function TypeIcon({ type, size = 15, name }: { type: FileType; size?: number; name?: string }) {
-  if (type === 'folder') return <FolderIcon size={size} />;
+  if (type === 'folder') {
+    const g = name ? FOLDER_GLYPHS[name] : undefined;
+    return g ? <FolderGlyphIcon size={size} glyph={g} /> : <FolderIcon size={size} />;
+  }
   if (type === 'code') return <CodeIcon size={size} />;
   if (type === 'doc') return <DocIcon size={size} />;
   if (type === 'sheet') return <SheetIcon size={size} />;
@@ -2951,7 +2966,7 @@ export default function CollabFiles({
                       >
                         {hasKids && <ChevronIcon size={10} />}
                       </span>
-                      <FolderIcon size={13} /> {f.name}
+                      <TypeIcon type="folder" size={13} name={f.name} /> {f.name}
                     </button>,
                     ...(open && hasKids ? renderSideFolders(f.id, depth + 1) : []),
                   ];

@@ -134,6 +134,90 @@ export function FolderIcon({ size }: IconProps) {
   );
 }
 
+/* 특수 폴더 — Win11처럼 폴더 면 안에 용도 글리프 (기본 생성 폴더 7종) */
+export type FolderGlyph = 'log' | 'gear' | 'shield' | 'check' | 'book' | 'ruler' | 'people';
+const FOLDER_GLYPH_PATHS: Record<FolderGlyph, React.ReactNode> = {
+  // 작업·교대 일지 — 일보 줄 3개
+  log: (
+    <path d="M9 11.5h6M9 14h6M9 16.5h3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  ),
+  // 설비·정비 — 기어 (원 + 이빨 4개)
+  gear: (
+    <>
+      <circle cx="12" cy="14" r="2.1" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M12 10.4v1M12 16.6v1M8.9 14h1M14.1 14h1"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </>
+  ),
+  // 안전·환경 — 방패
+  shield: (
+    <path
+      d="M12 10.2l3.2 1.1v2.3c0 2-1.4 3.4-3.2 4-1.8-.6-3.2-2-3.2-4v-2.3z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+  ),
+  // 품질·검사 — 합격 체크
+  check: (
+    <path
+      d="M9.2 13.8l2 2 3.6-3.8"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  // 작업표준·SOP — 펼친 책
+  book: (
+    <path
+      d="M12 11.3c-.9-.7-2.1-.9-3.2-.7v5.2c1.1-.2 2.3 0 3.2.7.9-.7 2.1-.9 3.2-.7v-5.2c-1.1-.2-2.3 0-3.2.7zm0 0v5.2"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinejoin="round"
+    />
+  ),
+  // 도면·설계 — 삼각자
+  ruler: (
+    <path
+      d="M9.2 16.6l5.6-5.6v5.6z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+  ),
+  // 회의 자료 — 사람 둘
+  people: (
+    <>
+      <circle cx="10.6" cy="12.3" r="1.4" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8.2 17c.3-1.4 1.3-2.2 2.4-2.2s2.1.8 2.4 2.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path
+        d="M14.2 12.9a1.3 1.3 0 1 0 .9-2.2M15.9 16.6c-.2-1.1-.9-1.9-1.8-2.1"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </>
+  ),
+};
+export function FolderGlyphIcon({ size, glyph }: IconProps & { glyph: FolderGlyph }) {
+  return (
+    <Svg size={size}>
+      <path
+        d="M3.5 6.5c0-1.1.9-2 2-2h4l2 2.2h7c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-13c-1.1 0-2-.9-2-2v-11.2z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      {FOLDER_GLYPH_PATHS[glyph]}
+    </Svg>
+  );
+}
+
 export function HomeIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
