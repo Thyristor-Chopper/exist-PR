@@ -821,9 +821,12 @@ router.delete('/:code', (req: AuthedRequest, res) => {
   } catch {
     /* todos에 meeting_id 컬럼이 없으면 무시 */
   }
-  // 수신확인은 recap을 FK로 물고 있음 — 먼저 안 지우면 recap 삭제가 FK로 막힘 (기존 잠복 버그)
+  // 수신확인·리마인드 기록은 recap을 FK로 물고 있음 — 먼저 안 지우면 recap 삭제가 FK로 막힘
   db.prepare(
     'DELETE FROM decision_acks WHERE recap_id IN (SELECT id FROM meeting_recaps WHERE meeting_id = ?)',
+  ).run(meeting.id);
+  db.prepare(
+    'DELETE FROM decision_remind_sent WHERE recap_id IN (SELECT id FROM meeting_recaps WHERE meeting_id = ?)',
   ).run(meeting.id);
   db.prepare('DELETE FROM meeting_recaps WHERE meeting_id = ?').run(meeting.id);
   db.prepare('DELETE FROM chat_reads WHERE meeting_id = ?').run(meeting.id);
@@ -1456,6 +1459,8 @@ router.delete('/:code/decisions/auto/:recapId', (req: AuthedRequest, res) => {
   if (row.source !== 'auto')
     return res.status(403).json({ error: 'AI가 자동 기록한 결정만 취소할 수 있어요' });
   db.prepare('DELETE FROM decision_acks WHERE recap_id = ?').run(recapId);
+  // 리마인드 발송 기록도 recap FK — 리마인드가 나갔던 결정은 취소가 FK로 터지던 버그
+  db.prepare('DELETE FROM decision_remind_sent WHERE recap_id = ?').run(recapId);
   db.prepare('DELETE FROM meeting_recaps WHERE id = ?').run(recapId);
   invalidateAgenda(r.meeting.id);
   const parts = db
