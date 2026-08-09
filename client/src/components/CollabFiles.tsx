@@ -77,6 +77,8 @@ interface CollabFile {
   ack_count?: number;
   my_ack?: number;
   ack_total?: number;
+  /** 개정 번호 — 재회람(개정 발행)마다 +1, 서버가 NULL이면 1로 정규화 */
+  rev?: number;
 }
 
 interface FileAckStatus {
@@ -404,6 +406,8 @@ export default function CollabFiles({
   const [fileVersions, setFileVersions] = useState<
     { id: number; size: number | null; created_at: string; username: string | null }[] | null
   >(null);
+  // 버전 기록 접기 — 기본 접힘 (세부정보 과밀 방지, 제목의 vN이 요약)
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const versionInputRef = useRef<HTMLInputElement | null>(null);
   // DM으로 파일 보내기 — 대상 파일 + 멤버 목록
   const [dmPickFor, setDmPickFor] = useState<CollabFile | null>(null);
@@ -1070,6 +1074,7 @@ export default function CollabFiles({
   // 선택된 업로드 파일의 버전 기록
   useEffect(() => {
     setFileVersions(null);
+    setVersionsOpen(false); // 선택이 바뀌면 다시 접는다 (서명자 명단과 같은 문법)
     if (!selected || selected.type !== 'file') return;
     void api<{ id: number; size: number | null; created_at: string; username: string | null }[]>(
       `/api/meetings/${code}/files/${selected.id}/versions`,
@@ -1099,6 +1104,12 @@ export default function CollabFiles({
       toast(`파일은 ${MAX_UPLOAD_MB}MB까지 지원해요`, 'error');
       return;
     }
+    // 회람 문서는 새 버전 = 자동 개정 발행 — 서명 리셋을 모르고 올리는 사고 방지
+    if (
+      f.ack_required &&
+      !confirm('새 버전을 올리면 개정이 발행되어 전원 서명이 리셋됩니다. 지난 서명은 이력에 보관돼요. 계속할까요?')
+    )
+      return;
     try {
       await fetch(`/api/meetings/${code}/files/${f.id}/upload-version`, {
         method: 'POST',
@@ -1108,8 +1119,13 @@ export default function CollabFiles({
         },
         body: file,
       });
-      toast(`"${f.name}" 새 버전을 올렸어요 — 이전 버전은 보관됨`);
+      toast(
+        f.ack_required
+          ? `"${f.name}" 새 버전을 올렸어요 — 개정 발행, 전원 서명 리셋(이력 보관)`
+          : `"${f.name}" 새 버전을 올렸어요 — 이전 버전은 보관됨`,
+      );
       load();
+      if (f.ack_required) void loadAcks(f.id); // 리셋된 회람 현황 즉시 반영
       const rows = await api<
         { id: number; size: number | null; created_at: string; username: string | null }[]
       >(`/api/meetings/${code}/files/${f.id}/versions`, { silent: true });
@@ -1691,6 +1707,26 @@ export default function CollabFiles({
       load();
       void loadAcks(f.id);
       toast(on ? '열람 서명을 요청했어요 — 그룹원에게 알림이 가요' : '열람 서명 요청을 해제했어요');
+    } catch {
+      /* 전역 토스트 */
+    }
+  }
+
+  /** 개정 발행(재회람) — rev +1, 회람 문서면 전원 서명 리셋(지난 서명은 이력 보관) */
+  async function reviseNow(f: CollabFile) {
+    if (
+      !confirm(
+        `개정을 발행하면 전원 서명이 리셋됩니다. 지난 서명은 이력에 보관돼요 — "${f.name}" 개정을 발행할까요?`,
+      )
+    )
+      return;
+    try {
+      const r = await api<{ rev: number }>(`/api/meetings/${code}/files/${f.id}/revise`, {
+        method: 'POST',
+      });
+      toast(`개정 v${r.rev}을 발행했어요${f.ack_required ? ' — 전원 서명이 리셋됐어요' : ''}`);
+      load();
+      if (f.ack_required) void loadAcks(f.id);
     } catch {
       /* 전역 토스트 */
     }
@@ -3912,6 +3948,10 @@ export default function CollabFiles({
             </div>
             <div className="cf-details-sub">
               {selected.type === 'folder' ? '폴더' : `${TYPE_LABEL[selected.type]} 파일`}
+              {/* 개정 뱃지 — v2부터 노출 (v1은 소음). Yjs 문서는 이게 유일한 개정 표시 */}
+              {selected.type !== 'folder' && (selected.rev ?? 1) > 1 && (
+                <span className="cf-rev-badge">개정 v{selected.rev}</span>
+              )}
             </div>
             <div className="cf-details-rows">
               <div className="cf-details-row">
@@ -3972,23 +4012,42 @@ export default function CollabFiles({
                 ))}
               </div>
             )}
-            {/* 업로드 파일 버전 기록 — 새 버전 업로드 + 이전 버전 다운로드 */}
+            {/* 업로드 파일 버전 기록 — 접기 섹션 (vN = 현재 개정), 지난 판 다운로드 */}
             {selected.type === 'file' && (
               <div className="cf-versions">
-                <div className="cf-ack-head">🕘 버전 기록</div>
-                {(fileVersions?.length ?? 0) > 0 &&
-                  fileVersions!.map((v) => (
-                    <a
-                      key={v.id}
-                      className="cf-version-row"
-                      href={`/api/meetings/${code}/files/${selected.id}/versions/${v.id}/download?token=${encodeURIComponent(token ?? '')}`}
-                    >
-                      {fmtDate(v.created_at)} · {fmtSize(v.size)}
-                      {v.username ? ` · ${dn(v.username)}` : ''}
-                    </a>
-                  ))}
-                {(fileVersions?.length ?? 0) === 0 && (
-                  <div className="cf-version-none">이전 버전 없음</div>
+                <button
+                  type="button"
+                  className="cf-ack-fold cf-versions-fold"
+                  onClick={() => setVersionsOpen((v) => !v)}
+                >
+                  <span className={`side-chevron${versionsOpen ? ' open' : ''}`}>
+                    <ChevronIcon size={10} />
+                  </span>
+                  🕘 버전 기록 (v{selected.rev ?? 1})
+                </button>
+                {versionsOpen && (
+                  <>
+                    {(fileVersions?.length ?? 0) > 0 &&
+                      /* 서버는 최신순(DESC) — 가장 오래된 판이 v1 */
+                      fileVersions!.map((v, i) => (
+                        <div key={v.id} className="cf-version-row">
+                          <b className="cf-version-no">v{fileVersions!.length - i}</b>
+                          <span className="cf-version-meta">
+                            {v.username ? dn(v.username) : '—'} · {fmtDate(v.created_at)} ·{' '}
+                            {fmtSize(v.size)}
+                          </span>
+                          <a
+                            className="cf-version-dl"
+                            href={`/api/meetings/${code}/files/${selected.id}/versions/${v.id}/download?token=${encodeURIComponent(token ?? '')}`}
+                          >
+                            다운로드
+                          </a>
+                        </div>
+                      ))}
+                    {(fileVersions?.length ?? 0) === 0 && (
+                      <div className="cf-version-none">이전 버전 없음</div>
+                    )}
+                  </>
                 )}
                 <button className="cf-ack-req" onClick={() => versionInputRef.current?.click()}>
                   새 버전 업로드
@@ -4049,20 +4108,24 @@ export default function CollabFiles({
                           서명자 {ackStatus.acks.length}명
                         </button>
                         {ackSignedOpen && (
-                          <div className="cf-ack-chips">
-                            {ackStatus.acks.map((a) =>
-                              a.signature ? (
-                                <span key={a.username} className="cf-ack-chip">
-                                  <img src={a.signature} alt={`${dn(a.username)} 서명`} />
-                                  <i>{dn(a.username)}</i>
-                                </span>
-                              ) : (
-                                <span key={a.username} className="cf-ack-chip plain">
-                                  <i>{dn(a.username)}</i>
-                                </span>
-                              ),
-                            )}
-                          </div>
+                          <>
+                            <div className="cf-ack-chips">
+                              {ackStatus.acks.map((a) =>
+                                a.signature ? (
+                                  <span key={a.username} className="cf-ack-chip">
+                                    <img src={a.signature} alt={`${dn(a.username)} 서명`} />
+                                    <i>{dn(a.username)}</i>
+                                  </span>
+                                ) : (
+                                  <span key={a.username} className="cf-ack-chip plain">
+                                    <i>{dn(a.username)}</i>
+                                  </span>
+                                ),
+                              )}
+                            </div>
+                            {/* 개정 발행 시 서명은 지워지지 않고 이관됨 — 이력 뷰어는 추후 */}
+                            <div className="cf-ack-hist">지난 개정 서명은 이력에 보관됩니다</div>
+                          </>
                         )}
                       </>
                     )}
@@ -4100,6 +4163,16 @@ export default function CollabFiles({
                         }}
                       >
                         🔔 미서명자 리마인드
+                      </button>
+                    )}
+                    {/* 개정 발행 (재회람) — 내용이 바뀌어 전원 재확인이 필요할 때 */}
+                    {canEdit(selected) && (
+                      <button
+                        className="cf-ack-req"
+                        title="개정 번호가 +1 되고 전원 서명이 리셋돼요 — 지난 서명은 이력에 보관"
+                        onClick={() => void reviseNow(selected)}
+                      >
+                        ↻ 개정 발행 (재회람)
                       </button>
                     )}
                     {canEdit(selected) && (
@@ -4372,6 +4445,19 @@ export default function CollabFiles({
                 >
                   {favs.includes(ctxTarget.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'}
                 </button>
+                {/* 개정 발행 (재회람) — Yjs 문서·업로드 공통, 폴더 제외·단일 대상만 */}
+                {ctxTarget.type !== 'folder' && (
+                  <button
+                    disabled={!canEdit(ctxTarget) || ctxIds.length > 1}
+                    title="개정 번호가 +1 되고, 열람 서명이 걸린 문서면 전원 서명이 리셋돼요 (지난 서명은 이력 보관)"
+                    onClick={() => {
+                      void reviseNow(ctxTarget);
+                      setCtxMenu(null);
+                    }}
+                  >
+                    개정 발행 (재회람)
+                  </button>
+                )}
                 <div className="cf-menu-sep" />
                 <button
                   className="danger"

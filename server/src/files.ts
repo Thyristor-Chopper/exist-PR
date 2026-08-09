@@ -202,6 +202,56 @@ function auditPurge(meeting: MeetingRef, userId: number, action: string, detail:
   }
 }
 
+/** 개정 발행(재회람) — rev +1, 기존 열람 서명은 file_acks_history로 이관 후 리셋.
+ * 삭제가 아니라 이관 — "지난 개정(vN)에 누가 언제 서명했나"가 감사 추적으로 남는다 (GMP 문법).
+ * ack_required=0이면 리셋할 서명이 의미 없으므로 사실상 rev만 +1 (이관은 no-op).
+ * files:changed 방송은 비GET 자동 미들웨어가 담당 — 반드시 라우트 안에서만 호출할 것 */
+function reviseFile(
+  meeting: MeetingRef,
+  actorId: number,
+  actorName: string,
+  f: { id: number; name: string; ack_required: number },
+): number {
+  const cur = db
+    .prepare('SELECT COALESCE(rev, 1) AS rev FROM collab_files WHERE id = ?')
+    .get(f.id) as { rev: number };
+  const nextRev = cur.rev + 1;
+  db.transaction(() => {
+    // 지난 개정 서명 → 이력 보관 (rev = 서명 당시 개정 번호)
+    db.prepare(
+      `INSERT INTO file_acks_history (file_id, user_id, ack_at, signature, rev)
+       SELECT file_id, user_id, ack_at, signature, ? FROM file_acks WHERE file_id = ?`,
+    ).run(cur.rev, f.id);
+    db.prepare('DELETE FROM file_acks WHERE file_id = ?').run(f.id);
+    db.prepare("UPDATE collab_files SET rev = ?, updated_at = datetime('now') WHERE id = ?").run(
+      nextRev,
+      f.id,
+    );
+  })();
+  // 개정도 감사 추적에 — 서명 리셋은 되돌릴 수 없는 상태 변화 (auditPurge 문법 재사용)
+  auditPurge(
+    meeting,
+    actorId,
+    'files.revise',
+    `그룹 "${meetingLabel(meeting)}" 파일 "${f.name}" 개정 v${nextRev} 발행${f.ack_required ? ' — 열람 서명 리셋(지난 서명은 이력 보관)' : ''}`,
+  );
+  // 회람 문서였다면 전원에게 재서명 알림 (ack-request 켤 때와 같은 계열)
+  if (f.ack_required) {
+    const members = db
+      .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ? AND user_id != ?')
+      .all(meeting.id, actorId) as { user_id: number }[];
+    for (const m of members) {
+      notifyUser(m.user_id, {
+        from: actorName,
+        text: `"${f.name}" 문서의 개정 v${nextRev}이 발행됐어요 — 다시 열람 서명이 필요해요`,
+        kind: 'file-ack',
+        meetingCode: meeting.code,
+      });
+    }
+  }
+  return nextRev;
+}
+
 const router = Router({ mergeParams: true });
 
 /* ── files:changed 푸시 — 파일 생성·이동·삭제·업로드·서명 등 모든 변경을 그룹 멤버 전원에게 즉시 방송.
@@ -264,7 +314,7 @@ router.get('/', (req: AuthedRequest, res) => {
   const rows = db
     .prepare(
       `SELECT f.id, f.parent_id, f.name, f.type, f.room, f.mime, f.size, f.created_at, f.updated_at, u.username AS author,
-              f.ack_required,
+              f.ack_required, COALESCE(f.rev, 1) AS rev,
               (SELECT COUNT(*) FROM file_acks a WHERE a.file_id = f.id) AS ack_count,
               EXISTS(SELECT 1 FROM file_acks a WHERE a.file_id = f.id AND a.user_id = ?) AS my_ack
        FROM collab_files f JOIN users u ON u.id = f.created_by
@@ -423,6 +473,26 @@ router.post('/:fileId/ack-remind', (req: AuthedRequest, res) => {
   }
   if (targets.length > 0) ackRemindLast.set(f.id, Date.now());
   res.json({ reminded: targets.length });
+});
+
+/** 개정 발행(재회람) — rev +1 + 서명 리셋(이력 이관). 권한은 서명 요청 해제와 동일 계열 */
+router.post('/:fileId/revise', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare(
+      'SELECT id, name, type, created_by, ack_required FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+    )
+    .get(req.params.fileId, r.meeting.id) as
+    | { id: number; name: string; type: FileType; created_by: number; ack_required: number }
+    | undefined;
+  if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  if (f.type === 'folder') return res.status(400).json({ error: '폴더에는 개정을 발행할 수 없어요' });
+  if (!canManageFile(f, r.meeting, req.userId!)) {
+    return res.status(403).json({ error: '만든 사람·호스트·조직 관리자만 개정을 발행할 수 있어요' });
+  }
+  const rev = reviseFile(r.meeting, req.userId!, req.username ?? '누군가', f);
+  res.json({ ok: true, rev });
 });
 
 /** 이 문서를 다룬 회의들 — recap.files 역조회 (문서 → 회의 다리) */
@@ -1161,10 +1231,10 @@ router.post('/:fileId/upload-version', (req: AuthedRequest, res) => {
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   const f = db
     .prepare(
-      'SELECT id, name, type, mime, size, blob_path, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+      'SELECT id, name, type, mime, size, blob_path, created_by, ack_required FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
     )
     .get(req.params.fileId, r.meeting.id) as
-    | { id: number; name: string; type: FileType; mime: string | null; size: number | null; blob_path: string | null; created_by: number }
+    | { id: number; name: string; type: FileType; mime: string | null; size: number | null; blob_path: string | null; created_by: number; ack_required: number }
     | undefined;
   if (!f || f.type !== 'file' || !f.blob_path)
     return res.status(400).json({ error: '업로드 파일에만 새 버전을 올릴 수 있어요' });
@@ -1202,7 +1272,9 @@ router.post('/:fileId/upload-version', (req: AuthedRequest, res) => {
         req.userId!,
         f.id,
       );
-      res.json({ ok: true, size: buf.length });
+      // 새 버전 = 자동 개정 발행 — 회람 문서면 서명 리셋(이력 보관), 아니면 rev만 +1
+      const rev = reviseFile(r.meeting, req.userId!, req.username ?? '누군가', f);
+      res.json({ ok: true, size: buf.length, rev });
     } catch (e) {
       // 이벤트 콜백 안의 예외는 Express가 못 잡는다 — 직접 응답
       console.error('[upload-version]', e);

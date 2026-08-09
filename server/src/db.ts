@@ -609,6 +609,28 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_file_acks_file ON file_acks(file_id);
 `);
 
+// 마이그레이션: 문서 개정(리비전) — 재회람(개정 발행) 시 +1. 기존 행 NULL은 1로 취급(COALESCE)
+try {
+  db.exec(`ALTER TABLE collab_files ADD COLUMN rev INTEGER`);
+} catch {
+  /* 이미 존재 */
+}
+
+/* 개정 발행 시 지난 서명의 보관소 — 재회람은 file_acks를 삭제가 아니라 여기로 이관.
+ * 감사 추적(GMP): "v2에 누가 언제 서명했나"가 개정 후에도 남는다 */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS file_acks_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id     INTEGER NOT NULL REFERENCES collab_files(id),
+    user_id     INTEGER NOT NULL REFERENCES users(id),
+    ack_at      TEXT,
+    signature   TEXT,
+    rev         INTEGER,
+    archived_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_file_acks_history ON file_acks_history(file_id, rev);
+`);
+
 
 /* 통화 음성 전사 — 각 참가자 브라우저의 STT(Web Speech) 결과.
  * recap·결정 원장·AI 총무의 근거로 채팅과 함께 쓰인다. */

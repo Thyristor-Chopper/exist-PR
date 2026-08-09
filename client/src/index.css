@@ -12907,7 +12907,7 @@ input:focus {
   font-size: 12px;
 }
 
-/* 버전 기록 — 세부정보 패널 */
+/* 버전 기록 — 세부정보 패널 (접기 섹션, 제목의 vN = 현재 개정) */
 .cf-versions {
   width: 100%;
   margin-top: 10px;
@@ -12917,10 +12917,19 @@ input:focus {
   flex-direction: column;
   gap: 6px;
 }
+/* 접기 토글 — cf-ack-fold 재사용하되 섹션 제목이므로 본문 톤·볼드 */
+.cf-versions-fold {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+/* 행 = vK · 올린 사람 · 날짜 · 크기 · [다운로드] */
 .cf-version-row {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* 4의 배수 */
   font-size: 12px;
   color: var(--text);
-  text-decoration: none;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 9px;
@@ -12928,8 +12937,48 @@ input:focus {
 .cf-version-row:hover {
   background: var(--surface-2);
 }
+.cf-version-no {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+.cf-version-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-sub);
+}
+.cf-version-dl {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--green-dark);
+  text-decoration: none;
+}
+.cf-version-dl:hover {
+  text-decoration: underline;
+}
 .cf-version-none {
   font-size: 12px;
+  color: var(--text-sub);
+}
+/* 개정 뱃지 — 세부정보 종류 옆 "개정 v3" (v2부터 노출) */
+.cf-rev-badge {
+  display: inline-block;
+  margin-left: 8px; /* 4의 배수 */
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  background: var(--bg);
+}
+/* 회람 이력 안내 — 서명자 접기 안 한 줄 (이력 뷰어는 추후) */
+.cf-ack-hist {
+  font-size: 11px;
   color: var(--text-sub);
 }
 .cf-dm-avatar {
