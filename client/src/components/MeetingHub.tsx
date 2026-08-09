@@ -298,11 +298,22 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
   /** AI 자동 기록 메시지의 [취소] — 사후 거부권 (source='auto'인 원장 항목만 지워짐) */
   async function undoAutoDecision(recapId: string) {
     try {
-      await api(`/api/meetings/${code}/decisions/auto/${recapId}`, { method: 'DELETE' });
+      await api(`/api/meetings/${code}/decisions/auto/${recapId}`, {
+        method: 'DELETE',
+        silent: true, // 404(이미 취소됨)는 아래서 직접 처리 — 죽은 버튼으로 안 남게
+      });
       setAutoRecState((prev) => ({ ...prev, [recapId]: 'undone' }));
       window.dispatchEvent(new CustomEvent('app:info', { detail: '기록을 취소했어요' }));
-    } catch {
-      /* 전역 토스트 */
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        // 이미 지워진 기록(새로고침 전 취소 등) — 상태만 맞춰주면 [다시 기록]으로 이어진다
+        setAutoRecState((prev) => ({ ...prev, [recapId]: 'undone' }));
+        window.dispatchEvent(
+          new CustomEvent('app:info', { detail: '이미 취소된 기록이에요 — 다시 기록할 수 있어요' }),
+        );
+      } else if (e instanceof ApiError) {
+        window.dispatchEvent(new CustomEvent('app:error', { detail: e.message }));
+      }
     }
   }
 
