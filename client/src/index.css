@@ -13056,6 +13056,30 @@ input:focus {
 .cf-home-label-ack {
   color: var(--red);
 }
+/* 홈 섹션 접기 — Win11 헤더 ∨ (side-chevron 회전 문법 재사용) */
+button.cf-home-fold {
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+.cf-home-fold .side-chevron {
+  display: inline-flex;
+  transition: transform 0.15s;
+}
+.cf-home-fold .side-chevron.open {
+  transform: rotate(0deg);
+}
+.cf-home-fold .side-chevron:not(.open) {
+  transform: rotate(-90deg); /* 접힘 = › , 펼침 = ∨ */
+}
+.cf-home-fold-tabs {
+  align-self: center;
+  padding: 4px; /* 탭 줄 왼쪽의 작은 ∨ */
+}
 
 .cf-desktree-item.droptarget {
   outline: 2px solid var(--green);

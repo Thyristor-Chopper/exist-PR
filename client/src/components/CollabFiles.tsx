@@ -397,6 +397,24 @@ export default function CollabFiles({
   >([]);
   // 홈 하단 탭 — [확인 필요 | 작업 중 | 최근 항목] (Win11 홈 하단 탭 문법)
   const [homeTab, setHomeTab] = useState<'ack' | 'working' | 'recent'>('recent');
+  // 홈 섹션 접기 — Win11처럼 헤더 ∨ 토글, 기기별 저장
+  const [homeFold, setHomeFold] = useState<{ pins: boolean; list: boolean }>(() => {
+    try {
+      return {
+        pins: false,
+        list: false,
+        ...(JSON.parse(localStorage.getItem('exist:cf-home-fold') ?? '{}') as object),
+      };
+    } catch {
+      return { pins: false, list: false };
+    }
+  });
+  const toggleHomeFold = (k: 'pins' | 'list') =>
+    setHomeFold((prev) => {
+      const next = { ...prev, [k]: !prev[k] };
+      localStorage.setItem('exist:cf-home-fold', JSON.stringify(next));
+      return next;
+    });
   // 홈 탭 — 즐겨찾기 + 최근 방문 (탐색기 홈, 휴지통과 같은 "장소" 패턴)
   const [homeOpen, setHomeOpen] = useState(false);
   // 홈 하단 알약 탭 — 최근 항목(기본) | 작업 중 (Win11 홈 하단 탭 문법)
@@ -2933,10 +2951,18 @@ export default function CollabFiles({
             return (
               <div className="cf-main cf-homeview">
                 <div className="cf-home-sec">
-                  <div className="cf-home-label">
+                  {/* Win11처럼 섹션 접기 — 헤더 왼쪽 ∨ */}
+                  <button
+                    type="button"
+                    className="cf-home-label cf-home-fold"
+                    onClick={() => toggleHomeFold('pins')}
+                  >
+                    <span className={`side-chevron${homeFold.pins ? '' : ' open'}`}>
+                      <ChevronIcon size={11} />
+                    </span>
                     <PinIcon size={13} /> 고정됨
-                  </div>
-                  {favFiles.length === 0 ? (
+                  </button>
+                  {homeFold.pins ? null : favFiles.length === 0 ? (
                     <div className="cf-empty">
                       자주 쓰는 파일을 고정해보세요 — 세부정보의 압정을 누르면 여기에 떠요
                     </div>
@@ -2965,9 +2991,19 @@ export default function CollabFiles({
                     </div>
                   )}
                 </div>
-                {/* 하단 — Win11 홈 하단 탭 문법: [확인 필요 | 작업 중 | 최근 항목] */}
+                {/* 하단 — Win11 홈 하단 탭 문법: [확인 필요 | 작업 중 | 최근 항목], 왼쪽 ∨로 접기 */}
                 <div className="cf-home-sec">
                   <div className="cf-home-tabs" role="tablist">
+                    <button
+                      type="button"
+                      className="cf-home-fold cf-home-fold-tabs"
+                      title={homeFold.list ? '펼치기' : '접기'}
+                      onClick={() => toggleHomeFold('list')}
+                    >
+                      <span className={`side-chevron${homeFold.list ? '' : ' open'}`}>
+                        <ChevronIcon size={11} />
+                      </span>
+                    </button>
                     <button
                       role="tab"
                       aria-selected={homeTab === 'ack'}
@@ -2995,6 +3031,8 @@ export default function CollabFiles({
                       <ClockIcon size={13} /> 최근 항목
                     </button>
                   </div>
+                  {homeFold.list ? null : (
+                  <>
                   {/* 흐린 컬럼 라벨 — 정렬 없음, 라벨만 (listhead와 같은 톤) */}
                   <div className="cf-home-listhead" aria-hidden>
                     <span>이름</span>
@@ -3083,6 +3121,8 @@ export default function CollabFiles({
                         );
                       })}
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               </div>
