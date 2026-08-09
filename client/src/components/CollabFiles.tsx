@@ -331,7 +331,13 @@ export default function CollabFiles({
   const [, forceNav] = useState(0); // 스택 변경 시 버튼 활성화 갱신용
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set()); // 다중 선택
   const anchorRef = useRef<number | null>(null); // Shift 범위 선택 기준점
-  const [clipboard, setClipboard] = useState<{ op: 'cut' | 'copy'; ids: number[] } | null>(null);
+  // fromTrash = 휴지통 잘라내기 (윈도우 휴지통 문법 — 폴더에서 붙여넣으면 그 폴더로 복원).
+  // 일반 이동(PATCH parent_id) 경로와 절대 섞지 않는다 — paste()에서 먼저 분기.
+  const [clipboard, setClipboard] = useState<{
+    op: 'cut' | 'copy';
+    ids: number[];
+    fromTrash?: boolean;
+  } | null>(null);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -450,13 +456,18 @@ export default function CollabFiles({
   }>({ key: 'date', dir: 'desc' });
   // ── 컬럼 폭 조절 — 헤더 구분선 드래그 (윈도우식). CSS 변수로 헤더·행 동시 적용,
   // localStorage에 전역 저장, 핸들 더블클릭이면 기본폭 복원 ──
+  // 폭은 전부 4의 배수 — 컬럼 간격이 4의 배수면 DPR 1.25/1.5/1.75에서 ×DPR가 정수라
+  // 구분선들이 항상 같은 굵기로 스냅됨 (아니면 하나 걸러 1px/2px 뒤죽박죽)
   const COL_DEFAULTS: Record<string, number> = {
-    name: 260, type: 90, author: 90, date: 110, size: 64, online: 130,
-    tname: 260, tloc: 140, tauthor: 110, tdate: 110, tsize: 64,
+    name: 260, type: 92, author: 92, date: 112, size: 64, online: 132,
+    tname: 260, tloc: 140, tauthor: 112, tdate: 112, tsize: 64,
   };
   const [colW, setColW] = useState<Record<string, number>>(() => {
     try {
-      return JSON.parse(localStorage.getItem('exist:cf-colw') ?? '{}') as Record<string, number>;
+      const raw = JSON.parse(localStorage.getItem('exist:cf-colw') ?? '{}') as Record<string, number>;
+      // 예전에 저장된 4의 배수 아닌 폭 정규화
+      for (const k of Object.keys(raw)) raw[k] = Math.round(raw[k] / 4) * 4;
+      return raw;
     } catch {
       return {};
     }
@@ -475,7 +486,8 @@ export default function CollabFiles({
         window.removeEventListener('pointermove', onMove);
         return;
       }
-      lastW = Math.round(Math.max(48, Math.min(480, d.startW + (ev.clientX - d.startX))));
+      // 4px 스텝 스냅 — 4의 배수 유지해야 구분선 굵기가 균일 (48·480도 4의 배수)
+      lastW = Math.round(Math.max(48, Math.min(480, d.startW + (ev.clientX - d.startX))) / 4) * 4;
       // 드래그 중엔 React를 안 거치고 CSS 변수만 직접 갱신 — 매 이동마다
       // 탐색기 전체가 리렌더되면 끊긴다. 상태 커밋은 놓을 때 한 번
       explorerRef.current?.style.setProperty(`--cf-col-${k}`, `${lastW}px`);
@@ -545,6 +557,10 @@ export default function CollabFiles({
   const dragIdsRef = useRef<number[]>([]);
   // 휴지통 행 드래그 — 일반 이동(moveMany) 경로와 섞이면 안 되므로 별도 ref
   const trashDragIdsRef = useRef<number[]>([]);
+  // 휴지통 러버밴드 — 본문(cf-main)과 같은 문법, 호스트·선택 대상만 다름.
+  // rubber 상태 자체는 공유 (두 컨테이너는 동시에 상호작용하지 않음 — 휴지통 열리면 본문은 display:none)
+  const trashMainRef = useRef<HTMLDivElement | null>(null);
+  const trashRubberBase = useRef<Set<number>>(new Set()); // Ctrl 러버밴드 = 시작 시점 선택에 추가
   const [dropTarget, setDropTarget] = useState<number | 'root' | 'trash' | null>(null);
   const renameTimerRef = useRef<number | null>(null); // 선택된 항목 이름 재클릭 → 지연 후 인라인 편집
 
@@ -1347,6 +1363,14 @@ export default function CollabFiles({
 
   async function paste() {
     if (!clipboard) return;
+    // 휴지통 잘라내기 → 폴더에서 붙여넣기 = 현재 폴더로 복원 (윈도우 휴지통 문법).
+    // 소프트 삭제 항목은 byId에 없으므로 일반 이동 경로로 절대 흘리지 않는다.
+    if (clipboard.fromTrash) {
+      const ids = clipboard.ids;
+      setClipboard(null);
+      await restoreManyTo(ids, cwd);
+      return;
+    }
     const srcs = clipboard.ids.map((id) => byId.get(id)).filter((f): f is CollabFile => !!f);
     if (srcs.length === 0) {
       setClipboard(null);
@@ -1494,6 +1518,7 @@ export default function CollabFiles({
   async function restoreManyTo(ids: number[], target?: number | null) {
     let ok = 0;
     let fellBack = 0; // 원래 폴더 소실 → 루트로 떨어진 개수 (윈도우는 경로 재생성, 우리는 알림)
+    const restored: number[] = [];
     for (const id of ids) {
       try {
         const r = await api<{ fellBack?: boolean }>(
@@ -1503,11 +1528,18 @@ export default function CollabFiles({
             : { method: 'POST', body: { parentId: target } },
         );
         ok++;
+        restored.push(id);
         if (r.fellBack) fellBack++;
       } catch {
         /* 개별 실패 무시 — 아래에서 집계 */
       }
     }
+    // 복원된 항목은 더는 휴지통에 없음 — 휴지통 클립보드에서 정리
+    setClipboard((c) => {
+      if (!c?.fromTrash) return c;
+      const left = c.ids.filter((id) => !restored.includes(id));
+      return left.length > 0 ? { ...c, ids: left } : null;
+    });
     await loadTrash();
     load();
     if (ok > 0) {
@@ -1533,6 +1565,7 @@ export default function CollabFiles({
         `/api/meetings/${code}/files/trash`,
         { method: 'DELETE' },
       );
+      setClipboard((c) => (c?.fromTrash ? null : c)); // 비운 뒤엔 휴지통 클립보드 무효
       await loadTrash();
       toast(
         r.skipped > 0
@@ -1549,14 +1582,22 @@ export default function CollabFiles({
     if (ids.length === 0) return;
     if (!confirm(`${ids.length}개 항목을 영구 삭제할까요? 내용까지 완전히 사라져요.`)) return;
     let ok = 0;
+    const purged: number[] = [];
     for (const id of ids) {
       try {
         await api(`/api/meetings/${code}/files/trash/${id}`, { method: 'DELETE' });
         ok++;
+        purged.push(id);
       } catch {
         /* 개별 실패 무시 — 아래에서 집계 */
       }
     }
+    // 영구 삭제된 항목은 휴지통 클립보드에서 정리
+    setClipboard((c) => {
+      if (!c?.fromTrash) return c;
+      const left = c.ids.filter((id) => !purged.includes(id));
+      return left.length > 0 ? { ...c, ids: left } : null;
+    });
     await loadTrash();
     if (ok > 0) {
       toast(
@@ -1740,7 +1781,13 @@ export default function CollabFiles({
         return;
       }
       if (ctrl && (e.key === 'x' || e.key === 'X')) {
-        if (trashOpen) return; // 휴지통에선 잘라내기 없음
+        if (trashOpen) {
+          // 휴지통 잘라내기 — 폴더로 나가서 Ctrl+V 하면 그 폴더로 복원 (윈도우 휴지통 문법)
+          if (trashSelIds.size === 0) return;
+          e.preventDefault();
+          setClipboard({ op: 'cut', ids: [...trashSelIds], fromTrash: true });
+          return;
+        }
         const ids = selList.filter(canEdit).map((f) => f.id); // 편집 가능 선택만
         if (ids.length === 0) return;
         e.preventDefault();
@@ -1820,7 +1867,8 @@ export default function CollabFiles({
     return () => document.removeEventListener('pointerdown', onDown);
   }, [sortMenu, viewMenu, moreMenu, filterMenu, typeMenuFor]);
 
-  function share(f: CollabFile) {
+  // 이름만 쓰므로 휴지통 항목도 그대로 공유 가능 (클라 전용 — 그룹 링크 복사)
+  function share(f: { name: string }) {
     const link = `${location.origin}/meeting/${code}`;
     void navigator.clipboard
       .writeText(`[exist] ${f.name} — ${link}`)
@@ -1994,6 +2042,29 @@ export default function CollabFiles({
     });
     // 휴지통 선택 항목 — 세부정보 패널용 (정렬 순서 그대로)
     const trashSelList = sortedTrashItems.filter((t) => trashSelIds.has(t.id));
+    // 러버밴드 사각형 — 호스트(작업창) 경계 안으로 클램프, 툴바·바깥 화면을 덮지 않게. 본문·휴지통 공용
+    const rubberOverlay = (host: HTMLDivElement | null) => {
+      if (!rubber || !rubberMoved.current) return null;
+      const b = host?.getBoundingClientRect();
+      const y0e = host ? rubber.y0 - (host.scrollTop - rubber.s0) : rubber.y0;
+      let left = Math.min(rubber.x0, rubber.x1);
+      let top = Math.min(y0e, rubber.y1);
+      let right = Math.max(rubber.x0, rubber.x1);
+      let bottom = Math.max(y0e, rubber.y1);
+      if (b) {
+        left = Math.max(left, b.left);
+        top = Math.max(top, b.top);
+        right = Math.min(right, b.right);
+        bottom = Math.min(bottom, b.bottom);
+      }
+      if (right <= left || bottom <= top) return null;
+      return (
+        <div
+          className="cf-rubber"
+          style={{ left, top, width: right - left, height: bottom - top }}
+        />
+      );
+    };
 
     return (
       <div
@@ -2167,10 +2238,14 @@ export default function CollabFiles({
           <div className="cf-gbar">
             <button
               className="cf-tool"
-              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : '잘라내기'}
+              title={trashOpen ? '잘라내기 — 폴더에서 붙여넣으면 복원돼요' : '잘라내기'}
               aria-label="잘라내기"
-              disabled={trashOpen || cantTouch}
-              onClick={() => setClipboard({ op: 'cut', ids: editables.map((f) => f.id) })}
+              disabled={trashOpen ? trashSelIds.size === 0 : cantTouch}
+              onClick={() =>
+                trashOpen
+                  ? setClipboard({ op: 'cut', ids: [...trashSelIds], fromTrash: true })
+                  : setClipboard({ op: 'cut', ids: editables.map((f) => f.id) })
+              }
             >
               <ScissorsIcon size={15} />
             </button>
@@ -2185,7 +2260,13 @@ export default function CollabFiles({
             </button>
             <button
               className="cf-tool"
-              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : '붙여넣기'}
+              title={
+                trashOpen
+                  ? '휴지통에서는 사용할 수 없어요'
+                  : clipboard?.fromTrash
+                    ? '붙여넣기 — 휴지통 항목을 이 폴더로 복원'
+                    : '붙여넣기'
+              }
               aria-label="붙여넣기"
               disabled={trashOpen || !clipboard}
               onClick={() => void paste()}
@@ -2204,10 +2285,14 @@ export default function CollabFiles({
             </button>
             <button
               className="cf-tool"
-              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : '공유'}
+              title="공유"
               aria-label="공유"
-              disabled={trashOpen || !selected}
-              onClick={() => selected && share(selected)}
+              disabled={trashOpen ? trashSelList.length !== 1 : !selected}
+              onClick={() =>
+                trashOpen
+                  ? trashSelList.length === 1 && share(trashSelList[0])
+                  : selected && share(selected)
+              }
             >
               <ShareIcon size={15} />
             </button>
@@ -2343,12 +2428,11 @@ export default function CollabFiles({
               </div>
             )}
           </div>
-          {/* 필터 — 종류로 좁혀 보기 (탐색기식) */}
+          {/* 필터 — 종류로 좁혀 보기 (탐색기식). 휴지통에선 버튼 자체를 숨긴다 */}
+          {!trashOpen && (
           <div className="cf-tool-wrap">
             <button
               className={`cf-tool labeled${typeFilter ? ' on' : ''}`}
-              title={trashOpen ? '휴지통에서는 사용할 수 없어요' : undefined}
-              disabled={trashOpen}
               onClick={() => {
                 const next = !filterMenu;
                 closeMenus();
@@ -2391,6 +2475,7 @@ export default function CollabFiles({
               </div>
             )}
           </div>
+          )}
           <span className="cf-gsep" />
           {/* ⋯ 더보기 — 윈도우 탐색기식 (실행 취소·선택 3종) */}
           <div className="cf-tool-wrap">
@@ -2789,7 +2874,85 @@ export default function CollabFiles({
         )}
         {/* 휴지통 뷰 — 팝오버가 아니라 본문 전체를 쓰는 "장소" (8/2) */}
         {trashOpen && (
-          <div className="cf-main list cf-trashmain">
+          <div
+            ref={trashMainRef}
+            className="cf-main list cf-trashmain"
+            onClick={(e) => {
+              // 러버밴드 직후의 합성 클릭은 무시 — 방금 만든 선택을 지우면 안 됨 (본문과 동일 문법)
+              if (rubberMoved.current) {
+                rubberMoved.current = false;
+                return;
+              }
+              // 빈 곳 클릭 → 선택 해제 (행·헤더 버튼 위는 제외 — 각자 처리)
+              if (!(e.target as HTMLElement).closest('.cf-trash-row, form, input, button'))
+                setTrashSelIds(new Set());
+            }}
+            onPointerDown={(e) => {
+              // 러버밴드 — 빈 곳에서 드래그로 박스 선택 (본문 목록과 동일 문법, 대상만 휴지통 행)
+              if (e.button !== 0) return;
+              if ((e.target as HTMLElement).closest('.cf-trash-row, form, input, button')) return;
+              try {
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              } catch {
+                /* 캡처 불가 환경 무시 */
+              }
+              rubberMoved.current = false;
+              // Ctrl 러버밴드 = 기존 선택에 추가, 아니면 대체 — 시작 시점 선택을 기준으로
+              trashRubberBase.current =
+                e.ctrlKey || e.metaKey ? new Set(trashSelIds) : new Set<number>();
+              setRubber({
+                x0: e.clientX,
+                y0: e.clientY,
+                x1: e.clientX,
+                y1: e.clientY,
+                s0: e.currentTarget.scrollTop,
+              });
+            }}
+            onPointerMove={(e) => {
+              if (!rubber) return;
+              const nr = { ...rubber, x1: e.clientX, y1: e.clientY };
+              setRubber(nr);
+              if (Math.abs(nr.x1 - nr.x0) + Math.abs(nr.y1 - nr.y0) > 8) rubberMoved.current = true;
+              if (!rubberMoved.current) return;
+              const host = trashMainRef.current;
+              // 가장자리를 넘겨 드래그하면 페이지가 아니라 목록 자신을 자동 스크롤
+              if (host) {
+                const b = host.getBoundingClientRect();
+                let dy = 0;
+                if (e.clientY > b.bottom - 10) dy = e.clientY - (b.bottom - 10);
+                else if (e.clientY < b.top + 10) dy = e.clientY - (b.top + 10);
+                rubberScrollVel.current = dy;
+                if (dy !== 0 && rubberScrollRaf.current == null) {
+                  const step = () => {
+                    const m = trashMainRef.current;
+                    if (rubberScrollVel.current === 0 || !m) {
+                      rubberScrollRaf.current = null;
+                      return;
+                    }
+                    m.scrollTop += rubberScrollVel.current * 0.2;
+                    rubberScrollRaf.current = requestAnimationFrame(step);
+                  };
+                  rubberScrollRaf.current = requestAnimationFrame(step);
+                }
+              }
+              const y0e = host ? nr.y0 - (host.scrollTop - nr.s0) : nr.y0;
+              const [lx, hx] = nr.x0 < nr.x1 ? [nr.x0, nr.x1] : [nr.x1, nr.x0];
+              const [ly, hy] = y0e < nr.y1 ? [y0e, nr.y1] : [nr.y1, y0e];
+              const hit = new Set(trashRubberBase.current);
+              host?.querySelectorAll<HTMLElement>('.cf-trash-row').forEach((el) => {
+                const id = Number(el.dataset.tid);
+                if (!Number.isFinite(id)) return;
+                const r2 = el.getBoundingClientRect();
+                if (r2.right > lx && r2.left < hx && r2.bottom > ly && r2.top < hy) hit.add(id);
+              });
+              setTrashSelIds(hit);
+            }}
+            onPointerUp={() => {
+              setRubber(null);
+              rubberScrollVel.current = 0;
+            }}
+          >
+            {rubberOverlay(trashMainRef.current)}
             {trashItems.length === 0 ? (
               <div className="cf-empty">휴지통이 비어 있어요</div>
             ) : (
@@ -2819,7 +2982,10 @@ export default function CollabFiles({
                 {sortedTrashItems.map((t) => (
                   <div
                     key={t.id}
-                    className={`cf-trash-row${trashSelIds.has(t.id) ? ' selected' : ''}`}
+                    data-tid={t.id}
+                    className={`cf-trash-row${trashSelIds.has(t.id) ? ' selected' : ''}${
+                      clipboard?.fromTrash && clipboard.ids.includes(t.id) ? ' cutting' : ''
+                    }`}
                     draggable
                     onDragStart={(e) => {
                       // 윈도우 문법 — 선택 밖 행을 끌면 그 행만 선택하고 시작, 선택 안이면 선택 전체
@@ -2998,31 +3164,7 @@ export default function CollabFiles({
             rubberScrollVel.current = 0;
           }}
         >
-          {rubber &&
-            rubberMoved.current &&
-            (() => {
-              // 사각형을 작업창(cf-main) 경계 안으로 클램프 — 툴바·바깥 화면을 덮지 않게
-              const host = mainRef.current;
-              const b = host?.getBoundingClientRect();
-              const y0e = host ? rubber.y0 - (host.scrollTop - rubber.s0) : rubber.y0;
-              let left = Math.min(rubber.x0, rubber.x1);
-              let top = Math.min(y0e, rubber.y1);
-              let right = Math.max(rubber.x0, rubber.x1);
-              let bottom = Math.max(y0e, rubber.y1);
-              if (b) {
-                left = Math.max(left, b.left);
-                top = Math.max(top, b.top);
-                right = Math.min(right, b.right);
-                bottom = Math.min(bottom, b.bottom);
-              }
-              if (right <= left || bottom <= top) return null;
-              return (
-                <div
-                  className="cf-rubber"
-                  style={{ left, top, width: right - left, height: bottom - top }}
-                />
-              );
-            })()}
+          {rubberOverlay(mainRef.current)}
           {view === 'list' && items.length > 0 && (
             <div className="cf-listhead">
               <button
@@ -3178,7 +3320,9 @@ export default function CollabFiles({
                 className={`cf-entry${isSel ? ' selected' : ''}${
                   isSel && !canEdit(f) ? ' readonly' : ''
                 }${
-                  clipboard?.op === 'cut' && clipboard.ids.includes(f.id) ? ' cutting' : ''
+                  clipboard?.op === 'cut' && !clipboard.fromTrash && clipboard.ids.includes(f.id)
+                    ? ' cutting'
+                    : ''
                 }${dropTarget === f.id ? ' droptarget' : ''}`}
                 draggable
                 onDragStart={(e) => {

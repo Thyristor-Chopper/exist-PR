@@ -11957,7 +11957,6 @@ input:focus {
   align-items: center;
   gap: 5px;
   padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -12999,6 +12998,9 @@ input:focus {
   flex: 1;
   min-height: 0;
   display: flex;
+  /* 툴바~본문 경계선 — 전폭 한 줄을 여기서만 그린다. 툴바 border-bottom과
+     listhead border-top이 겹쳐 쌓이면 본문 컬럼 위만 2px로 보인다(이중선) */
+  border-top: 1px solid var(--border);
 }
 
 .cf-main {
@@ -13247,8 +13249,9 @@ input:focus {
   border-color: rgba(120, 120, 120, 0.4);
 }
 
-.cf-entry.cutting {
-  opacity: 0.45; /* 잘라내기 대기 — 윈도우처럼 반투명 */
+.cf-entry.cutting,
+.cf-trash-row.cutting {
+  opacity: 0.45; /* 잘라내기 대기 — 윈도우처럼 반투명 (휴지통 잘라내기도 동일 문법) */
 }
 
 .cf-main-new {
@@ -19815,9 +19818,7 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   align-items: stretch;
   gap: 0; /* 컬럼 간격은 셀 패딩으로 — gap이면 구분선이 버튼에서 5px 떠버린다 */
   padding: 0; /* 행과 함께 플러시 — 컬럼 정렬 유지하려면 행 가로 패딩과 항상 같아야 함 */
-  /* 구분선이 매달리는 가로선 — 툴바 보더는 앱 zoom 탓에 헤어라인이라 화면에 따라 사라져서
-     구분선이 허공에 뜬 것처럼 보임. 같은 요소에 직접 그리면 어떤 줌·DPR에서도 안 어긋남 */
-  border-top: 1px solid var(--border);
+  /* 위 가로선은 cf-body border-top 하나로 — 여기에 또 그리면 이중선(본문 위만 2px) */
   margin-bottom: 4px;
 }
 
