@@ -12991,6 +12991,11 @@ input:focus {
   color: var(--green);
   font-weight: 700;
 }
+/* 휴지통은 선택돼도 초록이 아니라 빨강 — 장소의 정체성 유지 */
+.cf-desktree-item.side-ic-trash.cur {
+  background: var(--red-soft, rgba(230, 60, 60, 0.1));
+  color: var(--red);
+}
 .cf-desktree-sep {
   height: 1px;
   background: var(--border);

@@ -3162,7 +3162,7 @@ export default function CollabFiles({
                       className={`cf-home-tab${homeTab === 'ack' ? ' on' : ''}`}
                       onClick={() => setHomeTab('ack')}
                     >
-                      ✍ 확인 필요
+                      <CheckMarkIcon size={13} /> 확인 필요
                       {needAckFiles.length > 0 ? ` (${needAckFiles.length})` : ''}
                     </button>
                     <button
@@ -4382,7 +4382,7 @@ export default function CollabFiles({
                   <>
                     {/* 회람 현황 — "확인 서명 수/대상 수" (전원 완료 초록 · 미완 빨강, ackdot 색 문법) */}
                     <div className="cf-ack-head">
-                      ✍ 확인{' '}
+                      <CheckMarkIcon size={13} /> 확인{' '}
                       <b
                         className={
                           ackStatus
@@ -4522,7 +4522,7 @@ export default function CollabFiles({
                       title="그룹원 전원이 이 문서를 읽고 손서명으로 확인하게 해요 — 회람 사인의 디지털판"
                       onClick={() => void requestAck(selected, true)}
                     >
-                      ✍ 열람 서명 요청
+                      <CheckMarkIcon size={13} /> 열람 서명 요청
                     </button>
                   )
                 )}
@@ -5062,7 +5062,10 @@ export default function CollabFiles({
         {active && !!active.ack_required && !active.my_ack && (
           <>
             <div className="cf-ackbar">
-              <span>✍ 이 문서는 열람 확인이 필요해요 — 다 읽었으면 서명해 주세요</span>
+              <span>
+                <CheckMarkIcon size={13} /> 이 문서는 열람 확인이 필요해요 — 다 읽었으면 서명해
+                주세요
+              </span>
               <button onClick={() => setAckSignFor((v) => (v === active.id ? null : active.id))}>
                 서명하기
               </button>
