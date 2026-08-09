@@ -2099,12 +2099,10 @@ export default function CollabFiles({
                 </button>
               </span>
             ))}
-            {/* 윈도우처럼 현재 위치 뒤에도 › — 하위로 더 들어갈 수 있다는 신호 */}
-            {!trashOpen && !homeOpen && (
-              <span className="cf-crumb-tail" aria-hidden>
-                <ChevronRightIcon size={11} />
-              </span>
-            )}
+            {/* 윈도우처럼 현재 위치 뒤에도 › — 홈·휴지통 포함 모든 위치에서 표시 */}
+            <span className="cf-crumb-tail" aria-hidden>
+              <ChevronRightIcon size={11} />
+            </span>
             </>)}
           </div>
           <input
