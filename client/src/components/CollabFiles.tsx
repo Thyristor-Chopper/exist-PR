@@ -415,20 +415,40 @@ export default function CollabFiles({
       localStorage.setItem('exist:cf-home-fold', JSON.stringify(next));
       return next;
     });
-  // 홈 타일·행 드래그 — 본문 목록과 같은 이동 경로 (사이드바 폴더·휴지통·크럼 드롭)
+  // 홈 타일·행 드래그 — 본문 목록과 같은 이동 경로 (사이드바 폴더·휴지통·크럼 드롭).
+  // 선택에 포함된 항목을 끌면 선택 전체가 딸려온다 (바탕화면 문법)
   const homeDragStart = (f: CollabFile) => (e: React.DragEvent) => {
-    if (!canEdit(f)) {
+    const base = homeSelIds.has(f.id) ? [...new Set([...homeSelIds, f.id])] : [f.id];
+    if (!homeSelIds.has(f.id)) setHomeSelIds(new Set([f.id]));
+    const ids = base.filter((id) => {
+      const x = byId.get(id);
+      return x && canEdit(x);
+    });
+    if (ids.length === 0) {
       e.preventDefault();
       toast('만든 사람·호스트·관리자만 이동할 수 있는 항목이에요', 'error');
       return;
     }
-    dragIdsRef.current = [f.id];
+    dragIdsRef.current = ids;
     e.dataTransfer.effectAllowed = 'copyMove'; // Ctrl 누르고 놓으면 복사
     e.dataTransfer.setData('text/plain', '');
   };
   const homeDragEnd = () => {
     dragIdsRef.current = [];
     setDropTarget(null);
+  };
+  // 홈 항목 클릭 = 선택 (Ctrl 다중), 더블클릭 = 열기 — 바탕화면 문법
+  const homeSelect = (f: CollabFile) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setHomeSelIds((prev) => {
+      if (e.ctrlKey || e.metaKey) {
+        const next = new Set(prev);
+        if (next.has(f.id)) next.delete(f.id);
+        else next.add(f.id);
+        return next;
+      }
+      return new Set([f.id]);
+    });
   };
   // 홈 탭 — 즐겨찾기 + 최근 방문 (탐색기 홈, 휴지통과 같은 "장소" 패턴)
   const [homeOpen, setHomeOpen] = useState(false);
@@ -621,6 +641,10 @@ export default function CollabFiles({
   // rubber 상태 자체는 공유 (두 컨테이너는 동시에 상호작용하지 않음 — 휴지통 열리면 본문은 display:none)
   const trashMainRef = useRef<HTMLDivElement | null>(null);
   const trashRubberBase = useRef<Set<number>>(new Set()); // Ctrl 러버밴드 = 시작 시점 선택에 추가
+  // 홈 러버밴드·선택 — 바탕화면 문법 (클릭=선택, 더블클릭=열기, 빈 곳 드래그=박스 선택)
+  const homeMainRef = useRef<HTMLDivElement | null>(null);
+  const homeRubberBase = useRef<Set<number>>(new Set());
+  const [homeSelIds, setHomeSelIds] = useState<Set<number>>(new Set());
   const [dropTarget, setDropTarget] = useState<number | 'root' | 'trash' | null>(null);
   const renameTimerRef = useRef<number | null>(null); // 선택된 항목 이름 재클릭 → 지연 후 인라인 편집
 
@@ -707,9 +731,10 @@ export default function CollabFiles({
     // files는 의도적으로 deps 제외 — 열람 "시작" 시점만 캡처해야 개정 감지가 된다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
-  // 홈 열 때 스마트 기본 탭 — 서명 남은 게 있으면 확인 필요, 아니면 최근 항목
+  // 홈 열 때 스마트 기본 탭 — 서명 남은 게 있으면 확인 필요, 아니면 최근 항목. 떠나면 선택 해제
   useEffect(() => {
     if (homeOpen) setHomeTab(needAckFiles.length > 0 ? 'ack' : 'recent');
+    else setHomeSelIds(new Set());
     // needAckFiles는 의도적으로 deps 제외 — 열리는 순간만 판단 (서명 중 탭이 튀지 않게)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeOpen]);
@@ -2964,7 +2989,84 @@ export default function CollabFiles({
                   !!w.f,
               );
             return (
-              <div className="cf-main cf-homeview">
+              <div
+                ref={homeMainRef}
+                className="cf-main cf-homeview"
+                onClick={(e) => {
+                  // 러버밴드 직후의 합성 클릭은 무시 (본문·휴지통과 동일 문법)
+                  if (rubberMoved.current) {
+                    rubberMoved.current = false;
+                    return;
+                  }
+                  if (!(e.target as HTMLElement).closest('button, form, input'))
+                    setHomeSelIds(new Set());
+                }}
+                onPointerDown={(e) => {
+                  // 러버밴드 — 빈 곳에서 박스 선택 (바탕화면 문법), 대상은 홈 타일·행
+                  if (e.button !== 0) return;
+                  if ((e.target as HTMLElement).closest('button, form, input')) return;
+                  try {
+                    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                  } catch {
+                    /* 캡처 불가 환경 무시 */
+                  }
+                  rubberMoved.current = false;
+                  homeRubberBase.current =
+                    e.ctrlKey || e.metaKey ? new Set(homeSelIds) : new Set<number>();
+                  setRubber({
+                    x0: e.clientX,
+                    y0: e.clientY,
+                    x1: e.clientX,
+                    y1: e.clientY,
+                    s0: e.currentTarget.scrollTop,
+                  });
+                }}
+                onPointerMove={(e) => {
+                  if (!rubber) return;
+                  const nr = { ...rubber, x1: e.clientX, y1: e.clientY };
+                  setRubber(nr);
+                  if (Math.abs(nr.x1 - nr.x0) + Math.abs(nr.y1 - nr.y0) > 8)
+                    rubberMoved.current = true;
+                  if (!rubberMoved.current) return;
+                  const host = homeMainRef.current;
+                  if (host) {
+                    const b = host.getBoundingClientRect();
+                    let dy = 0;
+                    if (e.clientY > b.bottom - 10) dy = e.clientY - (b.bottom - 10);
+                    else if (e.clientY < b.top + 10) dy = e.clientY - (b.top + 10);
+                    rubberScrollVel.current = dy;
+                    if (dy !== 0 && rubberScrollRaf.current == null) {
+                      const step = () => {
+                        const m = homeMainRef.current;
+                        if (rubberScrollVel.current === 0 || !m) {
+                          rubberScrollRaf.current = null;
+                          return;
+                        }
+                        m.scrollTop += rubberScrollVel.current * 0.2;
+                        rubberScrollRaf.current = requestAnimationFrame(step);
+                      };
+                      rubberScrollRaf.current = requestAnimationFrame(step);
+                    }
+                  }
+                  const y0e = host ? nr.y0 - (host.scrollTop - nr.s0) : nr.y0;
+                  const [lx, hx] = nr.x0 < nr.x1 ? [nr.x0, nr.x1] : [nr.x1, nr.x0];
+                  const [ly, hy] = y0e < nr.y1 ? [y0e, nr.y1] : [nr.y1, y0e];
+                  const hit = new Set(homeRubberBase.current);
+                  host?.querySelectorAll<HTMLElement>('[data-fid]').forEach((el) => {
+                    const id = Number(el.dataset.fid);
+                    if (!Number.isFinite(id)) return;
+                    const r2 = el.getBoundingClientRect();
+                    if (r2.right > lx && r2.left < hx && r2.bottom > ly && r2.top < hy)
+                      hit.add(id);
+                  });
+                  setHomeSelIds(hit);
+                }}
+                onPointerUp={() => {
+                  setRubber(null);
+                  rubberScrollVel.current = 0;
+                }}
+              >
+                {rubberOverlay(homeMainRef.current)}
                 <div className="cf-home-sec">
                   {/* Win11처럼 섹션 접기 — 헤더 왼쪽 ∨ */}
                   <button
@@ -2987,12 +3089,14 @@ export default function CollabFiles({
                       {favFiles.map((f) => (
                         <button
                           key={f.id}
-                          className="cf-home-pin"
+                          data-fid={f.id}
+                          className={`cf-home-pin${homeSelIds.has(f.id) ? ' selected' : ''}`}
                           title={f.name}
                           draggable
                           onDragStart={homeDragStart(f)}
                           onDragEnd={homeDragEnd}
-                          onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
+                          onClick={homeSelect(f)}
+                          onDoubleClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
                         >
                           <span className={`cf-icon ${f.type}`}>
                             <TypeIcon type={f.type} size={28} name={f.name} />
@@ -3068,11 +3172,13 @@ export default function CollabFiles({
                         {needAckFiles.map((f) => (
                           <button
                             key={f.id}
-                            className="cf-home-row"
+                            data-fid={f.id}
+                            className={`cf-home-row${homeSelIds.has(f.id) ? ' selected' : ''}`}
                             draggable
                             onDragStart={homeDragStart(f)}
                             onDragEnd={homeDragEnd}
-                            onClick={() => openFile(f)}
+                            onClick={homeSelect(f)}
+                            onDoubleClick={() => openFile(f)}
                           >
                             <span className={`cf-icon ${f.type}`}>
                               <TypeIcon type={f.type} size={18} name={f.name} />
@@ -3098,11 +3204,13 @@ export default function CollabFiles({
                         {working.map(({ f, ppl }) => (
                           <button
                             key={f.id}
-                            className="cf-home-row"
+                            data-fid={f.id}
+                            className={`cf-home-row${homeSelIds.has(f.id) ? ' selected' : ''}`}
                             draggable
                             onDragStart={homeDragStart(f)}
                             onDragEnd={homeDragEnd}
-                            onClick={() => openFile(f)}
+                            onClick={homeSelect(f)}
+                            onDoubleClick={() => openFile(f)}
                           >
                             <span className={`cf-icon ${f.type}`}>
                               <TypeIcon type={f.type} size={18} name={f.name} />
@@ -3128,11 +3236,13 @@ export default function CollabFiles({
                         return (
                           <button
                             key={rf.id}
-                            className="cf-home-row"
+                            data-fid={f ? f.id : undefined}
+                            className={`cf-home-row${f && homeSelIds.has(f.id) ? ' selected' : ''}`}
                             draggable={!!f}
                             onDragStart={f ? homeDragStart(f) : undefined}
                             onDragEnd={homeDragEnd}
-                            onClick={() => {
+                            onClick={f ? homeSelect(f) : undefined}
+                            onDoubleClick={() => {
                               if (f) openFile(f);
                             }}
                           >

@@ -13080,6 +13080,17 @@ button.cf-home-fold {
   align-self: center;
   padding: 4px; /* 탭 줄 왼쪽의 작은 ∨ */
 }
+/* 홈 선택 — 바탕화면 문법 (클릭 선택·러버밴드), 본문 selected와 같은 초록 틴트 */
+.cf-home-pin.selected,
+.cf-home-row.selected {
+  background: rgba(33, 200, 24, 0.08);
+  outline: 1px solid rgba(33, 200, 24, 0.35);
+  outline-offset: -1px;
+}
+.cf-home-pin.selected:hover,
+.cf-home-row.selected:hover {
+  background: rgba(33, 200, 24, 0.12);
+}
 
 .cf-desktree-item.droptarget {
   outline: 2px solid var(--green);
