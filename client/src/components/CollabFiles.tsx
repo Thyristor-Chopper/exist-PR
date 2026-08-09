@@ -69,6 +69,7 @@ interface CollabFile {
   room: string | null;
   author: string;
   created_at?: string;
+  updated_at?: string | null; // 수정한 날짜 — 이름변경·이동·편집 저장 시 갱신, 없으면 created_at 폴백
   mime?: string | null;
   size?: number | null;
   /** 열람 서명 (회람 사인) — 요청 여부·서명 수·내 서명 여부 */
@@ -463,7 +464,7 @@ export default function CollabFiles({
   // 폭은 전부 4의 배수 — 컬럼 간격이 4의 배수면 DPR 1.25/1.5/1.75에서 ×DPR가 정수라
   // 구분선들이 항상 같은 굵기로 스냅됨 (아니면 하나 걸러 1px/2px 뒤죽박죽)
   const COL_DEFAULTS: Record<string, number> = {
-    name: 260, type: 92, author: 92, date: 112, size: 64, online: 132,
+    name: 400, type: 92, author: 92, date: 112, size: 64, online: 132,
     tname: 260, tloc: 140, tauthor: 112, tdate: 112, tsize: 64, ttype: 92, tmdate: 112,
   };
   const [colW, setColW] = useState<Record<string, number>>(() => {
@@ -959,7 +960,9 @@ export default function CollabFiles({
       name: byNameNat,
       type: (a, b) => a.type.localeCompare(b.type) || byNameNat(a, b),
       author: (a, b) => a.author.localeCompare(b.author, 'ko') || byNameNat(a, b),
-      date: (a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? '') || byNameNat(a, b),
+      date: (a, b) =>
+        (a.updated_at ?? a.created_at ?? '').localeCompare(b.updated_at ?? b.created_at ?? '') ||
+        byNameNat(a, b),
       size: (a, b) => (a.size ?? -1) - (b.size ?? -1) || byNameNat(a, b),
     };
     // 필터 — 종류 하나만 (폴더는 항상 표시해 탐색은 유지)
@@ -2330,10 +2333,10 @@ export default function CollabFiles({
                 {(
                   [
                     ['name', '이름'],
-                    ['type', '종류'],
-                    ['author', '만든 사람'],
-                    ['date', '날짜'],
+                    ['date', '수정한 날짜'],
+                    ['type', '유형'],
                     ['size', '크기'],
+                    ['author', '만든 사람'],
                   ] as [SortKey, string][]
                 ).map(([k, label]) => (
                   <button
@@ -3230,39 +3233,29 @@ export default function CollabFiles({
                 {hdrMark('name')}이름
                 {colHandle('name')}
               </button>
-              <button
-                type="button"
-                title="종류로 정렬"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  hdrClick('type');
-                }}
-              >
-                {hdrMark('type')}종류
-                {colHandle('type')}
-              </button>
-              <button
-                type="button"
-                title="만든 사람으로 정렬"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  hdrClick('author');
-                }}
-              >
-                {hdrMark('author')}만든 사람
-                {colHandle('author')}
-              </button>
+              {/* 윈도우 순서: 이름 · 수정한 날짜 · 유형 · 크기 — 만든 사람·접속 중은 우리 고유라 뒤에 */}
               <button
                 type="button"
                 className="cf-listhead-date"
-                title="날짜로 정렬"
+                title="수정한 날짜로 정렬"
                 onClick={(e) => {
                   e.stopPropagation();
                   hdrClick('date');
                 }}
               >
-                {hdrMark('date')}날짜
+                {hdrMark('date')}수정한 날짜
                 {colHandle('date')}
+              </button>
+              <button
+                type="button"
+                title="유형으로 정렬"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  hdrClick('type');
+                }}
+              >
+                {hdrMark('type')}유형
+                {colHandle('type')}
               </button>
               <button
                 type="button"
@@ -3275,6 +3268,17 @@ export default function CollabFiles({
               >
                 {hdrMark('size')}크기
                 {colHandle('size')}
+              </button>
+              <button
+                type="button"
+                title="만든 사람으로 정렬"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  hdrClick('author');
+                }}
+              >
+                {hdrMark('author')}만든 사람
+                {colHandle('author')}
               </button>
               {/* 접속 중 — 지금 이 파일을 편집·열람 중인 사람 (정렬 없음) */}
               <span className="cf-listhead-online">
@@ -3346,10 +3350,10 @@ export default function CollabFiles({
               {view === 'list' && (
                 <>
                   {/* 컬럼 셀은 일반 행과 같은 5칸 구조(정렬 유지) — 시스템 항목이라 값은 비움 */}
-                  <span className="cf-entry-type" />
-                  <span className="cf-entry-author" />
                   <span className="cf-entry-date" />
+                  <span className="cf-entry-type" />
                   <span className="cf-entry-size" />
+                  <span className="cf-entry-author" />
                   <span className="cf-entry-online" />
                 </>
               )}
@@ -3517,11 +3521,11 @@ export default function CollabFiles({
                 )}
                 {view === 'list' && (
                   <>
+                    {/* 윈도우 순서 — 헤더(수정한 날짜·유형·크기·만든 사람)와 1:1 */}
+                    <span className="cf-entry-date">{fmtDate(f.updated_at ?? f.created_at)}</span>
                     <span className="cf-entry-type">
                       {f.type === 'folder' ? '폴더' : TYPE_LABEL[f.type]}
                     </span>
-                    <span className="cf-entry-author">{dn(f.author)}</span>
-                    <span className="cf-entry-date">{fmtDate(f.created_at)}</span>
                     <span className="cf-entry-size">
                       {/* 윈도우 문법 — 파일은 항상 숫자(빈 것도 0B), 폴더만 빈 경우 공란 */}
                       {f.type === 'folder'
@@ -3530,6 +3534,7 @@ export default function CollabFiles({
                           : '—'
                         : fmtSize(f.size ?? 0)}
                     </span>
+                    <span className="cf-entry-author">{dn(f.author)}</span>
                     <span className="cf-entry-online">
                       {(presence[f.id]?.length ?? 0) > 0 ? (
                         <>
