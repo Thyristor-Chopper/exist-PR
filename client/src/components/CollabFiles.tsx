@@ -32,7 +32,6 @@ import {
   RefreshIcon,
   SortIcon,
   UndoIcon,
-  StarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronUpIcon,
@@ -2944,11 +2943,11 @@ export default function CollabFiles({
               <div className="cf-main cf-homeview">
                 <div className="cf-home-sec">
                   <div className="cf-home-label">
-                    <StarIcon size={13} /> 즐겨찾기
+                    <PinIcon size={13} /> 고정됨
                   </div>
                   {favFiles.length === 0 ? (
                     <div className="cf-empty">
-                      자주 쓰는 파일을 고정해보세요 — 세부정보의 ★을 누르면 여기에 떠요
+                      자주 쓰는 파일을 고정해보세요 — 세부정보의 압정을 누르면 여기에 떠요
                     </div>
                   ) : (
                     /* Win11 즐겨찾기 핀 타일 — 아이콘 + 이름/위치 두 줄 + 핀 표시 */
@@ -3984,10 +3983,10 @@ export default function CollabFiles({
               {selected.name}
               <button
                 className={`cf-fav-star${favs.includes(selected.id) ? ' on' : ''}`}
-                title={favs.includes(selected.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                title={favs.includes(selected.id) ? '고정 해제' : '고정'}
                 onClick={() => toggleFav(selected.id)}
               >
-                <StarIcon size={14} />
+                <PinIcon size={14} />
               </button>
             </div>
             <div className="cf-details-sub">
@@ -4382,7 +4381,7 @@ export default function CollabFiles({
         <div className="cf-statusbar">
           {homeOpen ? (
             <>
-              홈 — 즐겨찾기 {favFiles.length}개 · 작업 중{' '}
+              홈 — 고정 {favFiles.length}개 · 작업 중{' '}
               {Object.values(presence).filter((p) => p.length > 0).length}개 · 최근 {recent.length}개
             </>
           ) : ackOpen ? (
@@ -4514,7 +4513,7 @@ export default function CollabFiles({
                     setCtxMenu(null);
                   }}
                 >
-                  {favs.includes(ctxTarget.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                  {favs.includes(ctxTarget.id) ? '고정 해제' : '고정'}
                 </button>
                 {/* 개정 발행 (재회람) — Yjs 문서·업로드 공통, 폴더 제외·단일 대상만 */}
                 {ctxTarget.type !== 'folder' && (

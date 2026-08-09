@@ -13050,7 +13050,7 @@ input:focus {
 }
 /* 홈 탭 섹션 라벨 — 별=노랑 (하단 섹션은 라벨 대신 알약 탭이라 아이콘 색은 탭 상태를 따름) */
 .cf-home-label svg {
-  color: #f5a524;
+  color: var(--text-sub); /* 압정 — 별 시절 노랑 대신 중립 톤 */
 }
 
 .cf-desktree-item.droptarget {
@@ -20323,7 +20323,7 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 }
 
 .cf-fav-star.on {
-  color: #e0a13f;
+  color: var(--green); /* 고정됨 — 앱 프라이머리 (별 시절 노랑 대신) */
 }
 
 /* 상세 패널 미리보기 */
