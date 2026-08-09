@@ -298,7 +298,13 @@ router.get('/', (req: AuthedRequest, res) => {
   for (const row of rows) {
     if (row.type === 'folder') row.size = folderSize(row.id);
   }
-  res.json(rows);
+  // 회람 대상 수 = 그룹 참가자 수 — 목록 "확인" 컬럼의 분모 (미팅당 1개 값이라 한 번만 센다)
+  const ackTotal = (
+    db
+      .prepare('SELECT COUNT(*) AS c FROM meeting_participants WHERE meeting_id = ?')
+      .get(r.meeting.id) as { c: number }
+  ).c;
+  res.json(rows.map((row) => ({ ...row, ack_total: ackTotal })));
 });
 
 /* ── 문서 열람 서명 — 회람 사인의 디지털판.
@@ -468,7 +474,17 @@ router.get('/:fileId/acks', (req: AuthedRequest, res) => {
       .prepare('SELECT COUNT(*) AS c FROM meeting_participants WHERE meeting_id = ?')
       .get(r.meeting.id) as { c: number }
   ).c;
-  res.json({ required: !!f.ack_required, total, acks });
+  // 미서명자 명단 — 세부정보 패널의 "누가 아직 안 봤나" (아바타+이름)
+  const pending = db
+    .prepare(
+      `SELECT u.username, u.avatar FROM meeting_participants mp
+       JOIN users u ON u.id = mp.user_id
+       WHERE mp.meeting_id = ?
+         AND NOT EXISTS(SELECT 1 FROM file_acks a WHERE a.file_id = ? AND a.user_id = mp.user_id)
+       ORDER BY u.username`,
+    )
+    .all(r.meeting.id, f.id);
+  res.json({ required: !!f.ack_required, total, acks, pending });
 });
 
 /* ── 업로드 파일(blob) 미리보기 시청자 — yjs room이 없는 파일의 프레즌스 (소켓 신고 기반).

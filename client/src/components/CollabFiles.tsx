@@ -72,16 +72,19 @@ interface CollabFile {
   updated_at?: string | null; // 수정한 날짜 — 이름변경·이동·편집 저장 시 갱신, 없으면 created_at 폴백
   mime?: string | null;
   size?: number | null;
-  /** 열람 서명 (회람 사인) — 요청 여부·서명 수·내 서명 여부 */
+  /** 열람 서명 (회람 사인) — 요청 여부·서명 수·내 서명 여부·대상 수(그룹 참가자) */
   ack_required?: number;
   ack_count?: number;
   my_ack?: number;
+  ack_total?: number;
 }
 
 interface FileAckStatus {
   required: boolean;
   total: number;
   acks: { username: string; ack_at: string; signature: string | null }[];
+  /** 미서명자 — 세부정보 "누가 아직 안 봤나" 명단 */
+  pending: { username: string; avatar: string | null }[];
 }
 
 const TYPE_LABEL: Record<Exclude<FileType, 'folder'>, string> = {
@@ -117,12 +120,17 @@ function TypeIcon({ type, size = 15, name }: { type: FileType; size?: number; na
   return <SlideIcon size={size} />;
 }
 
-type SortKey = 'name' | 'type' | 'author' | 'date' | 'size';
+type SortKey = 'name' | 'type' | 'author' | 'date' | 'size' | 'ack';
 type ViewMode = 'grid' | 'list';
 
 /** 자연 정렬 — "파일-2"가 "파일-10"보다 앞 (윈도우식) */
 function byNameNat(a: CollabFile, b: CollabFile): number {
   return a.name.localeCompare(b.name, 'ko', { numeric: true, sensitivity: 'base' });
+}
+
+/** 미확인 수 — "확인" 컬럼 정렬 기준. 서명 요청이 없는 파일은 -1로 맨 뒤 */
+function ackRemain(f: CollabFile): number {
+  return f.ack_required ? Math.max((f.ack_total ?? 0) - (f.ack_count ?? 0), 0) : -1;
 }
 
 function fmtSize(size: number | null | undefined): string {
@@ -372,6 +380,10 @@ export default function CollabFiles({
   // 문서 열람 서명 (회람 사인) — 선택 파일의 서명 현황 + SignPad 대상
   const [ackStatus, setAckStatus] = useState<FileAckStatus | null>(null);
   const [ackSignFor, setAckSignFor] = useState<number | null>(null);
+  // 세부정보 회람 섹션 — 서명자 명단 접기 (기본 접힘, 미확인자가 주인공)
+  const [ackSignedOpen, setAckSignedOpen] = useState(false);
+  // 확인 필요 뷰 — 내가 미서명인 회람 문서만 모아 보는 "장소" (홈·휴지통과 같은 문법)
+  const [ackOpen, setAckOpen] = useState(false);
   // 최근 항목 — 그룹에서 최근 열람·편집된 문서 (사이드바·홈 탭)
   const [recent, setRecent] = useState<
     { id: number; name: string; type: FileType; last_ts?: string }[]
@@ -464,7 +476,7 @@ export default function CollabFiles({
   // 폭은 전부 4의 배수 — 컬럼 간격이 4의 배수면 DPR 1.25/1.5/1.75에서 ×DPR가 정수라
   // 구분선들이 항상 같은 굵기로 스냅됨 (아니면 하나 걸러 1px/2px 뒤죽박죽)
   const COL_DEFAULTS: Record<string, number> = {
-    name: 400, type: 92, author: 92, date: 112, size: 64, online: 132,
+    name: 400, type: 92, author: 92, date: 112, size: 64, ack: 72, online: 132,
     tname: 260, tloc: 140, tauthor: 112, tdate: 112, tsize: 64, ttype: 92, tmdate: 112,
   };
   const [colW, setColW] = useState<Record<string, number>>(() => {
@@ -780,6 +792,7 @@ export default function CollabFiles({
   function navigate(to: number | null) {
     setTrashOpen(false);
     setHomeOpen(false);
+    setAckOpen(false);
     if (to === cwd) return;
     backStack.current.push(cwd);
     fwdStack.current = [];
@@ -790,9 +803,10 @@ export default function CollabFiles({
   }
 
   function goBack() {
-    if (trashOpen || homeOpen) {
+    if (trashOpen || homeOpen || ackOpen) {
       setTrashOpen(false);
       setHomeOpen(false);
+      setAckOpen(false);
       return;
     }
     if (backStack.current.length === 0) return;
@@ -806,6 +820,7 @@ export default function CollabFiles({
     if (fwdStack.current.length === 0) return;
     setTrashOpen(false);
     setHomeOpen(false);
+    setAckOpen(false);
     backStack.current.push(cwd);
     setCwd(fwdStack.current.pop()!);
     clearSel();
@@ -813,9 +828,10 @@ export default function CollabFiles({
   }
 
   function goUp() {
-    if (trashOpen || homeOpen) {
+    if (trashOpen || homeOpen || ackOpen) {
       setTrashOpen(false);
       setHomeOpen(false);
+      setAckOpen(false);
       return;
     }
     if (cwd === null) return;
@@ -835,6 +851,25 @@ export default function CollabFiles({
     return list;
   }, [cwd, byId]);
 
+  /** 부모 폴더 경로 라벨 — 홈 핀·최근 리스트·확인 필요 뷰 공용 (루트 › 폴더 › …) */
+  function fileLoc(f: CollabFile): string {
+    const segs: string[] = [];
+    let p = f.parent_id;
+    while (p != null) {
+      const parent = byId.get(p);
+      if (!parent) break;
+      segs.unshift(parent.name);
+      p = parent.parent_id;
+    }
+    return [rootName, ...segs].join(' › ');
+  }
+
+  // 확인 필요 — 내가 아직 서명 안 한 회람 문서 (사이드바 배지 + 전용 뷰)
+  const needAckFiles = useMemo(
+    () => files.filter((f) => f.type !== 'folder' && !!f.ack_required && !f.my_ack),
+    [files],
+  );
+
   // ── 주소줄 직접 입력 ── (윈도우 탐색기식 — 빈 영역 클릭 → 텍스트로 경로 이동)
   /** 편집 모드 진입 — 현재 경로를 텍스트로 채운다 (선택 등 다른 상태는 건드리지 않음) */
   function startPathEdit() {
@@ -842,7 +877,9 @@ export default function CollabFiles({
       ? `${rootName}/휴지통`
       : homeOpen
         ? `${rootName}/홈`
-        : [rootName, ...crumbs.map((c) => c.name)].join('/');
+        : ackOpen
+          ? `${rootName}/확인 필요`
+          : [rootName, ...crumbs.map((c) => c.name)].join('/');
     setPathText(text);
     setPathEditing(true);
   }
@@ -863,6 +900,7 @@ export default function CollabFiles({
       void loadTrash();
       setTrashOpen(true);
       setHomeOpen(false);
+      setAckOpen(false);
       setPathEditing(false);
       return;
     }
@@ -870,6 +908,15 @@ export default function CollabFiles({
       clearSel();
       setTrashOpen(false);
       setHomeOpen(true);
+      setAckOpen(false);
+      setPathEditing(false);
+      return;
+    }
+    if (last === '확인 필요') {
+      clearSel();
+      setTrashOpen(false);
+      setHomeOpen(false);
+      setAckOpen(true);
       setPathEditing(false);
       return;
     }
@@ -970,6 +1017,8 @@ export default function CollabFiles({
         (a.updated_at ?? a.created_at ?? '').localeCompare(b.updated_at ?? b.created_at ?? '') ||
         byNameNat(a, b),
       size: (a, b) => (a.size ?? -1) - (b.size ?? -1) || byNameNat(a, b),
+      // 확인 — 미확인 많은 순 (오름차순 클릭이 곧 "급한 것부터")
+      ack: (a, b) => ackRemain(b) - ackRemain(a) || byNameNat(a, b),
     };
     // 필터 — 종류 하나만 (폴더는 항상 표시해 탐색은 유지)
     if (typeFilter) list = list.filter((f) => f.type === typeFilter || f.type === 'folder');
@@ -995,6 +1044,7 @@ export default function CollabFiles({
     } else {
       setAckStatus(null);
     }
+    setAckSignedOpen(false); // 선택이 바뀌면 서명자 명단은 다시 접는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, selected?.ack_required]);
 
@@ -1787,7 +1837,7 @@ export default function CollabFiles({
         return;
       }
       if (ctrl && (e.key === 'a' || e.key === 'A')) {
-        if (trashOpen || homeOpen) return; // 본문 뷰에서만
+        if (trashOpen || homeOpen || ackOpen) return; // 본문 뷰에서만
         e.preventDefault();
         setSelectedIds(new Set(items.map((f) => f.id)));
         setTrashSel(false);
@@ -1849,7 +1899,7 @@ export default function CollabFiles({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, active, trashOpen, homeOpen, selectedIds, selList, clipboard, items, selected, trashSelIds]);
+  }, [visible, active, trashOpen, homeOpen, ackOpen, selectedIds, selList, clipboard, items, selected, trashSelIds]);
 
   // 우클릭 메뉴 — 바깥 클릭·Escape로 닫기
   useEffect(() => {
@@ -2093,7 +2143,7 @@ export default function CollabFiles({
         <div className="cf-nav">
           <button
             title="뒤로"
-            disabled={!trashOpen && !homeOpen && backStack.current.length === 0}
+            disabled={!trashOpen && !homeOpen && !ackOpen && backStack.current.length === 0}
             onClick={goBack}
           >
             <ChevronLeftIcon size={14} />
@@ -2101,7 +2151,7 @@ export default function CollabFiles({
           <button title="앞으로" disabled={fwdStack.current.length === 0} onClick={goForward}>
             <ChevronRightIcon size={14} />
           </button>
-          <button title="상위 폴더" disabled={!trashOpen && !homeOpen && cwd === null} onClick={goUp}>
+          <button title="상위 폴더" disabled={!trashOpen && !homeOpen && !ackOpen && cwd === null} onClick={goUp}>
             <ChevronUpIcon size={14} />
           </button>
           <button title="새로고침" onClick={load}>
@@ -2180,8 +2230,16 @@ export default function CollabFiles({
                 </button>
               </span>
             )}
+            {ackOpen && (
+              <span className="cf-crumb-seg">
+                <ChevronRightIcon size={11} />
+                <button className="cf-crumb cf-crumb-ack">
+                  <CheckMarkIcon size={12} /> 확인 필요
+                </button>
+              </span>
+            )}
             {/* 윈도우처럼 현재 위치 뒤에도 › — 다음 단계로 들어갈 수 있다는 신호 */}
-            {!trashOpen && !homeOpen && crumbs.map((c) => (
+            {!trashOpen && !homeOpen && !ackOpen && crumbs.map((c) => (
               <span key={c.id} className="cf-crumb-seg">
                 <ChevronRightIcon size={11} />
                 <button
@@ -2226,7 +2284,7 @@ export default function CollabFiles({
             <div className="cf-tool-wrap">
               <button
                 className="cf-tool primary"
-                disabled={trashOpen || homeOpen}
+                disabled={trashOpen || homeOpen || ackOpen}
                 onClick={() => {
                   const wasOpen = typeMenuFor !== null;
                   closeMenus();
@@ -2240,7 +2298,7 @@ export default function CollabFiles({
             <button
               className="cf-tool primary cf-upload"
               title="내 파일 업로드"
-              disabled={trashOpen || homeOpen}
+              disabled={trashOpen || homeOpen || ackOpen}
               onClick={() => {
                 uploadParentRef.current = cwd;
                 uploadInputRef.current?.click();
@@ -2343,14 +2401,19 @@ export default function CollabFiles({
                     ['type', '유형'],
                     ['size', '크기'],
                     ['author', '만든 사람'],
+                    ['ack', '확인'],
                   ] as [SortKey, string][]
-                ).map(([k, label]) => (
+                )
+                  // 휴지통엔 확인 컬럼이 없다 — 메뉴에서도 숨김
+                  .filter(([k]) => !(trashOpen && k === 'ack'))
+                  .map(([k, label]) => (
                   <button
                     key={k}
                     onClick={() => {
                       // 휴지통 모드에선 휴지통 목록 정렬을 조작 (본문 정렬은 그대로 보존)
-                      if (trashOpen) setTrashSort((s) => ({ ...s, key: k }));
-                      else setSortKey(k);
+                      if (trashOpen) {
+                        if (k !== 'ack') setTrashSort((s) => ({ ...s, key: k }));
+                      } else setSortKey(k);
                       setSortMenu(false);
                     }}
                   >
@@ -2616,7 +2679,7 @@ export default function CollabFiles({
             {/* 루트 = 그룹 이름 — 그 아래 홈·폴더·휴지통이 계층으로 (파일 체계 통일) */}
             <button
               className={`cf-desktree-item side-ic-folder${
-                cwd === null && !trashOpen && !homeOpen ? ' cur' : ''
+                cwd === null && !trashOpen && !homeOpen && !ackOpen ? ' cur' : ''
               }${dropTarget === 'root' ? ' droptarget' : ''}`}
               onClick={() => navigate(null)}
               onDragOver={(e) => {
@@ -2662,11 +2725,29 @@ export default function CollabFiles({
                 onClick={() => {
                   clearSel();
                   setTrashOpen(false);
+                  setAckOpen(false);
                   setHomeOpen(true);
                 }}
               >
                 <span className="side-chevron" />
                 <HomeIcon size={13} /> 홈
+              </button>
+            )}
+            {/* 확인 필요 — 내가 미서명인 회람 문서 모음 (N=0이면 배지만 숨김, 항목은 유지) */}
+            {sideRootOpen && (
+              <button
+                className={`cf-desktree-item side-ic-ack${ackOpen ? ' cur' : ''}`}
+                style={{ paddingLeft: 20 }}
+                onClick={() => {
+                  clearSel();
+                  setTrashOpen(false);
+                  setHomeOpen(false);
+                  setAckOpen(true);
+                }}
+              >
+                <span className="side-chevron" />
+                <CheckMarkIcon size={13} /> 확인 필요
+                {needAckFiles.length > 0 ? ` (${needAckFiles.length})` : ''}
               </button>
             )}
             {sideRootOpen &&
@@ -2681,7 +2762,7 @@ export default function CollabFiles({
                     <button
                       key={f.id}
                       className={`cf-desktree-item side-ic-folder${
-                        cwd === f.id && !trashOpen && !homeOpen ? ' cur' : ''
+                        cwd === f.id && !trashOpen && !homeOpen && !ackOpen ? ' cur' : ''
                       }${dropTarget === f.id ? ' droptarget' : ''}`}
                       style={{ paddingLeft: 6 + depth * 14 }}
                       onClick={() => navigate(f.id)}
@@ -2742,6 +2823,7 @@ export default function CollabFiles({
               onClick={() => {
                 clearSel();
                 setHomeOpen(false);
+                setAckOpen(false);
                 void loadTrash();
                 setTrashOpen(true);
               }}
@@ -2771,18 +2853,6 @@ export default function CollabFiles({
         {/* 홈 — Win11 탐색기 홈 문법: 상단 즐겨찾기 핀 타일 그리드, 하단 알약 탭(최근 항목|작업 중) 리스트 */}
         {homeOpen &&
           (() => {
-            // 부모 폴더 경로 라벨 — 핀 타일·리스트 서브라벨 공용 (루트 › 폴더 › …)
-            const homeLoc = (f: CollabFile) => {
-              const segs: string[] = [];
-              let p = f.parent_id;
-              while (p != null) {
-                const parent = byId.get(p);
-                if (!parent) break;
-                segs.unshift(parent.name);
-                p = parent.parent_id;
-              }
-              return [rootName, ...segs].join(' › ');
-            };
             const working = Object.entries(presence)
               .filter(([, ppl]) => ppl.length > 0)
               .map(([id, ppl]) => ({ f: byId.get(Number(id)), ppl }))
@@ -2815,7 +2885,7 @@ export default function CollabFiles({
                           </span>
                           <span className="cf-home-pin-txt">
                             <span className="cf-home-pin-name">{f.name}</span>
-                            <span className="cf-home-pin-loc">{homeLoc(f)}</span>
+                            <span className="cf-home-pin-loc">{fileLoc(f)}</span>
                           </span>
                           <span className="cf-home-pin-mark" aria-hidden>
                             <PinIcon size={11} />
@@ -2875,7 +2945,7 @@ export default function CollabFiles({
                                 <span className="cf-home-row-name">{rf.name}</span>
                                 <span className="cf-home-row-sub">
                                   {f
-                                    ? homeLoc(f)
+                                    ? fileLoc(f)
                                     : rf.type === 'folder'
                                       ? '폴더'
                                       : TYPE_LABEL[rf.type as Exclude<FileType, 'folder'>]}
@@ -2900,7 +2970,7 @@ export default function CollabFiles({
                           </span>
                           <span className="cf-home-row-txt">
                             <span className="cf-home-row-name">{f.name}</span>
-                            <span className="cf-home-row-sub">{homeLoc(f)}</span>
+                            <span className="cf-home-row-sub">{fileLoc(f)}</span>
                           </span>
                           <span className="cf-home-col-r">
                             <PresenceStack fileId={f.id} />
@@ -2914,6 +2984,45 @@ export default function CollabFiles({
               </div>
             );
           })()}
+        {/* 확인 필요 뷰 — 내가 서명 안 한 회람 문서만 모은 "장소" (홈과 같은 리스트 문법).
+         * 행 클릭 = 문서 열기 → 서명하고 돌아오면 load()가 개수를 갱신한다 */}
+        {ackOpen && (
+          <div className="cf-main cf-homeview cf-ackview">
+            <div className="cf-home-sec">
+              <div className="cf-home-label cf-ack-label">
+                <CheckMarkIcon size={13} /> 확인 필요 — 열람 서명이 남은 문서
+              </div>
+              {needAckFiles.length === 0 ? (
+                <div className="cf-empty">확인할 문서가 없어요 — 요청받은 서명을 전부 마쳤어요</div>
+              ) : (
+                <>
+                  <div className="cf-home-listhead" aria-hidden>
+                    <span>이름</span>
+                    <span className="cf-home-col-r">확인</span>
+                  </div>
+                  <div className="cf-home-list">
+                    {needAckFiles.map((f) => (
+                      <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
+                        <span className={`cf-icon ${f.type}`}>
+                          <TypeIcon type={f.type} size={18} name={f.name} />
+                        </span>
+                        <span className="cf-home-row-txt">
+                          <span className="cf-home-row-name">{f.name}</span>
+                          <span className="cf-home-row-sub">{fileLoc(f)}</span>
+                        </span>
+                        <span className="cf-home-col-r">
+                          <span className="cf-ack-cell">
+                            {f.ack_count ?? 0}/{f.ack_total ?? 0}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         {/* 휴지통 뷰 — 팝오버가 아니라 본문 전체를 쓰는 "장소" (8/2) */}
         {trashOpen && (
           <div
@@ -3133,7 +3242,7 @@ export default function CollabFiles({
         )}
         <div
           ref={mainRef}
-          style={{ display: trashOpen || homeOpen ? 'none' : undefined }}
+          style={{ display: trashOpen || homeOpen || ackOpen ? 'none' : undefined }}
           className={`cf-main ${view}`}
           onClick={() => {
             if (rubberMoved.current) {
@@ -3285,6 +3394,19 @@ export default function CollabFiles({
               >
                 {hdrMark('author')}만든 사람
                 {colHandle('author')}
+              </button>
+              {/* 확인 — 회람(열람 서명) 진행 "서명 수/대상 수" (클릭 = 미확인 많은 순) */}
+              <button
+                type="button"
+                className="cf-listhead-ack"
+                title="확인으로 정렬 — 미확인 많은 순"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  hdrClick('ack');
+                }}
+              >
+                {hdrMark('ack')}확인
+                {colHandle('ack')}
               </button>
               {/* 접속 중 — 지금 이 파일을 편집·열람 중인 사람 (정렬 없음) */}
               <span className="cf-listhead-online">
@@ -3487,8 +3609,8 @@ export default function CollabFiles({
                     <TypeIcon type={f.type} size={view === 'grid' ? 30 : 16} name={f.name} />
                   </span>
                 )}
-                {/* 열람 서명 배지 — 빨강: 내 서명 필요 / 초록: 서명 완료 */}
-                {!!f.ack_required && (
+                {/* 열람 서명 배지 — 빨강: 내 서명 필요 / 초록: 서명 완료 (목록 뷰는 확인 컬럼이 대체) */}
+                {view !== 'list' && !!f.ack_required && (
                   <span
                     className={`cf-ackdot${f.my_ack ? ' done' : ''}`}
                     title={f.my_ack ? '열람 서명 완료' : '열람 서명 필요'}
@@ -3541,6 +3663,22 @@ export default function CollabFiles({
                         : fmtSize(f.size ?? 0)}
                     </span>
                     <span className="cf-entry-author">{dn(f.author)}</span>
+                    {/* 확인 — 회람 문서만 "서명 수/대상 수", 전원 완료면 초록 체크 (ackdot 색 문법) */}
+                    <span className="cf-entry-ack">
+                      {!!f.ack_required &&
+                        ((f.ack_count ?? 0) >= (f.ack_total ?? 1) ? (
+                          <span className="cf-ack-cell done" title="전원 확인 완료">
+                            <CheckMarkIcon size={11} /> {f.ack_count ?? 0}/{f.ack_total ?? 0}
+                          </span>
+                        ) : (
+                          <span
+                            className="cf-ack-cell"
+                            title={`미확인 ${Math.max((f.ack_total ?? 0) - (f.ack_count ?? 0), 0)}명`}
+                          >
+                            {f.ack_count ?? 0}/{f.ack_total ?? 0}
+                          </span>
+                        ))}
+                    </span>
                     <span className="cf-entry-online">
                       {(presence[f.id]?.length ?? 0) > 0 ? (
                         <>
@@ -3593,8 +3731,8 @@ export default function CollabFiles({
         {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약, 선택 없으면 현재 폴더 (탐색기식) */}
         {/* 우선순위: 파일 선택 > 휴지통 선택 — 어떤 상태 조합에서도 패널은 하나만 */}
         <div
-          className={`cf-slidewrap cf-slide-r${detailsOn && !homeOpen ? ' open' : ''}`}
-          aria-hidden={!detailsOn || homeOpen}
+          className={`cf-slidewrap cf-slide-r${detailsOn && !homeOpen && !ackOpen ? ' open' : ''}`}
+          aria-hidden={!detailsOn || homeOpen || ackOpen}
         >
         {((trashOpen && trashSelList.length === 0) || (!trashOpen && trashSel && selCount === 0)) && (
           <aside className="cf-details">
@@ -3715,7 +3853,7 @@ export default function CollabFiles({
             </div>
           </aside>
         )}
-        {!trashOpen && !homeOpen && !trashSel && selCount === 0 && (
+        {!trashOpen && !homeOpen && !ackOpen && !trashSel && selCount === 0 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon folder">
               <TypeIcon type="folder" size={42} />
@@ -3866,27 +4004,67 @@ export default function CollabFiles({
               <div className="cf-ack">
                 {selected.ack_required ? (
                   <>
+                    {/* 회람 현황 — "확인 서명 수/대상 수" (전원 완료 초록 · 미완 빨강, ackdot 색 문법) */}
                     <div className="cf-ack-head">
-                      ✍ 열람 서명{' '}
-                      <b>
-                        {ackStatus ? `${ackStatus.acks.length}/${ackStatus.total}` : (selected.ack_count ?? 0)}
+                      ✍ 확인{' '}
+                      <b
+                        className={
+                          ackStatus
+                            ? ackStatus.pending.length === 0
+                              ? 'ok'
+                              : 'due'
+                            : undefined
+                        }
+                      >
+                        {ackStatus
+                          ? `${ackStatus.acks.length}/${ackStatus.total}`
+                          : `${selected.ack_count ?? 0}/${selected.ack_total ?? 0}`}
                       </b>
                     </div>
+                    {/* 미확인자 명단 — 누가 아직 안 봤는지 (아바타 정사각 규칙) */}
+                    {ackStatus &&
+                      (ackStatus.pending.length > 0 ? (
+                        <div className="cf-ack-pending">
+                          {ackStatus.pending.map((p) => (
+                            <span key={p.username} className="cf-ack-pend">
+                              <Avatar value={p.avatar} className="cf-ack-pend-avatar" />
+                              <span>{dn(p.username)}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="cf-ack-done">✓ 전원 확인 완료</div>
+                      ))}
+                    {/* 서명자 명단 — 기본 접힘 (미확인자가 주인공, 펼치면 손서명 칩) */}
                     {ackStatus && ackStatus.acks.length > 0 && (
-                      <div className="cf-ack-chips">
-                        {ackStatus.acks.map((a) =>
-                          a.signature ? (
-                            <span key={a.username} className="cf-ack-chip">
-                              <img src={a.signature} alt={`${dn(a.username)} 서명`} />
-                              <i>{dn(a.username)}</i>
-                            </span>
-                          ) : (
-                            <span key={a.username} className="cf-ack-chip plain">
-                              <i>{dn(a.username)}</i>
-                            </span>
-                          ),
+                      <>
+                        <button
+                          type="button"
+                          className="cf-ack-fold"
+                          onClick={() => setAckSignedOpen((v) => !v)}
+                        >
+                          <span className={`side-chevron${ackSignedOpen ? ' open' : ''}`}>
+                            <ChevronIcon size={10} />
+                          </span>
+                          서명자 {ackStatus.acks.length}명
+                        </button>
+                        {ackSignedOpen && (
+                          <div className="cf-ack-chips">
+                            {ackStatus.acks.map((a) =>
+                              a.signature ? (
+                                <span key={a.username} className="cf-ack-chip">
+                                  <img src={a.signature} alt={`${dn(a.username)} 서명`} />
+                                  <i>{dn(a.username)}</i>
+                                </span>
+                              ) : (
+                                <span key={a.username} className="cf-ack-chip plain">
+                                  <i>{dn(a.username)}</i>
+                                </span>
+                              ),
+                            )}
+                          </div>
                         )}
-                      </div>
+                      </>
                     )}
                     {selected.my_ack ? (
                       <div className="cf-ack-done">✓ 내 서명 완료</div>
@@ -4063,6 +4241,8 @@ export default function CollabFiles({
               홈 — 즐겨찾기 {favFiles.length}개 · 작업 중{' '}
               {Object.values(presence).filter((p) => p.length > 0).length}개 · 최근 {recent.length}개
             </>
+          ) : ackOpen ? (
+            <>확인 필요 문서 {needAckFiles.length}개</>
           ) : trashOpen ? (
             <>휴지통 항목 {trashItems.length}개</>
           ) : (

@@ -12575,6 +12575,52 @@ input:focus {
 .cf-ack-off {
   color: var(--text-sub);
 }
+/* 회람 현황 숫자 — 미완 빨강 / 전원 완료 초록 (ackdot 색 문법) */
+.cf-ack-head b.due {
+  color: var(--red);
+}
+.cf-ack-head b.ok {
+  color: var(--green);
+}
+/* 미확인자 명단 — 아바타(정사각+살짝 radius 규칙) + 이름 세로 나열 */
+.cf-ack-pending {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cf-ack-pend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.cf-ack-pend-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex: none;
+}
+/* 서명자 명단 접기 토글 — 사이드바 셰브론과 같은 회전 문법 */
+.cf-ack-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+.cf-ack-fold:hover {
+  color: var(--text);
+}
+/* 확인 필요 뷰 라벨 — 체크는 빨강 (홈 라벨의 노랑 별보다 구체적으로 이겨야 함) */
+.cf-home-label.cf-ack-label svg {
+  color: var(--red);
+}
 
 /* 최근 항목 스트립 — 루트 상단 (드라이브식) */
 .cf-recent {
@@ -12787,6 +12833,10 @@ input:focus {
   color: #e0a13f;
 }
 .side-ic-trash > svg {
+  color: var(--red);
+}
+/* 확인 필요 — 미서명 회람은 빨강 (ackdot 색 문법) */
+.side-ic-ack > svg {
   color: var(--red);
 }
 /* 루트 크럼 폴더 아이콘 — 타입 색과 일치 */
@@ -13187,19 +13237,13 @@ input:focus {
 .cf-main.list .cf-entry > *:not(:last-child) {
   padding-right: 10px; /* 헤더와 동일한 gap 대체 패딩 */
 }
-/* 서명 점(고정폭 원)은 패딩이 안 먹으니 마진으로 간격 확보 */
-.cf-main.list .cf-ackdot {
-  margin-right: 10px;
-}
-/* 점이 있는 행은 이름 폭에서 점 몫(10px + 마진 10px)을 빼야 뒤 컬럼들이 안 밀린다 */
-.cf-main.list .cf-ackdot + .cf-entry-name {
-  width: calc(var(--cf-col-name, 400px) - 20px);
-}
+/* 목록 뷰의 서명 점은 "확인" 컬럼이 대체 — 점(+이름 폭 -20px 보정)은 그리드 전용으로 정리 */
 /* 구분선 오른쪽 컬럼들 — 헤더와 동일한 왼쪽 숨통 8px (정렬 유지) */
 .cf-main.list .cf-entry-type,
 .cf-main.list .cf-entry-author,
 .cf-main.list .cf-entry-date,
 .cf-main.list .cf-entry-size,
+.cf-main.list .cf-entry-ack,
 .cf-main.list .cf-entry-online {
   padding-left: 8px;
 }
@@ -19881,6 +19925,31 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   width: var(--cf-col-author, 92px); /* 만든 사람 */
   flex: none;
 }
+/* 확인 컬럼 — 회람 진행 "서명 수/대상 수" (만든 사람과 접속 중 사이, 헤더·행 1:1) */
+.cf-listhead-ack {
+  width: var(--cf-col-ack, 72px);
+  flex: none;
+}
+.cf-entry-ack {
+  width: var(--cf-col-ack, 72px);
+  flex: none;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 확인 숫자 — 미완 빨강 / 전원 완료 초록 체크 (ackdot 색 문법) */
+.cf-ack-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--red);
+}
+.cf-ack-cell.done {
+  color: var(--green);
+}
 
 /* 좁힌 컬럼은 윈도우처럼 … 말줄임 — 행·헤더 공통 */
 .cf-main.list .cf-entry-date,
@@ -20159,6 +20228,10 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 }
 .cf-crumb-home {
   color: var(--green);
+  font-weight: 700;
+}
+.cf-crumb-ack {
+  color: var(--red);
   font-weight: 700;
 }
 
