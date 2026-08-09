@@ -386,6 +386,8 @@ export default function CollabFiles({
   const [ackSignedOpen, setAckSignedOpen] = useState(false);
   // 확인 필요 뷰 — 내가 미서명인 회람 문서만 모아 보는 "장소" (홈·휴지통과 같은 문법)
   const [ackOpen, setAckOpen] = useState(false);
+  // 모바일 — 트리 상단 "확인 필요 N건" 배너의 목록 펼침 (현장 폰 열람·서명 진입점)
+  const [mAckListOpen, setMAckListOpen] = useState(false);
   // 최근 항목 — 그룹에서 최근 열람·편집된 문서 (사이드바·홈 탭)
   const [recent, setRecent] = useState<
     { id: number; name: string; type: FileType; last_ts?: string }[]
@@ -1739,9 +1741,15 @@ export default function CollabFiles({
         body: { signature },
       });
       setAckSignFor(null);
+      // 낙관 반영 — 배너·트리 뱃지·"확인 필요 N건" 개수가 서버 재조회를 기다리지 않고 즉시 바뀜
+      setFiles((prev) =>
+        prev.map((x) =>
+          x.id === fileId ? { ...x, my_ack: 1, ack_count: (x.ack_count ?? 0) + 1 } : x,
+        ),
+      );
       load();
       void loadAcks(fileId);
-      toast('열람 확인 서명 완료');
+      toast('확인 완료 — 열람 서명이 기록됐어요');
     } catch {
       /* 전역 토스트 */
     }
@@ -2027,6 +2035,13 @@ export default function CollabFiles({
                 </form>
               ) : (
                 <Marquee className="cf-name">{f.name}</Marquee>
+              )}
+              {/* 회람 뱃지 — 빨강: 내 서명 필요 / 초록: 완료 (그리드 뷰 ackdot 색 문법) */}
+              {f.type !== 'folder' && !!f.ack_required && (
+                <span
+                  className={`cf-ackdot${f.my_ack ? ' done' : ''}`}
+                  title={f.my_ack ? '열람 서명 완료' : '내 열람 서명 필요'}
+                />
               )}
               <PresenceStack fileId={f.id} />
               <span className="cf-actions" onClick={(e) => e.stopPropagation()}>
@@ -4536,6 +4551,40 @@ export default function CollabFiles({
             </button>
           </div>
           {typeMenuFor === 'root' && <TypeMenu parentId={null} />}
+          {/* 확인 필요 배너 — 현장 작업자가 폰으로 "읽고 서명할 문서"에 바로 들어가는 문 (N>0일 때만) */}
+          {needAckFiles.length > 0 && (
+            <div className="cf-mack">
+              <button
+                className="cf-mack-banner"
+                onClick={() => setMAckListOpen((v) => !v)}
+                aria-expanded={mAckListOpen}
+              >
+                <span className="cf-mack-dot" aria-hidden />
+                확인 필요 {needAckFiles.length}건 — 열람 서명이 남았어요
+                <span className={`cf-chevron${mAckListOpen ? ' open' : ''}`}>
+                  <ChevronIcon size={11} />
+                </span>
+              </button>
+              {mAckListOpen && (
+                <div className="cf-mack-list">
+                  {needAckFiles.map((f) => (
+                    <button key={f.id} className="cf-mack-row" onClick={() => openFile(f)}>
+                      <span className={`cf-icon ${f.type}`}>
+                        <TypeIcon type={f.type} size={16} name={f.name} />
+                      </span>
+                      <span className="cf-mack-row-txt">
+                        <span className="cf-mack-row-name">{f.name}</span>
+                        <span className="cf-mack-row-sub">{fileLoc(f)}</span>
+                      </span>
+                      <span className="cf-ack-cell">
+                        {f.ack_count ?? 0}/{f.ack_total ?? 0}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div className="cf-tree">
             {creating?.parentId === null && (
               <form className="cf-new" style={{ paddingLeft: 10 }} onSubmit={createEntry}>
@@ -4691,7 +4740,12 @@ export default function CollabFiles({
             {ackSignFor === active.id && (
               <div className="cf-ackbar-pad">
                 <SignPad
-                  title="열람 확인 서명 — 마우스나 손가락으로 이름을 적어주세요"
+                  title={
+                    isMobile
+                      ? '열람 확인 서명 — 손가락으로 이름을 적어주세요'
+                      : '열람 확인 서명 — 마우스나 손가락으로 이름을 적어주세요'
+                  }
+                  fluid={isMobile} /* 폰 — 패드 가로 꽉, 세로 손가락 서명용 */
                   onConfirm={(dataUrl) => void signAck(active.id, dataUrl)}
                   onCancel={() => setAckSignFor(null)}
                 />

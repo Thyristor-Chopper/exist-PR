@@ -6,41 +6,59 @@ export default function SignPad({
   onConfirm,
   onCancel,
   title = '서명 — 마우스나 손가락으로 이름을 적어주세요',
+  fluid = false,
 }: {
   onConfirm: (dataUrl: string) => void;
   onCancel: () => void;
   title?: string;
+  /** 모바일 — 패드가 담긴 컨테이너 폭을 꽉 채움 (기본 320×110은 데스크탑 그대로) */
+  fluid?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const drawing = useRef(false);
   const [dirty, setDirty] = useState(false);
+  // 논리 크기 — fluid면 마운트 시 컨테이너 폭으로 한 번 측정 (그리는 도중 리사이즈로 지워지지 않게)
+  const [dim, setDim] = useState({ w: 320, h: 110 });
+
+  useEffect(() => {
+    if (!fluid) return;
+    const el = wrapRef.current;
+    if (!el) return;
+    // 패드 padding 12×2 + border 2 만큼 뺀 내용 폭 — 폰에서 가로 꽉, 세로는 손가락 서명하기 적당하게
+    const w = Math.max(240, Math.floor(el.clientWidth - 26));
+    setDim({ w, h: 140 });
+  }, [fluid]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = 320 * dpr;
-    canvas.height = 110 * dpr;
+    canvas.width = dim.w * dpr;
+    canvas.height = dim.h * dpr;
     const ctx = canvas.getContext('2d')!;
     ctx.scale(dpr, dpr);
     ctx.lineWidth = 2.2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = '#1f2937'; // 잉크색 고정 — 서명 칩은 양 테마 모두 밝은 배경
-  }, []);
+  }, [dim.w, dim.h]);
 
   function pos(e: React.PointerEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    // max-width:100% 등으로 표시 크기가 논리 크기와 다를 때 좌표 보정
+    const sx = rect.width > 0 ? dim.w / rect.width : 1;
+    const sy = rect.height > 0 ? dim.h / rect.height : 1;
+    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
   }
 
   return (
-    <div className="ho-signpad">
+    <div ref={wrapRef} className={`ho-signpad${fluid ? ' fluid' : ''}`}>
       <div className="ho-signpad-title">{title}</div>
       <canvas
         ref={canvasRef}
         className="ho-sign-canvas"
-        style={{ width: 320, height: 110, touchAction: 'none' }}
+        style={{ width: dim.w, height: dim.h, touchAction: 'none' }}
         onPointerDown={(e) => {
           try {
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -91,7 +109,7 @@ export default function SignPad({
             const src = canvasRef.current!;
             const out = document.createElement('canvas');
             out.width = 240;
-            out.height = 82;
+            out.height = Math.max(1, Math.floor((dim.h / dim.w) * 240)); // 비율 유지 (기본 320×110 → 240×82)
             out.getContext('2d')!.drawImage(src, 0, 0, out.width, out.height);
             onConfirm(out.toDataURL('image/png'));
           }}
