@@ -2819,23 +2819,7 @@ export default function CollabFiles({
                 <HomeIcon size={13} /> 홈
               </button>
             )}
-            {/* 확인 필요 — 내가 미서명인 회람 문서 모음 (N=0이면 배지만 숨김, 항목은 유지) */}
-            {sideRootOpen && (
-              <button
-                className={`cf-desktree-item side-ic-ack${ackOpen ? ' cur' : ''}`}
-                style={{ paddingLeft: 20 }}
-                onClick={() => {
-                  clearSel();
-                  setTrashOpen(false);
-                  setHomeOpen(false);
-                  setAckOpen(true);
-                }}
-              >
-                <span className="side-chevron" />
-                <CheckMarkIcon size={13} /> 확인 필요
-                {needAckFiles.length > 0 ? ` (${needAckFiles.length})` : ''}
-              </button>
-            )}
+            {/* 확인 필요는 사이드바에서 뺌 — 홈 하단 탭이 그 역할 (전용 뷰는 주소줄·크럼용으로 유지) */}
             {sideRootOpen &&
             (function renderSideFolders(pid: number | null, depth: number): React.ReactNode[] {
               return (byParent.get(pid) ?? [])
@@ -3851,9 +3835,33 @@ export default function CollabFiles({
         {/* 세부 정보 패널 — 단일 선택은 상세, 다중 선택은 요약, 선택 없으면 현재 폴더 (탐색기식) */}
         {/* 우선순위: 파일 선택 > 휴지통 선택 — 어떤 상태 조합에서도 패널은 하나만 */}
         <div
-          className={`cf-slidewrap cf-slide-r${detailsOn && !homeOpen && !ackOpen ? ' open' : ''}`}
-          aria-hidden={!detailsOn || homeOpen || ackOpen}
+          className={`cf-slidewrap cf-slide-r${detailsOn && !ackOpen ? ' open' : ''}`}
+          aria-hidden={!detailsOn || ackOpen}
         >
+        {/* 홈 — 선택 개념이 없는 장소라 홈 요약 카드 (휴지통 요약과 같은 문법) */}
+        {homeOpen && (
+          <aside className="cf-details">
+            <div className="cf-details-icon cf-icon file">
+              <HomeIcon size={38} />
+            </div>
+            <div className="cf-details-name">홈</div>
+            <div className="cf-details-sub">고정·확인·최근 모아보기</div>
+            <div className="cf-details-rows">
+              <div className="cf-details-row">
+                <span>고정됨</span>
+                <b>{favFiles.length}개</b>
+              </div>
+              <div className="cf-details-row">
+                <span>확인 필요</span>
+                <b>{needAckFiles.length}건</b>
+              </div>
+              <div className="cf-details-row">
+                <span>최근 항목</span>
+                <b>{recent.length}개</b>
+              </div>
+            </div>
+          </aside>
+        )}
         {((trashOpen && trashSelList.length === 0) || (!trashOpen && trashSel && selCount === 0)) && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon file">
