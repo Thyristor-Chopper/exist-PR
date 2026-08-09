@@ -13299,7 +13299,7 @@ button.cf-home-fold {
 
 /* 휴지통 — 루트에 파일처럼 놓인 항목 (윈도우 바탕화면식) */
 .cf-icon-trash {
-  color: var(--text-sub);
+  color: var(--red); /* 사이드바 휴지통과 같은 빨강 — 장소 정체성 통일 */
 }
 .cf-entry-trash.droptarget {
   outline: 2px solid var(--red);
