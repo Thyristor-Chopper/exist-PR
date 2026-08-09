@@ -394,8 +394,8 @@ export default function CollabFiles({
   // 홈 타일·행 드래그 — 본문 목록과 같은 이동 경로 (사이드바 폴더·휴지통·크럼 드롭).
   // 선택에 포함된 항목을 끌면 선택 전체가 딸려온다 (바탕화면 문법)
   const homeDragStart = (f: CollabFile) => (e: React.DragEvent) => {
-    const base = homeSelIds.has(f.id) ? [...new Set([...homeSelIds, f.id])] : [f.id];
-    if (!homeSelIds.has(f.id)) setHomeSelIds(new Set([f.id]));
+    const base = selectedIds.has(f.id) ? [...new Set([...selectedIds, f.id])] : [f.id];
+    if (!selectedIds.has(f.id)) setSelectedIds(new Set([f.id]));
     const ids = base.filter((id) => {
       const x = byId.get(id);
       return x && canEdit(x);
@@ -416,7 +416,7 @@ export default function CollabFiles({
   // 홈 항목 클릭 = 선택 (Ctrl 다중), 더블클릭 = 열기 — 바탕화면 문법
   const homeSelect = (f: CollabFile) => (e: React.MouseEvent) => {
     e.stopPropagation();
-    setHomeSelIds((prev) => {
+    setSelectedIds((prev) => {
       if (e.ctrlKey || e.metaKey) {
         const next = new Set(prev);
         if (next.has(f.id)) next.delete(f.id);
@@ -617,10 +617,10 @@ export default function CollabFiles({
   // rubber 상태 자체는 공유 (두 컨테이너는 동시에 상호작용하지 않음 — 휴지통 열리면 본문은 display:none)
   const trashMainRef = useRef<HTMLDivElement | null>(null);
   const trashRubberBase = useRef<Set<number>>(new Set()); // Ctrl 러버밴드 = 시작 시점 선택에 추가
-  // 홈 러버밴드·선택 — 바탕화면 문법 (클릭=선택, 더블클릭=열기, 빈 곳 드래그=박스 선택)
+  // 홈 러버밴드 — 바탕화면 문법 (클릭=선택, 더블클릭=열기, 빈 곳 드래그=박스 선택).
+  // 선택 상태는 본문(selectedIds)과 공용 — 세부정보 패널·툴바가 홈 선택에도 그대로 반응한다
   const homeMainRef = useRef<HTMLDivElement | null>(null);
   const homeRubberBase = useRef<Set<number>>(new Set());
-  const [homeSelIds, setHomeSelIds] = useState<Set<number>>(new Set());
   const [dropTarget, setDropTarget] = useState<number | 'root' | 'trash' | null>(null);
   const renameTimerRef = useRef<number | null>(null); // 선택된 항목 이름 재클릭 → 지연 후 인라인 편집
 
@@ -710,7 +710,7 @@ export default function CollabFiles({
   // 홈 열 때 스마트 기본 탭 — 서명 남은 게 있으면 확인 필요, 아니면 최근 항목. 떠나면 선택 해제
   useEffect(() => {
     if (homeOpen) setHomeTab(needAckFiles.length > 0 ? 'ack' : 'recent');
-    else setHomeSelIds(new Set());
+    else setSelectedIds(new Set());
     // needAckFiles는 의도적으로 deps 제외 — 열리는 순간만 판단 (서명 중 탭이 튀지 않게)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeOpen]);
@@ -2990,7 +2990,7 @@ export default function CollabFiles({
                     return;
                   }
                   if (!(e.target as HTMLElement).closest('button, form, input'))
-                    setHomeSelIds(new Set());
+                    setSelectedIds(new Set());
                 }}
                 onPointerDown={(e) => {
                   // 러버밴드 — 빈 곳에서 박스 선택 (바탕화면 문법), 대상은 홈 타일·행
@@ -3003,7 +3003,7 @@ export default function CollabFiles({
                   }
                   rubberMoved.current = false;
                   homeRubberBase.current =
-                    e.ctrlKey || e.metaKey ? new Set(homeSelIds) : new Set<number>();
+                    e.ctrlKey || e.metaKey ? new Set(selectedIds) : new Set<number>();
                   setRubber({
                     x0: e.clientX,
                     y0: e.clientY,
@@ -3050,7 +3050,7 @@ export default function CollabFiles({
                     if (r2.right > lx && r2.left < hx && r2.bottom > ly && r2.top < hy)
                       hit.add(id);
                   });
-                  setHomeSelIds(hit);
+                  setSelectedIds(hit);
                 }}
                 onPointerUp={() => {
                   setRubber(null);
@@ -3081,7 +3081,7 @@ export default function CollabFiles({
                         <button
                           key={f.id}
                           data-fid={f.id}
-                          className={`cf-home-pin${homeSelIds.has(f.id) ? ' selected' : ''}`}
+                          className={`cf-home-pin${selectedIds.has(f.id) ? ' selected' : ''}`}
                           title={f.name}
                           draggable
                           onDragStart={homeDragStart(f)}
@@ -3164,7 +3164,7 @@ export default function CollabFiles({
                           <button
                             key={f.id}
                             data-fid={f.id}
-                            className={`cf-home-row${homeSelIds.has(f.id) ? ' selected' : ''}`}
+                            className={`cf-home-row${selectedIds.has(f.id) ? ' selected' : ''}`}
                             draggable
                             onDragStart={homeDragStart(f)}
                             onDragEnd={homeDragEnd}
@@ -3196,7 +3196,7 @@ export default function CollabFiles({
                           <button
                             key={f.id}
                             data-fid={f.id}
-                            className={`cf-home-row${homeSelIds.has(f.id) ? ' selected' : ''}`}
+                            className={`cf-home-row${selectedIds.has(f.id) ? ' selected' : ''}`}
                             draggable
                             onDragStart={homeDragStart(f)}
                             onDragEnd={homeDragEnd}
@@ -3228,7 +3228,7 @@ export default function CollabFiles({
                           <button
                             key={rf.id}
                             data-fid={f ? f.id : undefined}
-                            className={`cf-home-row${f && homeSelIds.has(f.id) ? ' selected' : ''}`}
+                            className={`cf-home-row${f && selectedIds.has(f.id) ? ' selected' : ''}`}
                             draggable={!!f}
                             onDragStart={f ? homeDragStart(f) : undefined}
                             onDragEnd={homeDragEnd}
@@ -4014,8 +4014,8 @@ export default function CollabFiles({
           className={`cf-slidewrap cf-slide-r${detailsOn && !ackOpen ? ' open' : ''}`}
           aria-hidden={!detailsOn || ackOpen}
         >
-        {/* 홈 — 선택 개념이 없는 장소라 홈 요약 카드 (휴지통 요약과 같은 문법) */}
-        {homeOpen && (
+        {/* 홈 — 선택이 없을 때만 홈 요약 카드 (선택하면 본문과 같은 파일 상세가 뜬다) */}
+        {homeOpen && selCount === 0 && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon file">
               <HomeIcon size={38} />
