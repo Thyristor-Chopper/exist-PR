@@ -12918,6 +12918,54 @@ input:focus {
   cursor: pointer;
 }
 
+/* 그룹 간 배포 모달 — cf-move 모달 문법 + 선택 표시·회람 옵션·풋터 2버튼 */
+.cf-move-tree button.cf-dist-on {
+  background: var(--surface-2);
+  font-weight: 700;
+}
+.cf-move-tree button.cf-dist-on svg:last-child {
+  margin-left: auto;
+  color: var(--green);
+}
+.cf-dist-ack {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 16px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.cf-dist-ack input {
+  accent-color: var(--green);
+}
+.cf-dist-acts {
+  display: flex;
+}
+.cf-dist-acts .cf-move-cancel {
+  flex: 1;
+}
+.cf-dist-go {
+  flex: 1;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  background: var(--green);
+  color: #fff;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cf-dist-go:hover:not(:disabled) {
+  background: var(--green-dark);
+}
+.cf-dist-go:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* 데스크탑 폴더 트리 — 탐색기 왼쪽 패널 */
 /* ⋯ 메뉴 위험 항목 — 휴지통 비우기 */
 .cf-more-menu .cf-menu-danger {

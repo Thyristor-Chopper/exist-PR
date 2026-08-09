@@ -1200,6 +1200,156 @@ router.post('/:fileId/dm', (req: AuthedRequest, res) => {
   res.json({ ok: true });
 });
 
+/* ── 그룹 간 문서 배포 — 본사에서 개정한 SOP를 공장 그룹으로 (사본 생성 + 선택 시 회람).
+ * 원본은 그대로, 대상 그룹에 독립 사본이 생긴다 (rev 1부터 새 이력, file_versions 미복사).
+ * 출처 추적은 컬럼 대신 조직 감사 로그(files.distribute)로만 ── */
+
+/** 배포 대상 그룹 목록 — 내가 참가한 다른 그룹들 (배포 모달 픽커용) */
+router.get('/distribute/targets', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const rows = db
+    .prepare(
+      `SELECT m.id, m.code, m.title, m.org_id FROM meetings m
+       JOIN meeting_participants mp ON mp.meeting_id = m.id
+       WHERE mp.user_id = ? AND m.id != ? ORDER BY mp.joined_at DESC`,
+    )
+    .all(req.userId!, r.meeting.id);
+  res.json(rows);
+});
+
+/** 그룹 간 배포 — body { targetCode, requestAck } (requestAck 기본 true).
+ * 배포자는 원본 그룹 + 대상 그룹 양쪽 참가자여야 한다 */
+router.post('/:fileId/distribute', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const src = db
+    .prepare(
+      'SELECT id, name, type, room, mime, size, blob_path, created_by FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+    )
+    .get(req.params.fileId, r.meeting.id) as
+    | {
+        id: number;
+        name: string;
+        type: FileType;
+        room: string | null;
+        mime: string | null;
+        size: number | null;
+        blob_path: string | null;
+        created_by: number;
+      }
+    | undefined;
+  if (!src) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  if (src.type === 'folder')
+    return res.status(400).json({ error: '폴더는 배포할 수 없어요 — 파일만 배포돼요' });
+
+  const targetCode = String((req.body as { targetCode?: unknown })?.targetCode ?? '')
+    .trim()
+    .toUpperCase();
+  if (!targetCode) return res.status(400).json({ error: '배포할 그룹을 선택하세요' });
+  const target = db
+    .prepare('SELECT id, code, host_id, org_id FROM meetings WHERE code = ?')
+    .get(targetCode) as MeetingRef | undefined;
+  if (!target) return res.status(404).json({ error: '존재하지 않는 그룹이에요' });
+  if (target.id === r.meeting.id)
+    return res.status(400).json({ error: '같은 그룹으로는 배포할 수 없어요 — 복사를 쓰세요' });
+  const isTargetMember = db
+    .prepare('SELECT 1 FROM meeting_participants WHERE meeting_id = ? AND user_id = ?')
+    .get(target.id, req.userId!);
+  if (!isTargetMember)
+    return res.status(403).json({ error: '배포하려면 대상 그룹의 참가자여야 해요' });
+
+  // 대상 그룹이 빈 상태면 표준 폴더 세트부터 (업로드와 동일) — '회의 자료' 폴더도 이때 생긴다
+  ensureLegacyFiles(target.id, target.code, req.userId!);
+
+  const count = (
+    db
+      .prepare('SELECT COUNT(*) AS n FROM collab_files WHERE meeting_id = ? AND deleted_at IS NULL')
+      .get(target.id) as { n: number }
+  ).n;
+  if (count >= MAX_FILES)
+    return res.status(400).json({ error: `파일은 그룹당 ${MAX_FILES}개까지예요 — 대상 그룹이 가득 찼어요` });
+
+  // 배포 위치 — 대상 루트의 '회의 자료' 폴더가 있으면 그 안, 없으면 루트
+  const inbox = db
+    .prepare(
+      "SELECT id FROM collab_files WHERE meeting_id = ? AND parent_id IS NULL AND name = '회의 자료' AND type = 'folder' AND deleted_at IS NULL",
+    )
+    .get(target.id) as { id: number } | undefined;
+  const parentId = inbox?.id ?? null;
+
+  // 이름 충돌 → "이름 (2)" — copy의 freeName 문법 (접미사가 아닌 base를 잘라야 무한루프가 없다)
+  let name = src.name;
+  for (let i = 2; ; i++) {
+    const dup = db
+      .prepare(
+        'SELECT 1 FROM collab_files WHERE meeting_id = ? AND name = ? AND parent_id IS ? AND deleted_at IS NULL',
+      )
+      .get(target.id, name, parentId);
+    if (!dup) break;
+    const suffix = ` (${i})`;
+    name = src.name.slice(0, Math.max(1, 60 - suffix.length)) + suffix;
+  }
+
+  const requestAck = (req.body as { requestAck?: unknown })?.requestAck !== false;
+  // 사본 생성 — rev는 NULL(=1)로 리셋: 새 그룹에서 새 개정 이력을 시작한다
+  const info = db
+    .prepare(
+      'INSERT INTO collab_files (meeting_id, parent_id, name, type, created_by, ack_required) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+    .run(target.id, parentId, name, src.type, req.userId!, requestAck ? 1 : 0);
+  const newId = info.lastInsertRowid as number;
+  if (src.type === 'file') {
+    // 업로드 파일 — blob 물리 복사 (원본과 공유하면 한쪽 삭제 때 같이 사라진다)
+    if (src.blob_path) {
+      try {
+        const blobName = `${crypto.randomUUID()}${path.extname(src.blob_path).replace(/[^.\w-]/g, '').slice(0, 10)}`;
+        fs.mkdirSync(BLOB_DIR, { recursive: true });
+        fs.copyFileSync(path.join(BLOB_DIR, src.blob_path), path.join(BLOB_DIR, blobName));
+        db.prepare('UPDATE collab_files SET mime = ?, size = ?, blob_path = ? WHERE id = ?').run(
+          src.mime,
+          src.size,
+          blobName,
+          newId,
+        );
+      } catch (e) {
+        db.prepare('DELETE FROM collab_files WHERE id = ?').run(newId);
+        console.error('[distribute]', e);
+        return res.status(500).json({ error: '배포 사본 저장에 실패했어요' });
+      }
+    }
+  } else {
+    // 공동편집 문서 — Yjs 내용까지 사본으로
+    const room = `file-${newId}`;
+    db.prepare('UPDATE collab_files SET room = ? WHERE id = ?').run(room, newId);
+    if (src.room) copyYdoc(src.room, room);
+  }
+  // 어디서 왔는지는 감사 로그로 — 배포는 그룹 경계를 넘는 상태 변화 (auditPurge 문법)
+  auditPurge(
+    target,
+    req.userId!,
+    'files.distribute',
+    `그룹 "${meetingLabel(r.meeting)}" → "${meetingLabel(target)}" 파일 "${name}" 배포${requestAck ? ' — 열람 서명 요청' : ''}`,
+  );
+  // 대상 그룹 전원(배포자 제외)에게 알림 — 회람이면 "확인 필요" 뷰로 이어진다
+  const members = db
+    .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ? AND user_id != ?')
+    .all(target.id, req.userId!) as { user_id: number }[];
+  for (const m of members) {
+    notifyUser(m.user_id, {
+      from: req.username ?? '누군가',
+      text: requestAck
+        ? `『${name}』 문서가 배포됐어요 — 열람 서명이 필요해요`
+        : `『${name}』 문서가 배포됐어요`,
+      kind: requestAck ? 'file-ack' : undefined,
+      meetingCode: target.code,
+    });
+  }
+  // 자동 방송은 원본 그룹(code) 몫 — 대상 그룹 목록도 즉시 갱신
+  notifyFilesChanged(target.code);
+  res.json({ ok: true, id: newId, name, targetCode: target.code, requestAck });
+});
+
 /* ── 업로드 파일 버전 기록 — 새 버전 업로드 시 이전 blob 보관 (드라이브식) ── */
 
 /** 새 버전 업로드 — 기존 blob을 file_versions로 내리고 교체 */

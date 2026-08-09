@@ -446,6 +446,8 @@ export default function CollabFiles({
   const versionInputRef = useRef<HTMLInputElement | null>(null);
   // DM으로 파일 보내기 — 대상 파일 + 멤버 목록
   const [dmPickFor, setDmPickFor] = useState<CollabFile | null>(null);
+  // 다른 그룹으로 배포 — 대상 그룹 픽커 모달 (본사 SOP → 공장 그룹 회람)
+  const [distFor, setDistFor] = useState<CollabFile | null>(null);
   const [dmMembers, setDmMembers] = useState<
     { id: number; username: string; avatar: string | null }[] | null
   >(null);
@@ -1217,6 +1219,46 @@ export default function CollabFiles({
       setDmPickFor(null);
     } catch {
       /* 전역 토스트 */
+    }
+  }
+
+  // ── 다른 그룹으로 배포 — 내가 참가한 다른 그룹 목록 + 열람 서명 옵션(기본 on) ──
+  const [distGroups, setDistGroups] = useState<
+    { id: number; code: string; title: string }[] | null
+  >(null);
+  const [distTarget, setDistTarget] = useState<string | null>(null);
+  const [distAck, setDistAck] = useState(true);
+  const [distBusy, setDistBusy] = useState(false);
+  useEffect(() => {
+    if (!distFor) {
+      setDistGroups(null);
+      setDistTarget(null);
+      setDistAck(true);
+      return;
+    }
+    void api<{ id: number; code: string; title: string }[]>(
+      `/api/meetings/${code}/files/distribute/targets`,
+    )
+      .then(setDistGroups)
+      .catch(() => setDistGroups([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [distFor?.id]);
+
+  async function distributeNow() {
+    if (!distFor || !distTarget || distBusy) return;
+    const g = distGroups?.find((x) => x.code === distTarget);
+    setDistBusy(true);
+    try {
+      await api(`/api/meetings/${code}/files/${distFor.id}/distribute`, {
+        method: 'POST',
+        body: { targetCode: distTarget, requestAck: distAck },
+      });
+      toast(`『${distFor.name}』을 ${g?.title || distTarget} 그룹에 배포했어요`);
+      setDistFor(null);
+    } catch {
+      /* 전역 토스트 */
+    } finally {
+      setDistBusy(false);
     }
   }
 
@@ -4336,6 +4378,12 @@ export default function CollabFiles({
             <button className="cf-ack-req" onClick={() => setDmPickFor(selected)}>
               ✉ DM으로 보내기
             </button>
+            {/* 그룹 간 배포 — 본사에서 개정한 SOP를 공장 그룹으로 (사본 + 회람) */}
+            {selected.type !== 'folder' && (
+              <button className="cf-ack-req" onClick={() => setDistFor(selected)}>
+                ⇄ 다른 그룹으로 배포…
+              </button>
+            )}
             {/* 열람 서명 (회람 사인) — 요청·현황·서명 */}
             {selected.type !== 'folder' && (
               <div className="cf-ack">
@@ -4753,6 +4801,18 @@ export default function CollabFiles({
                     개정 발행 (재회람)
                   </button>
                 )}
+                {/* 그룹 간 배포 — 다른 그룹에 사본 + 회람 (파일만·단일 대상만) */}
+                {ctxTarget.type !== 'folder' && (
+                  <button
+                    disabled={ctxIds.length > 1}
+                    onClick={() => {
+                      setDistFor(ctxTarget);
+                      setCtxMenu(null);
+                    }}
+                  >
+                    다른 그룹으로 배포…
+                  </button>
+                )}
                 <div className="cf-menu-sep" />
                 <button
                   className="danger"
@@ -4940,6 +5000,52 @@ export default function CollabFiles({
             <button className="cf-move-cancel" onClick={() => setDmPickFor(null)}>
               취소
             </button>
+          </div>
+        </div>
+      )}
+      {/* 다른 그룹으로 배포 — 그룹 픽커 + 열람 서명 옵션 (cf-move 모달 문법) */}
+      {distFor && (
+        <div className="cf-move-overlay" onClick={() => setDistFor(null)}>
+          <div className="cf-move-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cf-move-title">"{distFor.name}" 다른 그룹으로 배포</div>
+            <div className="cf-move-tree">
+              {distGroups === null && <div className="cf-move-empty">불러오는 중…</div>}
+              {distGroups?.length === 0 && (
+                <div className="cf-move-empty">
+                  배포할 그룹이 없어요 — 다른 그룹에 참가하고 있어야 해요
+                </div>
+              )}
+              {distGroups?.map((g) => (
+                <button
+                  key={g.id}
+                  className={distTarget === g.code ? 'cf-dist-on' : undefined}
+                  onClick={() => setDistTarget(g.code)}
+                >
+                  <UsersIcon size={14} /> {g.title || g.code}
+                  {distTarget === g.code && <CheckMarkIcon size={12} />}
+                </button>
+              ))}
+            </div>
+            <label className="cf-dist-ack">
+              <input
+                type="checkbox"
+                checked={distAck}
+                onChange={(e) => setDistAck(e.target.checked)}
+              />
+              열람 서명 요청 걸기 — 대상 그룹 전원에게 회람돼요
+            </label>
+            <div className="cf-dist-acts">
+              <button className="cf-move-cancel" onClick={() => setDistFor(null)}>
+                취소
+              </button>
+              <button
+                className="cf-dist-go"
+                disabled={!distTarget || distBusy}
+                onClick={() => void distributeNow()}
+              >
+                {distBusy ? '배포 중…' : '배포'}
+              </button>
+            </div>
           </div>
         </div>
       )}
