@@ -4030,6 +4030,16 @@ input:focus {
   color: var(--text-sub);
   font-weight: 600;
 }
+/* 취소 후 [다시 기록]까지 마친 상태 칩 */
+.chat-decision-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+}
 
 /* 다음 회의 제안 — AI가 감지한 시각, 사람이 버튼으로 확정 */
 .hub-recap-next {
