@@ -674,6 +674,19 @@ export default function CollabFiles({
     // files는 의도적으로 deps 제외 — 열람 "시작" 시점만 캡처해야 개정 감지가 된다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+  // 서명 모달 — "무엇에 서명하는지" 명시용 개정 요약 (모달 열릴 때만 조회)
+  const [signModalNote, setSignModalNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (ackSignFor == null) {
+      setSignModalNote(null);
+      return;
+    }
+    void api<{ note?: string | null }>(`/api/meetings/${code}/files/${ackSignFor}/acks`, {
+      silent: true,
+    })
+      .then((d) => setSignModalNote(d.note ?? null))
+      .catch(() => setSignModalNote(null));
+  }, [ackSignFor, code]);
   // 휴지통 항목 수 — 루트의 휴지통 아이콘 배지용으로 처음부터 로드
   useEffect(() => {
     void loadTrash();
@@ -4791,18 +4804,39 @@ export default function CollabFiles({
                 서명하기
               </button>
             </div>
+            {/* 서명 모달 — 인라인 대신 의식감 있는 팝업. 무엇에 서명하는지(문서·개정·바뀐 점) 명시
+                (전자서명의 "서명 의미 명시" 관례) — 진입점은 열람 화면뿐: 안 읽고 서명 방지 */}
             {ackSignFor === active.id && (
-              <div className="cf-ackbar-pad">
-                <SignPad
-                  title={
-                    isMobile
-                      ? '열람 확인 서명 — 손가락으로 이름을 적어주세요'
-                      : '열람 확인 서명 — 마우스나 손가락으로 이름을 적어주세요'
-                  }
-                  fluid={isMobile} /* 폰 — 패드 가로 꽉, 세로 손가락 서명용 */
-                  onConfirm={(dataUrl) => void signAck(active.id, dataUrl)}
-                  onCancel={() => setAckSignFor(null)}
-                />
+              <div className="cf-signmodal-backdrop" onClick={() => setAckSignFor(null)}>
+                <div className="cf-signmodal" onClick={(e) => e.stopPropagation()}>
+                  <div className="cf-signmodal-head">열람 확인 서명</div>
+                  <div className="cf-signmodal-doc">
+                    <TypeIcon type={active.type} name={active.name} />
+                    <b>{active.name}</b>
+                    {(active.rev ?? 1) > 1 && <span className="cf-rev-badge">개정 v{active.rev}</span>}
+                  </div>
+                  {signModalNote && (
+                    <div className="cf-signmodal-note">
+                      <div className="cf-signmodal-note-t">✦ 이번 개정에서 바뀐 것</div>
+                      {signModalNote.split('\n').map((l, i) => (
+                        <div key={i}>{l}</div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="cf-signmodal-desc">
+                    아래 서명은 이 문서(현재 개정판)를 열람했음을 확인하는 기록으로 남아요.
+                  </div>
+                  <SignPad
+                    title={
+                      isMobile
+                        ? '손가락으로 이름을 적어주세요'
+                        : '마우스나 손가락으로 이름을 적어주세요'
+                    }
+                    fluid /* 모달 폭에 맞춰 가로 꽉 */
+                    onConfirm={(dataUrl) => void signAck(active.id, dataUrl)}
+                    onCancel={() => setAckSignFor(null)}
+                  />
+                </div>
               </div>
             )}
           </>
