@@ -415,6 +415,21 @@ export default function CollabFiles({
       localStorage.setItem('exist:cf-home-fold', JSON.stringify(next));
       return next;
     });
+  // 홈 타일·행 드래그 — 본문 목록과 같은 이동 경로 (사이드바 폴더·휴지통·크럼 드롭)
+  const homeDragStart = (f: CollabFile) => (e: React.DragEvent) => {
+    if (!canEdit(f)) {
+      e.preventDefault();
+      toast('만든 사람·호스트·관리자만 이동할 수 있는 항목이에요', 'error');
+      return;
+    }
+    dragIdsRef.current = [f.id];
+    e.dataTransfer.effectAllowed = 'copyMove'; // Ctrl 누르고 놓으면 복사
+    e.dataTransfer.setData('text/plain', '');
+  };
+  const homeDragEnd = () => {
+    dragIdsRef.current = [];
+    setDropTarget(null);
+  };
   // 홈 탭 — 즐겨찾기 + 최근 방문 (탐색기 홈, 휴지통과 같은 "장소" 패턴)
   const [homeOpen, setHomeOpen] = useState(false);
   // 홈 하단 알약 탭 — 최근 항목(기본) | 작업 중 (Win11 홈 하단 탭 문법)
@@ -2974,6 +2989,9 @@ export default function CollabFiles({
                           key={f.id}
                           className="cf-home-pin"
                           title={f.name}
+                          draggable
+                          onDragStart={homeDragStart(f)}
+                          onDragEnd={homeDragEnd}
                           onClick={() => (f.type === 'folder' ? navigate(f.id) : openFile(f))}
                         >
                           <span className={`cf-icon ${f.type}`}>
@@ -3048,7 +3066,14 @@ export default function CollabFiles({
                     ) : (
                       <div className="cf-home-list">
                         {needAckFiles.map((f) => (
-                          <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
+                          <button
+                            key={f.id}
+                            className="cf-home-row"
+                            draggable
+                            onDragStart={homeDragStart(f)}
+                            onDragEnd={homeDragEnd}
+                            onClick={() => openFile(f)}
+                          >
                             <span className={`cf-icon ${f.type}`}>
                               <TypeIcon type={f.type} size={18} name={f.name} />
                             </span>
@@ -3071,7 +3096,14 @@ export default function CollabFiles({
                     ) : (
                       <div className="cf-home-list">
                         {working.map(({ f, ppl }) => (
-                          <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
+                          <button
+                            key={f.id}
+                            className="cf-home-row"
+                            draggable
+                            onDragStart={homeDragStart(f)}
+                            onDragEnd={homeDragEnd}
+                            onClick={() => openFile(f)}
+                          >
                             <span className={`cf-icon ${f.type}`}>
                               <TypeIcon type={f.type} size={18} name={f.name} />
                             </span>
@@ -3097,6 +3129,9 @@ export default function CollabFiles({
                           <button
                             key={rf.id}
                             className="cf-home-row"
+                            draggable={!!f}
+                            onDragStart={f ? homeDragStart(f) : undefined}
+                            onDragEnd={homeDragEnd}
                             onClick={() => {
                               if (f) openFile(f);
                             }}
