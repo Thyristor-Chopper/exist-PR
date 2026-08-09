@@ -13052,6 +13052,10 @@ input:focus {
 .cf-home-label svg {
   color: var(--text-sub); /* 압정 — 별 시절 노랑 대신 중립 톤 */
 }
+/* 홈 확인 필요 섹션 라벨 — 사이드바·크럼의 확인 필요와 같은 빨강 톤 */
+.cf-home-label-ack {
+  color: var(--red);
+}
 
 .cf-desktree-item.droptarget {
   outline: 2px solid var(--green);

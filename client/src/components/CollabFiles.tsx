@@ -2941,6 +2941,32 @@ export default function CollabFiles({
               );
             return (
               <div className="cf-main cf-homeview">
+                {/* 확인 필요 — 홈 맨 위, 있을 때만 (해야 할 서명이 고정보다 먼저) */}
+                {needAckFiles.length > 0 && (
+                  <div className="cf-home-sec">
+                    <div className="cf-home-label cf-home-label-ack">
+                      ✍ 확인 필요 {needAckFiles.length}건 — 열람 서명이 남았어요
+                    </div>
+                    <div className="cf-home-list">
+                      {needAckFiles.map((f) => (
+                        <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
+                          <span className={`cf-icon ${f.type}`}>
+                            <TypeIcon type={f.type} size={18} name={f.name} />
+                          </span>
+                          <span className="cf-home-row-txt">
+                            <span className="cf-home-row-name">{f.name}</span>
+                            <span className="cf-home-row-sub">{fileLoc(f)}</span>
+                          </span>
+                          <span className="cf-home-col-r">
+                            <span className="cf-ack-cell">
+                              {f.ack_count ?? 0}/{f.ack_total ?? 0}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="cf-home-sec">
                   <div className="cf-home-label">
                     <PinIcon size={13} /> 고정됨
