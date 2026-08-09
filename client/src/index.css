@@ -19811,7 +19811,7 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 .cf-listhead > *:not(:last-child)::after {
   content: '';
   position: absolute;
-  top: 0;
+  top: -1px; /* 툴바 하단 보더와 1px 겹침 — 서브픽셀 라운딩으로 뜨는 흰 줄 방지 */
   bottom: 4px;
   right: 0; /* 버튼 모서리에 딱 붙는 구분선 */
   width: 1px;
