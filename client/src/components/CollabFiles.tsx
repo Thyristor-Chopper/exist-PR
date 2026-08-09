@@ -395,6 +395,8 @@ export default function CollabFiles({
   const [recent, setRecent] = useState<
     { id: number; name: string; type: FileType; last_ts?: string }[]
   >([]);
+  // 홈 하단 탭 — [확인 필요 | 작업 중 | 최근 항목] (Win11 홈 하단 탭 문법)
+  const [homeTab, setHomeTab] = useState<'ack' | 'working' | 'recent'>('recent');
   // 홈 탭 — 즐겨찾기 + 최근 방문 (탐색기 홈, 휴지통과 같은 "장소" 패턴)
   const [homeOpen, setHomeOpen] = useState(false);
   // 홈 하단 알약 탭 — 최근 항목(기본) | 작업 중 (Win11 홈 하단 탭 문법)
@@ -672,6 +674,12 @@ export default function CollabFiles({
     // files는 의도적으로 deps 제외 — 열람 "시작" 시점만 캡처해야 개정 감지가 된다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+  // 홈 열 때 스마트 기본 탭 — 서명 남은 게 있으면 확인 필요, 아니면 최근 항목
+  useEffect(() => {
+    if (homeOpen) setHomeTab(needAckFiles.length > 0 ? 'ack' : 'recent');
+    // needAckFiles는 의도적으로 deps 제외 — 열리는 순간만 판단 (서명 중 탭이 튀지 않게)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeOpen]);
   // 서명 모달 — "무엇에 서명하는지" 명시용 개정 요약 (모달 열릴 때만 조회)
   const [signModalNote, setSignModalNote] = useState<string | null>(null);
   useEffect(() => {
@@ -2973,67 +2981,91 @@ export default function CollabFiles({
                     </div>
                   )}
                 </div>
-                {/* 고정 아래는 시간축 순서 — 해야 할 것(확인 필요) → 지금(작업 중) → 과거(최근).
-                 * 확인 필요·작업 중은 있을 때만 — 빈 섹션이 홈을 차지하지 않게 */}
-                {needAckFiles.length > 0 && (
-                  <div className="cf-home-sec">
-                    <div className="cf-home-label cf-home-label-ack">
-                      ✍ 확인 필요 {needAckFiles.length}건 — 열람 서명이 남았어요
-                    </div>
-                    <div className="cf-home-list">
-                      {needAckFiles.map((f) => (
-                        <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
-                          <span className={`cf-icon ${f.type}`}>
-                            <TypeIcon type={f.type} size={18} name={f.name} />
-                          </span>
-                          <span className="cf-home-row-txt">
-                            <span className="cf-home-row-name">{f.name}</span>
-                            <span className="cf-home-row-sub">{fileLoc(f)}</span>
-                          </span>
-                          <span className="cf-home-col-r">
-                            <span className="cf-ack-cell">
-                              {f.ack_count ?? 0}/{f.ack_total ?? 0}
-                            </span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {working.length > 0 && (
-                  <div className="cf-home-sec">
-                    <div className="cf-home-label">
-                      <UsersIcon size={13} /> 작업 중 ({working.length})
-                    </div>
-                    <div className="cf-home-list">
-                      {working.map(({ f, ppl }) => (
-                        <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
-                          <span className={`cf-icon ${f.type}`}>
-                            <TypeIcon type={f.type} size={18} name={f.name} />
-                          </span>
-                          <span className="cf-home-row-txt">
-                            <span className="cf-home-row-name">{f.name}</span>
-                            <span className="cf-home-row-sub">{fileLoc(f)}</span>
-                          </span>
-                          <span className="cf-home-col-r">
-                            <PresenceStack fileId={f.id} />
-                            {ppl.length}명 작업 중
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* 하단 — Win11 홈 하단 탭 문법: [확인 필요 | 작업 중 | 최근 항목] */}
                 <div className="cf-home-sec">
-                  <div className="cf-home-label">
-                    <ClockIcon size={13} /> 최근 항목
+                  <div className="cf-home-tabs" role="tablist">
+                    <button
+                      role="tab"
+                      aria-selected={homeTab === 'ack'}
+                      className={`cf-home-tab${homeTab === 'ack' ? ' on' : ''}`}
+                      onClick={() => setHomeTab('ack')}
+                    >
+                      ✍ 확인 필요
+                      {needAckFiles.length > 0 ? ` (${needAckFiles.length})` : ''}
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={homeTab === 'working'}
+                      className={`cf-home-tab${homeTab === 'working' ? ' on' : ''}`}
+                      onClick={() => setHomeTab('working')}
+                    >
+                      <UsersIcon size={13} /> 작업 중
+                      {working.length > 0 ? ` (${working.length})` : ''}
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={homeTab === 'recent'}
+                      className={`cf-home-tab${homeTab === 'recent' ? ' on' : ''}`}
+                      onClick={() => setHomeTab('recent')}
+                    >
+                      <ClockIcon size={13} /> 최근 항목
+                    </button>
                   </div>
                   {/* 흐린 컬럼 라벨 — 정렬 없음, 라벨만 (listhead와 같은 톤) */}
                   <div className="cf-home-listhead" aria-hidden>
                     <span>이름</span>
-                    <span className="cf-home-col-r">날짜</span>
+                    <span className="cf-home-col-r">
+                      {homeTab === 'ack' ? '확인' : homeTab === 'working' ? '활동' : '날짜'}
+                    </span>
                   </div>
-                  {recent.length === 0 ? (
+                  {homeTab === 'ack' ? (
+                    needAckFiles.length === 0 ? (
+                      <div className="cf-empty">
+                        확인할 문서가 없어요 — 요청받은 서명을 전부 마쳤어요
+                      </div>
+                    ) : (
+                      <div className="cf-home-list">
+                        {needAckFiles.map((f) => (
+                          <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
+                            <span className={`cf-icon ${f.type}`}>
+                              <TypeIcon type={f.type} size={18} name={f.name} />
+                            </span>
+                            <span className="cf-home-row-txt">
+                              <span className="cf-home-row-name">{f.name}</span>
+                              <span className="cf-home-row-sub">{fileLoc(f)}</span>
+                            </span>
+                            <span className="cf-home-col-r">
+                              <span className="cf-ack-cell">
+                                {f.ack_count ?? 0}/{f.ack_total ?? 0}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  ) : homeTab === 'working' ? (
+                    working.length === 0 ? (
+                      <div className="cf-empty">지금 열려 있는 문서가 없어요</div>
+                    ) : (
+                      <div className="cf-home-list">
+                        {working.map(({ f, ppl }) => (
+                          <button key={f.id} className="cf-home-row" onClick={() => openFile(f)}>
+                            <span className={`cf-icon ${f.type}`}>
+                              <TypeIcon type={f.type} size={18} name={f.name} />
+                            </span>
+                            <span className="cf-home-row-txt">
+                              <span className="cf-home-row-name">{f.name}</span>
+                              <span className="cf-home-row-sub">{fileLoc(f)}</span>
+                            </span>
+                            <span className="cf-home-col-r">
+                              <PresenceStack fileId={f.id} />
+                              {ppl.length}명 작업 중
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  ) : recent.length === 0 ? (
                     <div className="cf-empty">아직 활동이 없어요 — 문서를 열면 여기에 쌓여요</div>
                   ) : (
                     <div className="cf-home-list">
