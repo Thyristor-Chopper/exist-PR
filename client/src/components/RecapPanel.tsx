@@ -98,15 +98,27 @@ export default function RecapPanel({
 
   useEffect(load, [load]);
 
+  // 통화 끝 ~ 정리 완료 사이 "정리 중" 표시 — 없으면 "정리가 안 됐다"로 보인다
+  const [recapPending, setRecapPending] = useState(false);
   // 이 회의의 recap 알림이 오면 즉시 갱신 (통화 종료 → 카드가 눈앞에서 생김)
   useEffect(() => {
     const socket = getSocket();
     function onNotify(n: { kind?: string; meeting?: { code?: string | null } }) {
       if (n.kind === 'recap' && n.meeting?.code === code) load();
     }
+    function onStatus(p: { code?: string; state?: string }) {
+      if (p?.code !== code.toUpperCase()) return;
+      if (p.state === 'generating') setRecapPending(true);
+      else {
+        setRecapPending(false);
+        if (p.state === 'done') load();
+      }
+    }
     socket.on('agent:notify', onNotify);
+    socket.on('recap:status', onStatus);
     return () => {
       socket.off('agent:notify', onNotify);
+      socket.off('recap:status', onStatus);
     };
   }, [code, load]);
 
@@ -264,12 +276,20 @@ export default function RecapPanel({
         )}
       </div>
 
-      {recaps.length === 0 ? (
+      {/* 통화 끝 ~ 정리 완료 사이 — 스피너가 없으면 "정리가 안 됐다"로 오해한다 */}
+      {recapPending && (
+        <div className="hub-recap-pending">
+          <span className="hub-recap-spinner" aria-hidden />
+          AI가 회의를 정리하는 중이에요 — 잠시 후 여기에 결과가 떠요
+        </div>
+      )}
+
+      {recaps.length === 0 && !recapPending ? (
         <div className="hub-section-empty">
           아직 지난 회의 기록이 없어요. <b>통화하거나 채팅을 나눈 뒤 '지금 정리하기'</b>를 누르면
           AI가 결정·할 일을 정리해 여기에 둬요 — 참석하지 못한 팀원에게도 자동으로 전달됩니다.
         </div>
-      ) : (
+      ) : recaps.length === 0 ? null : (
         <div className="hub-recap-list">
           {shown.map((r, idx) => (
             <div

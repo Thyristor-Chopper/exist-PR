@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import db from './db.js';
-import { notifyUser } from './notify.js';
+import { notifyUser, emitToUser } from './notify.js';
 import { invalidateBrief } from './agent.js';
 import { invalidateAgenda, ensureAgentUser, settleAgendaAfterRecap } from './steward.js';
 import { transcribeMeetingAudio } from './stt.js';
@@ -808,14 +808,32 @@ export function runDecisionReminders(): number {
 // ── 통화 종료 유예 스케줄러 — 방이 비워지면 GRACE_MS 후 실행, 재입장 시 취소 ──
 const pending = new Map<string, ReturnType<typeof setTimeout>>();
 
+/** recap 진행 상태 방송 — 통화 끝~정리 완료 사이 "정리 중" 스피너용 (참가자 전원) */
+function emitRecapStatus(code: string, state: 'generating' | 'done' | 'cleared') {
+  try {
+    const m = db.prepare('SELECT id FROM meetings WHERE code = ?').get(code.toUpperCase()) as
+      | { id: number }
+      | undefined;
+    if (!m) return;
+    const rows = db
+      .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ?')
+      .all(m.id) as { user_id: number }[];
+    for (const r of rows) emitToUser(r.user_id, 'recap:status', { code: code.toUpperCase(), state });
+  } catch {
+    /* 방송 실패는 치명적이지 않음 */
+  }
+}
+
 export function scheduleRecap(code: string, sessionUserIds: number[]) {
   const key = code.toUpperCase();
   cancelScheduledRecap(key);
+  // 통화가 끝난 순간부터 "정리 중" — 유예(재입장 대기) 시간도 사용자에겐 정리 중으로 보이는 게 맞다
+  emitRecapStatus(key, 'generating');
   const timer = setTimeout(() => {
     pending.delete(key);
-    runRecapForMeeting(key, sessionUserIds).catch((err) =>
-      console.error('[recap] 실행 실패:', err),
-    );
+    runRecapForMeeting(key, sessionUserIds)
+      .catch((err) => console.error('[recap] 실행 실패:', err))
+      .finally(() => emitRecapStatus(key, 'done'));
   }, GRACE_MS);
   pending.set(key, timer);
 }
@@ -827,5 +845,6 @@ export function cancelScheduledRecap(code: string) {
   if (t) {
     clearTimeout(t);
     pending.delete(key);
+    emitRecapStatus(key, 'cleared'); // 재입장 — 정리 중 스피너 내림
   }
 }

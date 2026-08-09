@@ -13352,6 +13352,33 @@ button.cf-home-fold {
 .cf-details-trashicon svg {
   color: var(--red); /* 세부정보 휴지통 카드도 동일 */
 }
+
+/* 통화 끝 ~ recap 완료 사이 "정리 중" 표시 (RecapPanel) */
+.hub-recap-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  border-radius: 10px;
+}
+.hub-recap-spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--green) 30%, transparent);
+  border-top-color: var(--green);
+  animation: hub-recap-spin 0.8s linear infinite;
+}
+@keyframes hub-recap-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .cf-entry-trash.droptarget {
   outline: 2px solid var(--red);
   outline-offset: -2px;
