@@ -19790,7 +19790,6 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
   align-items: stretch;
   gap: 0; /* 컬럼 간격은 셀 패딩으로 — gap이면 구분선이 버튼에서 5px 떠버린다 */
   padding: 0; /* 행과 함께 플러시 — 컬럼 정렬 유지하려면 행 가로 패딩과 항상 같아야 함 */
-  border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
 }
 
@@ -19812,7 +19811,7 @@ html:not(.dark) .strip-page-btn:active:not(:disabled) {
 .cf-listhead > *:not(:last-child)::after {
   content: '';
   position: absolute;
-  top: 4px;
+  top: 0;
   bottom: 4px;
   right: 0; /* 버튼 모서리에 딱 붙는 구분선 */
   width: 1px;
