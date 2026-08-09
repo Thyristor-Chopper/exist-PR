@@ -1856,6 +1856,21 @@ export default function CollabFiles({
       return next;
     });
   }
+  // 첫 진입 시드 — 저장된 고정이 아예 없으면(키 자체 없음) 기본 폴더 7종을 고정으로.
+  // 사용자가 해제하면 키가 남아 다시 안 깔린다 (서버 SEED_FOLDERS와 같은 목록)
+  useEffect(() => {
+    if (files.length === 0) return;
+    if (localStorage.getItem(`exist:cf-fav:${code}`) != null) return;
+    const SEED = new Set([
+      '작업·교대 일지', '설비·정비', '안전·환경', '품질·검사', '작업표준·SOP', '도면·설계', '회의 자료',
+    ]);
+    const ids = files
+      .filter((f) => f.type === 'folder' && f.parent_id === null && SEED.has(f.name))
+      .map((f) => f.id);
+    localStorage.setItem(`exist:cf-fav:${code}`, JSON.stringify(ids));
+    if (ids.length > 0) setFavs(ids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, code]);
 
   // ── 미리보기 — 단일 선택된 파일 안에 뭐가 들었는지 ──
   useEffect(() => {
