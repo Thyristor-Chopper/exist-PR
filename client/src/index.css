@@ -12728,6 +12728,30 @@ input:focus {
 .cf-ack-fold:hover {
   color: var(--text);
 }
+/* 이번 개정에서 바뀐 것 — AI 요약 박스 (조용한 스타일: 연한 배경, 테두리 없음) */
+.cf-ack-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.cf-ack-note-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+.cf-ack-note-line {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+/* 자동 에스컬레이션 안내 한 줄 — cf-ack-hist와 같은 톤 */
+.cf-ack-auto {
+  font-size: 11px;
+  color: var(--text-sub);
+}
 /* 확인 필요 뷰 라벨 — 체크는 빨강 (홈 라벨의 노랑 별보다 구체적으로 이겨야 함) */
 .cf-home-label.cf-ack-label svg {
   color: var(--red);

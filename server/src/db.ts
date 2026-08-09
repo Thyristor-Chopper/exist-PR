@@ -631,6 +631,33 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_file_acks_history ON file_acks_history(file_id, rev);
 `);
 
+/* 개정 스냅샷 — 개정(rev) 발행 시점의 본문 평문 + AI 요약(note).
+ * text: 추출 가능한 편집 문서만 (업로드 blob 등은 NULL). note는 발행 직후 비동기로 채워진다
+ * — "이번 개정에서 바뀐 것" 회람 알림·세부정보 박스의 근거 (fileai.ts) */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS file_rev_snapshots (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id    INTEGER NOT NULL REFERENCES collab_files(id),
+    rev        INTEGER NOT NULL,
+    text       TEXT,
+    note       TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(file_id, rev)
+  );
+`);
+
+/* 회람 미확인 자동 에스컬레이션 발송 기록 — 파일×rev 단위. 수동 리마인드(1시간 쿨다운,
+ * 메모리)와 별개의 자체 기록 — 마지막 자동 발송에서 ACK_AUTOREMIND_HOURS가 다시 지나야 재발송 */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS file_ack_autoremind (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER NOT NULL REFERENCES collab_files(id),
+    rev     INTEGER NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_file_ack_autoremind ON file_ack_autoremind(file_id, rev);
+`);
+
 
 /* 통화 음성 전사 — 각 참가자 브라우저의 STT(Web Speech) 결과.
  * recap·결정 원장·AI 총무의 근거로 채팅과 함께 쓰인다. */

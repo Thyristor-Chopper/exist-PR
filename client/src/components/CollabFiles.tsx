@@ -87,6 +87,10 @@ interface FileAckStatus {
   acks: { username: string; ack_at: string; signature: string | null }[];
   /** 미서명자 — 세부정보 "누가 아직 안 봤나" 명단 */
   pending: { username: string; avatar: string | null }[];
+  /** 현재 개정 번호 */
+  rev?: number;
+  /** 최신 개정의 AI 요약 — "이번 개정에서 바뀐 것" 최대 3줄 (줄바꿈 구분, 없으면 null) */
+  note?: string | null;
 }
 
 const TYPE_LABEL: Record<Exclude<FileType, 'folder'>, string> = {
@@ -4095,6 +4099,19 @@ export default function CollabFiles({
                           : `${selected.ack_count ?? 0}/${selected.ack_total ?? 0}`}
                       </b>
                     </div>
+                    {/* 이번 개정에서 바뀐 것 — 개정 발행 시 AI가 이전·새 본문을 비교해 만든 요약 (없으면 숨김) */}
+                    {ackStatus?.note && (
+                      <div className="cf-ack-note">
+                        <div className="cf-ack-note-title">
+                          ✦ 이번 개정에서 바뀐 것{ackStatus.rev ? ` (v${ackStatus.rev})` : ''}
+                        </div>
+                        {ackStatus.note.split('\n').map((ln, i) => (
+                          <div key={i} className="cf-ack-note-line">
+                            {ln}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {/* 미확인자 명단 — 누가 아직 안 봤는지 (아바타 정사각 규칙) */}
                     {ackStatus &&
                       (ackStatus.pending.length > 0 ? (
@@ -4179,6 +4196,10 @@ export default function CollabFiles({
                       >
                         🔔 미서명자 리마인드
                       </button>
+                    )}
+                    {/* 자동 에스컬레이션 안내 — 서버 스케줄러(ACK_AUTOREMIND_HOURS, 기본 48시간) */}
+                    {ackStatus && ackStatus.pending.length > 0 && (
+                      <div className="cf-ack-auto">서명이 이틀째 없으면 AI가 자동으로 리마인드해요</div>
                     )}
                     {/* 개정 발행 (재회람) — 내용이 바뀌어 전원 재확인이 필요할 때 */}
                     {canEdit(selected) && (

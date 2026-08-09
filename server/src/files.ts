@@ -25,6 +25,7 @@ import {
   buildDocYdocFromMarkdown,
 } from './importFile.js';
 import { notifyUser, emitToUser } from './notify.js';
+import { extractRoomText, afterRevise, ackRemindLast } from './fileai.js';
 import { canManageMeeting } from './perm.js';
 import { sendDmCore } from './dm.js';
 import { audit as orgAudit } from './orgs.js';
@@ -125,6 +126,13 @@ export function deleteMeetingFiles(meetingId: number, meetingCode: string) {
   for (const v of vers) deleteBlob(v.blob_path);
   db.prepare(
     'DELETE FROM file_versions WHERE file_id IN (SELECT id FROM collab_files WHERE meeting_id = ?)',
+  ).run(meetingId);
+  // 개정 스냅샷·자동 리마인드 기록도 함께 (fileai) — 남으면 고아 행
+  db.prepare(
+    'DELETE FROM file_rev_snapshots WHERE file_id IN (SELECT id FROM collab_files WHERE meeting_id = ?)',
+  ).run(meetingId);
+  db.prepare(
+    'DELETE FROM file_ack_autoremind WHERE file_id IN (SELECT id FROM collab_files WHERE meeting_id = ?)',
   ).run(meetingId);
   // 레거시 룸도 정리 (파일로 흡수 안 된 상태로 남았을 수 있음)
   for (const l of LEGACY) deleteYdoc(`${l.prefix}${meetingCode.toUpperCase()}`);
@@ -235,20 +243,18 @@ function reviseFile(
     'files.revise',
     `그룹 "${meetingLabel(meeting)}" 파일 "${f.name}" 개정 v${nextRev} 발행${f.ack_required ? ' — 열람 서명 리셋(지난 서명은 이력 보관)' : ''}`,
   );
-  // 회람 문서였다면 전원에게 재서명 알림 (ack-request 켤 때와 같은 계열)
-  if (f.ack_required) {
-    const members = db
-      .prepare('SELECT user_id FROM meeting_participants WHERE meeting_id = ? AND user_id != ?')
-      .all(meeting.id, actorId) as { user_id: number }[];
-    for (const m of members) {
-      notifyUser(m.user_id, {
-        from: actorName,
-        text: `"${f.name}" 문서의 개정 v${nextRev}이 발행됐어요 — 다시 열람 서명이 필요해요`,
-        kind: 'file-ack',
-        meetingCode: meeting.code,
-      });
-    }
-  }
+  // 스냅샷(동기) + AI "바뀐 점" 요약(비동기, 10초 캡) + 회람 재서명 알림 — fileai.ts.
+  // API 응답은 여기서 즉시 반환되고, 알림은 요약이 끝나면(또는 실패·타임아웃 시 요약 없이) 나간다
+  afterRevise({
+    meetingId: meeting.id,
+    meetingCode: meeting.code,
+    actorId,
+    actorName,
+    fileId: f.id,
+    fileName: f.name,
+    rev: nextRev,
+    ackRequired: !!f.ack_required,
+  });
   return nextRev;
 }
 
@@ -432,8 +438,8 @@ router.post('/:fileId/ack', (req: AuthedRequest, res) => {
   res.json({ ok: true });
 });
 
-/** 열람 서명 리마인드 쿨다운 — 파일당 1시간 (결정 리마인드와 동일 정책) */
-const ackRemindLast = new Map<number, number>();
+/* 열람 서명 리마인드 쿨다운(파일당 1시간)은 fileai.ts의 ackRemindLast 공유 —
+ * 자동 에스컬레이션 스윕이 수동 직후에 겹쳐 보채지 않게 같은 시각을 본다 */
 
 /** 미서명자 리마인드 — 결정 리마인드의 문서판. 만든 사람·호스트·관리자만 */
 router.post('/:fileId/ack-remind', (req: AuthedRequest, res) => {
@@ -529,9 +535,11 @@ router.get('/:fileId/acks', (req: AuthedRequest, res) => {
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   const f = db
     .prepare(
-      'SELECT id, ack_required FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+      'SELECT id, ack_required, COALESCE(rev, 1) AS rev FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
     )
-    .get(req.params.fileId, r.meeting.id) as { id: number; ack_required: number } | undefined;
+    .get(req.params.fileId, r.meeting.id) as
+    | { id: number; ack_required: number; rev: number }
+    | undefined;
   if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
   const acks = db
     .prepare(
@@ -554,7 +562,11 @@ router.get('/:fileId/acks', (req: AuthedRequest, res) => {
        ORDER BY u.username`,
     )
     .all(r.meeting.id, f.id);
-  res.json({ required: !!f.ack_required, total, acks, pending });
+  // 최신 rev의 AI 요약 — "이번 개정에서 바뀐 것" 박스 (없으면 null, 클라는 숨김)
+  const snap = db
+    .prepare('SELECT note FROM file_rev_snapshots WHERE file_id = ? AND rev = ?')
+    .get(f.id, f.rev) as { note: string | null } | undefined;
+  res.json({ required: !!f.ack_required, total, acks, pending, rev: f.rev, note: snap?.note ?? null });
 });
 
 /* ── 업로드 파일(blob) 미리보기 시청자 — yjs room이 없는 파일의 프레즌스 (소켓 신고 기반).
@@ -1053,6 +1065,13 @@ router.delete('/trash', (req: AuthedRequest, res) => {
     db.prepare(
       'DELETE FROM file_versions WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
     ).run(f.id);
+    // 개정 스냅샷·자동 리마인드 기록도 함께 (fileai)
+    db.prepare(
+      'DELETE FROM file_rev_snapshots WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
+    ).run(f.id);
+    db.prepare(
+      'DELETE FROM file_ack_autoremind WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
+    ).run(f.id);
     purged += db.prepare('DELETE FROM collab_files WHERE deleted_root = ?').run(f.id).changes;
   }
   // 되돌릴 수 없는 삭제 — 조직 감사 로그에 기록 (실제로 지운 게 있을 때만)
@@ -1110,49 +1129,7 @@ router.get('/recent/list', (req: AuthedRequest, res) => {
   res.json(rows);
 });
 
-/** 문서 내용 추출 — 내용 검색용. 에디터별 Yjs 공유 타입에서 텍스트만 긁는다 */
-function extractRoomText(room: string): string {
-  const doc = readYdocSnapshot(room);
-  if (!doc) return '';
-  const parts: string[] = [];
-  try {
-    // 코드 — files 맵 + file:{id} 텍스트
-    doc.getMap('files').forEach((v, k) => {
-      const meta = v as { name?: string; dir?: boolean } | undefined;
-      if (meta?.dir) return;
-      parts.push(String(meta?.name ?? ''), doc.getText(`file:${k}`).toString());
-    });
-    // 문서 — docs 맵 + doc:{id} XmlFragment (태그 제거)
-    doc.getMap('docs').forEach((v, k) => {
-      const meta = v as { name?: string } | undefined;
-      parts.push(
-        String(meta?.name ?? ''),
-        doc.getXmlFragment(`doc:${k}`).toString().replace(/<[^>]+>/g, ' '),
-      );
-    });
-    // 시트 — sheets 맵 + cellsKey 맵 값들
-    doc.getMap('sheets').forEach((v) => {
-      const meta = v as { cellsKey?: string } | undefined;
-      if (!meta?.cellsKey) return;
-      doc.getMap(meta.cellsKey).forEach((cv) => parts.push(String(cv ?? '')));
-    });
-    // 발표 — slide-els:{id} 요소들의 text
-    doc.getMap('slides').forEach((_v, k) => {
-      doc.getMap(`slide-els:${k}`).forEach((el) => {
-        const t = (el as { text?: unknown } | undefined)?.text;
-        if (t) parts.push(String(t));
-      });
-    });
-    // 캔버스 — elements 요소들의 text
-    doc.getMap('elements').forEach((el) => {
-      const t = (el as { text?: unknown } | undefined)?.text;
-      if (t) parts.push(String(t));
-    });
-  } catch {
-    /* 구조가 다른 룸 — 무시 */
-  }
-  return parts.join('\n');
-}
+/* 문서 내용 추출(extractRoomText)은 fileai.ts로 이동 — 내용 검색과 개정 스냅샷이 공용 */
 
 /** 내용 검색 — 문서 안 텍스트까지 (드라이브식). 이름 검색은 클라가 담당 */
 router.get('/search/content', (req: AuthedRequest, res) => {
@@ -1462,6 +1439,13 @@ router.delete('/trash/:fileId', (req: AuthedRequest, res) => {
   for (const v of vers) deleteBlob(v.blob_path);
   db.prepare(
     'DELETE FROM file_versions WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
+  ).run(f.id);
+  // 개정 스냅샷·자동 리마인드 기록도 함께 (fileai)
+  db.prepare(
+    'DELETE FROM file_rev_snapshots WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
+  ).run(f.id);
+  db.prepare(
+    'DELETE FROM file_ack_autoremind WHERE file_id IN (SELECT id FROM collab_files WHERE deleted_root = ?)',
   ).run(f.id);
   const info = db.prepare('DELETE FROM collab_files WHERE deleted_root = ?').run(f.id);
   // 되돌릴 수 없는 삭제 — 조직 감사 로그에 기록

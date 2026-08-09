@@ -9,6 +9,7 @@ import { attachYjs } from './ydoc.js';
 import { initNotifier, notifyUser, emitToUser } from './notify.js';
 import { setBlobViewing, clearBlobViewingBySocket } from './files.js';
 import { sweepHandoverEscalations } from './handover.js';
+import { sweepFileAckAutoReminders, ackAutoRemindHours } from './fileai.js';
 import { ensureAgentUser } from './steward.js';
 import { runTodoReminders } from './todos.js';
 import { runDecisionReminders } from './recap.js';
@@ -67,6 +68,24 @@ setInterval(() => {
     console.error('[handover] 에스컬레이션 스윕 실패:', err);
   }
 }, 10 * 60_000);
+
+// 회람(열람 서명) 미확인 자동 에스컬레이션 — 기본 시간당 1회 스윕 (기동 45초 뒤 1회 선실행).
+// ACK_AUTOREMIND_HOURS가 1 미만(데모, 예: 0.02 ≈ 1분)이면 1분 간격으로 촘촘히 — 시연에서 바로 보이게
+const ackSweepMs = ackAutoRemindHours() < 1 ? 60_000 : 60 * 60_000;
+setTimeout(() => {
+  try {
+    sweepFileAckAutoReminders();
+  } catch (err) {
+    console.error('[fileai] 회람 자동 리마인드 스윕 실패:', err);
+  }
+}, 45_000);
+setInterval(() => {
+  try {
+    sweepFileAckAutoReminders();
+  } catch (err) {
+    console.error('[fileai] 회람 자동 리마인드 스윕 실패:', err);
+  }
+}, ackSweepMs);
 
 /* ── 출근 브리핑 — 4시간 이상 자리를 비웠다 돌아오면(교대 출근의 신호) 밀린 확인거리를 한 번에.
  * 교대 누락의 타이밍 해법: 자는 사람에게 낮에 쏜 알림은 묻힌다 — 출근 순간에 다시 모아준다 */
