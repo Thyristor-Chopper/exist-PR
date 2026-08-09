@@ -14,6 +14,7 @@ import {
   writeYdoc,
   roomPresence,
   logFileActivity,
+  setOnDocSaved,
 } from './ydoc.js';
 import {
   parseCsv,
@@ -228,6 +229,21 @@ function notifyFilesChanged(code: string) {
     }, 300),
   );
 }
+
+// Yjs 편집 저장 → 그룹에 files:changed — 목록의 "수정한 날짜"가 남들에게도 실시간으로
+setOnDocSaved((room) => {
+  try {
+    const row = db
+      .prepare(
+        `SELECT m.code FROM collab_files f JOIN meetings m ON m.id = f.meeting_id
+         WHERE f.room = ? AND f.deleted_at IS NULL`,
+      )
+      .get(room) as { code: string } | undefined;
+    if (row) notifyFilesChanged(row.code);
+  } catch {
+    /* 방송 실패는 치명적이지 않음 */
+  }
+});
 
 // 변경 성공(2xx·비GET) 시 자동 방송 — 개별 라우트에 일일이 심지 않는다
 router.use((req, res, next) => {

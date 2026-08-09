@@ -634,6 +634,12 @@ export default function CollabFiles({
   }, [code]);
 
   useEffect(load, [load]);
+  // 에디터 닫고 목록으로 돌아오면 재조회 — 편집으로 갱신된 수정한 날짜·크기가 바로 보이게
+  const prevActiveRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevActiveRef.current != null && activeId == null) load();
+    prevActiveRef.current = activeId;
+  }, [activeId, load]);
   // 휴지통 항목 수 — 루트의 휴지통 아이콘 배지용으로 처음부터 로드
   useEffect(() => {
     void loadTrash();

@@ -127,6 +127,14 @@ function filePath(name: string): string {
   return path.join(YDOCS_DIR, `${name.replace(/[^\w-]/g, '_')}.bin`);
 }
 
+/* 저장 훅 — files.ts가 등록 (ydoc→files 직접 import는 순환이라 콜백으로).
+ * 편집 중 목록의 "수정한 날짜"가 남들에게도 흐르게 files:changed 방송용 */
+let onDocSaved: ((room: string) => void) | null = null;
+export function setOnDocSaved(fn: (room: string) => void) {
+  onDocSaved = fn;
+}
+const docSavedLast = new Map<string, number>();
+
 function scheduleSave(doc: SharedDoc) {
   if (doc.saveTimer) clearTimeout(doc.saveTimer);
   doc.saveTimer = setTimeout(() => {
@@ -136,6 +144,12 @@ function scheduleSave(doc: SharedDoc) {
       db.prepare(
         "UPDATE collab_files SET updated_at = datetime('now') WHERE room = ? AND deleted_at IS NULL",
       ).run(doc.name);
+      // 목록 갱신 방송 — 타이핑 내내 스팸이 안 되게 룸당 30초 스로틀
+      const last = docSavedLast.get(doc.name) ?? 0;
+      if (Date.now() - last > 30_000) {
+        docSavedLast.set(doc.name, Date.now());
+        onDocSaved?.(doc.name);
+      }
     } catch {
       /* best effort */
     }
