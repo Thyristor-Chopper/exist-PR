@@ -12976,6 +12976,54 @@ input:focus {
   cursor: default;
 }
 
+/* 통합 공유 모달 — 채널·DM·배포·링크 복사 한 곳에 (cf-move 모달 문법).
+ * 섹션이 셋이라 길어질 수 있음 → 90dvh 캡 + 본문 스크롤 (모바일 주소창 dvh 문법) */
+.cf-share-modal {
+  max-height: min(640px, 90dvh);
+}
+.cf-share-label {
+  padding: 10px 10px 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+.cf-share-label ~ .cf-share-label {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.cf-share-hash {
+  color: var(--text-sub);
+  font-weight: 800;
+}
+/* 배포 옵션 — 그룹 선택 시에만 본문 안에 노출 (원 모달의 풋터 위치와 달리 인라인) */
+.cf-share-modal .cf-dist-ack {
+  border-top: none;
+  padding: 6px 10px 4px;
+}
+.cf-share-dist-go {
+  margin: 2px 10px 6px;
+  border: none;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cf-share-dist-go:hover:not(:disabled) {
+  background: var(--green-dark);
+}
+.cf-share-dist-go:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* 풋터 2버튼 — 링크 복사(보조) + 닫기 */
+.cf-dist-acts .cf-share-link {
+  border-right: 1px solid var(--border);
+}
+
 /* 데스크탑 폴더 트리 — 탐색기 왼쪽 패널 */
 /* ⋯ 메뉴 위험 항목 — 휴지통 비우기 */
 .cf-more-menu .cf-menu-danger {

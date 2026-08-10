@@ -445,10 +445,13 @@ export default function CollabFiles({
   // 버전 기록 접기 — 기본 접힘 (세부정보 과밀 방지, 제목의 vN이 요약)
   const [versionsOpen, setVersionsOpen] = useState(false);
   const versionInputRef = useRef<HTMLInputElement | null>(null);
-  // DM으로 파일 보내기 — 대상 파일 + 멤버 목록
-  const [dmPickFor, setDmPickFor] = useState<CollabFile | null>(null);
-  // 다른 그룹으로 배포 — 대상 그룹 픽커 모달 (본사 SOP → 공장 그룹 회람)
-  const [distFor, setDistFor] = useState<CollabFile | null>(null);
+  // 통합 공유 모달 — 채널 게시·DM·다른 그룹 배포·링크 복사를 한 곳에 (단일 파일만, 폴더는 즉시 링크 복사)
+  const [shareFor, setShareFor] = useState<CollabFile | null>(null);
+  // 이 그룹 채널 목록 — 통화 채널(kind='call')은 로드 시점에 제외
+  const [shareChannels, setShareChannels] = useState<
+    { id: number; name: string; kind?: string | null }[] | null
+  >(null);
+  const [shareBusy, setShareBusy] = useState(false);
   const [dmMembers, setDmMembers] = useState<
     { id: number; username: string; avatar: string | null }[] | null
   >(null);
@@ -1161,19 +1164,26 @@ export default function CollabFiles({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
 
-  // DM 보내기 모달 — 열릴 때 멤버 목록 로드
+  // 공유 모달 — 열릴 때 채널·멤버 목록 로드 (배포 대상 그룹은 아래 distGroups 이펙트)
   useEffect(() => {
-    if (!dmPickFor) {
+    if (!shareFor) {
       setDmMembers(null);
+      setShareChannels(null);
       return;
     }
+    void api<{ id: number; name: string; kind?: string | null }[]>(
+      `/api/meetings/${code}/channels`,
+      { silent: true },
+    )
+      .then((list) => setShareChannels(list.filter((c) => c.kind !== 'call')))
+      .catch(() => setShareChannels([]));
     void api<{ id: number; username: string; avatar: string | null }[]>(
       `/api/meetings/${code}/files/members/list`,
     )
       .then(setDmMembers)
       .catch(() => setDmMembers([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dmPickFor?.id]);
+  }, [shareFor?.id]);
 
   async function uploadNewVersion(f: CollabFile, file: File) {
     if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
@@ -1212,16 +1222,34 @@ export default function CollabFiles({
   }
 
   async function sendFileDm(userId: number) {
-    if (!dmPickFor) return;
+    if (!shareFor) return;
     try {
-      await api(`/api/meetings/${code}/files/${dmPickFor.id}/dm`, {
+      await api(`/api/meetings/${code}/files/${shareFor.id}/dm`, {
         method: 'POST',
         body: { userId },
       });
       toast('DM으로 보냈어요');
-      setDmPickFor(null);
+      setShareFor(null);
     } catch {
       /* 전역 토스트 */
+    }
+  }
+
+  /** 그룹 채널로 공유 — 클릭 즉시 해당 채널에 내 이름으로 게시 */
+  async function shareToChannel(ch: { id: number; name: string }) {
+    if (!shareFor || shareBusy) return;
+    setShareBusy(true);
+    try {
+      await api(`/api/meetings/${code}/files/${shareFor.id}/share-channel`, {
+        method: 'POST',
+        body: { channelId: ch.id },
+      });
+      toast(`『${shareFor.name}』을 #${ch.name} 채널에 공유했어요`);
+      setShareFor(null);
+    } catch {
+      /* 전역 토스트 */
+    } finally {
+      setShareBusy(false);
     }
   }
 
@@ -1233,7 +1261,7 @@ export default function CollabFiles({
   const [distAck, setDistAck] = useState(true);
   const [distBusy, setDistBusy] = useState(false);
   useEffect(() => {
-    if (!distFor) {
+    if (!shareFor) {
       setDistGroups(null);
       setDistTarget(null);
       setDistAck(true);
@@ -1245,19 +1273,19 @@ export default function CollabFiles({
       .then(setDistGroups)
       .catch(() => setDistGroups([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [distFor?.id]);
+  }, [shareFor?.id]);
 
   async function distributeNow() {
-    if (!distFor || !distTarget || distBusy) return;
+    if (!shareFor || !distTarget || distBusy) return;
     const g = distGroups?.find((x) => x.code === distTarget);
     setDistBusy(true);
     try {
-      await api(`/api/meetings/${code}/files/${distFor.id}/distribute`, {
+      await api(`/api/meetings/${code}/files/${shareFor.id}/distribute`, {
         method: 'POST',
         body: { targetCode: distTarget, requestAck: distAck },
       });
-      toast(`『${distFor.name}』을 ${g?.title || distTarget} 그룹에 배포했어요`);
-      setDistFor(null);
+      toast(`『${shareFor.name}』을 ${g?.title || distTarget} 그룹에 배포했어요`);
+      setShareFor(null);
     } catch {
       /* 전역 토스트 */
     } finally {
@@ -2112,6 +2140,16 @@ export default function CollabFiles({
       .catch(() => toast('클립보드 복사에 실패했어요', 'error'));
   }
 
+  /** 통합 공유 진입점 — 채널·DM·배포·링크 복사 모달.
+   * 폴더는 채널·DM·배포가 다 의미 없으니 기존 동작대로 즉시 링크 복사 */
+  function openShare(f: CollabFile) {
+    if (f.type === 'folder') {
+      share(f);
+      return;
+    }
+    setShareFor(f);
+  }
+
   function TypeMenu({ parentId }: { parentId: number | null }) {
     return (
       <div className="cf-type-menu">
@@ -2544,7 +2582,7 @@ export default function CollabFiles({
               onClick={() =>
                 trashOpen
                   ? trashSelList.length === 1 && share(trashSelList[0])
-                  : selected && share(selected)
+                  : selected && openShare(selected)
               }
             >
               <ShareIcon size={15} />
@@ -4424,16 +4462,10 @@ export default function CollabFiles({
                 </button>
               </div>
             )}
-            {/* DM으로 콕 집어 보내기 */}
-            <button className="cf-ack-req" onClick={() => setDmPickFor(selected)}>
-              ✉ DM으로 보내기
+            {/* 통합 공유 — 채널 게시·DM·다른 그룹 배포·링크 복사 (폴더는 즉시 링크 복사) */}
+            <button className="cf-ack-req" onClick={() => openShare(selected)}>
+              ↗ 공유…
             </button>
-            {/* 그룹 간 배포 — 본사에서 개정한 SOP를 공장 그룹으로 (사본 + 회람) */}
-            {selected.type !== 'folder' && (
-              <button className="cf-ack-req" onClick={() => setDistFor(selected)}>
-                ⇄ 다른 그룹으로 배포…
-              </button>
-            )}
             {/* 열람 서명 (회람 사인) — 요청·현황·서명 */}
             {selected.type !== 'folder' && (
               <div className="cf-ack">
@@ -4814,17 +4846,11 @@ export default function CollabFiles({
                 >
                   이름 바꾸기
                 </button>
+                {/* 통합 공유 모달 (채널·DM·배포·링크) — 단일 대상만 */}
                 <button
+                  disabled={ctxIds.length > 1}
                   onClick={() => {
-                    setDmPickFor(ctxTarget);
-                    setCtxMenu(null);
-                  }}
-                >
-                  DM으로 보내기
-                </button>
-                <button
-                  onClick={() => {
-                    share(ctxTarget);
+                    openShare(ctxTarget);
                     setCtxMenu(null);
                   }}
                 >
@@ -4849,18 +4875,6 @@ export default function CollabFiles({
                     }}
                   >
                     개정 발행 (재회람)
-                  </button>
-                )}
-                {/* 그룹 간 배포 — 다른 그룹에 사본 + 회람 (파일만·단일 대상만) */}
-                {ctxTarget.type !== 'folder' && (
-                  <button
-                    disabled={ctxIds.length > 1}
-                    onClick={() => {
-                      setDistFor(ctxTarget);
-                      setCtxMenu(null);
-                    }}
-                  >
-                    다른 그룹으로 배포…
                   </button>
                 )}
                 <div className="cf-menu-sep" />
@@ -5031,34 +5045,36 @@ export default function CollabFiles({
           e.target.value = '';
         }}
       />
-      {/* DM으로 파일 보내기 — 멤버 픽커 */}
-      {dmPickFor && (
-        <div className="cf-move-overlay" onClick={() => setDmPickFor(null)}>
-          <div className="cf-move-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="cf-move-title">"{dmPickFor.name}" DM으로 보내기</div>
+      {/* 통합 공유 모달 — 채널 게시 · DM · 다른 그룹 배포 · 링크 복사 (cf-move 모달 문법) */}
+      {shareFor && (
+        <div className="cf-move-overlay" onClick={() => setShareFor(null)}>
+          <div className="cf-move-modal cf-share-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cf-move-title">"{shareFor.name}" 공유</div>
             <div className="cf-move-tree">
+              {/* ① 이 그룹 채널로 — 클릭 즉시 게시 (통화 채널은 로드 시 제외) */}
+              <div className="cf-share-label">이 그룹 채널로</div>
+              {shareChannels === null && <div className="cf-move-empty">불러오는 중…</div>}
+              {shareChannels?.length === 0 && (
+                <div className="cf-move-empty">공유할 채널이 없어요</div>
+              )}
+              {shareChannels?.map((c) => (
+                <button key={c.id} disabled={shareBusy} onClick={() => void shareToChannel(c)}>
+                  <span className="cf-share-hash">#</span> {c.name}
+                </button>
+              ))}
+              {/* ② 사람에게 — DM으로 콕 집어 보내기 */}
+              <div className="cf-share-label">사람에게 (DM)</div>
               {dmMembers === null && <div className="cf-move-empty">불러오는 중…</div>}
               {dmMembers?.length === 0 && (
                 <div className="cf-move-empty">보낼 사람이 없어요 — 그룹에 다른 멤버가 없어요</div>
               )}
               {dmMembers?.map((m) => (
-                <button key={m.id} onClick={() => void sendFileDm(m.id)}>
+                <button key={m.id} disabled={shareBusy} onClick={() => void sendFileDm(m.id)}>
                   <Avatar value={m.avatar} className="cf-dm-avatar" /> {dn(m.username)}
                 </button>
               ))}
-            </div>
-            <button className="cf-move-cancel" onClick={() => setDmPickFor(null)}>
-              취소
-            </button>
-          </div>
-        </div>
-      )}
-      {/* 다른 그룹으로 배포 — 그룹 픽커 + 열람 서명 옵션 (cf-move 모달 문법) */}
-      {distFor && (
-        <div className="cf-move-overlay" onClick={() => setDistFor(null)}>
-          <div className="cf-move-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="cf-move-title">"{distFor.name}" 다른 그룹으로 배포</div>
-            <div className="cf-move-tree">
+              {/* ③ 다른 그룹으로 배포 — 사본 + 선택 시 회람 (그룹 선택 시에만 옵션·버튼 노출) */}
+              <div className="cf-share-label">다른 그룹으로 배포</div>
               {distGroups === null && <div className="cf-move-empty">불러오는 중…</div>}
               {distGroups?.length === 0 && (
                 <div className="cf-move-empty">
@@ -5069,31 +5085,39 @@ export default function CollabFiles({
                 <button
                   key={g.id}
                   className={distTarget === g.code ? 'cf-dist-on' : undefined}
-                  onClick={() => setDistTarget(g.code)}
+                  onClick={() => setDistTarget(distTarget === g.code ? null : g.code)}
                 >
                   <UsersIcon size={14} /> {g.title || g.code}
                   {distTarget === g.code && <CheckMarkIcon size={12} />}
                 </button>
               ))}
+              {distTarget && (
+                <>
+                  <label className="cf-dist-ack cf-share-ack">
+                    <input
+                      type="checkbox"
+                      checked={distAck}
+                      onChange={(e) => setDistAck(e.target.checked)}
+                    />
+                    열람 서명 요청 걸기 — 대상 그룹 전원에게 회람돼요
+                  </label>
+                  <button
+                    className="cf-share-dist-go"
+                    disabled={distBusy}
+                    onClick={() => void distributeNow()}
+                  >
+                    {distBusy ? '배포 중…' : '배포'}
+                  </button>
+                </>
+              )}
             </div>
-            <label className="cf-dist-ack">
-              <input
-                type="checkbox"
-                checked={distAck}
-                onChange={(e) => setDistAck(e.target.checked)}
-              />
-              열람 서명 요청 걸기 — 대상 그룹 전원에게 회람돼요
-            </label>
+            {/* 하단 보조 — 그룹 링크 복사 + 닫기 */}
             <div className="cf-dist-acts">
-              <button className="cf-move-cancel" onClick={() => setDistFor(null)}>
-                취소
+              <button className="cf-move-cancel cf-share-link" onClick={() => share(shareFor)}>
+                🔗 그룹 링크 복사
               </button>
-              <button
-                className="cf-dist-go"
-                disabled={!distTarget || distBusy}
-                onClick={() => void distributeNow()}
-              >
-                {distBusy ? '배포 중…' : '배포'}
+              <button className="cf-move-cancel" onClick={() => setShareFor(null)}>
+                닫기
               </button>
             </div>
           </div>

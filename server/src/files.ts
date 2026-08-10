@@ -24,7 +24,8 @@ import {
   buildDocYdoc,
   buildDocYdocFromMarkdown,
 } from './importFile.js';
-import { notifyUser, emitToUser } from './notify.js';
+import { notifyUser, emitToUser, getIo } from './notify.js';
+import { resolveChannel } from './channels.js';
 import { extractRoomText, afterRevise, ackRemindLast } from './fileai.js';
 import { canManageMeeting } from './perm.js';
 import { sendDmCore } from './dm.js';
@@ -1198,6 +1199,68 @@ router.post('/:fileId/dm', (req: AuthedRequest, res) => {
     `📄 "${f.name}" 파일을 공유했어요 — "${title?.title ?? r.meeting.code}" 그룹의 공동편집에서 열 수 있어요`,
   );
   res.json({ ok: true });
+});
+
+/** 파일을 그룹 채널로 공유 — 해당 채널 채팅에 요청자 본인 이름으로 게시. body { channelId }.
+ * 업로드 파일(type='file')은 파일 카드(다운로드 경로), 공동편집 문서는 안내 문구 (DM 문구 문법).
+ * 채널은 이 그룹 소속이어야 하고 통화 채널(kind='call')은 제외 */
+router.post('/:fileId/share-channel', (req: AuthedRequest, res) => {
+  const r = checkParticipant((req.params as { code?: string }).code, req.userId!);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const f = db
+    .prepare(
+      'SELECT id, name, type, size FROM collab_files WHERE id = ? AND meeting_id = ? AND deleted_at IS NULL',
+    )
+    .get(req.params.fileId, r.meeting.id) as
+    | { id: number; name: string; type: FileType; size: number | null }
+    | undefined;
+  if (!f) return res.status(404).json({ error: '존재하지 않는 파일이에요' });
+  if (f.type === 'folder')
+    return res.status(400).json({ error: '폴더는 채널로 공유할 수 없어요 — 파일만 공유돼요' });
+  const channel = resolveChannel(
+    r.meeting.id,
+    (req.body as { channelId?: unknown })?.channelId,
+    req.userId!,
+  );
+  if (channel == null) return res.status(404).json({ error: '존재하지 않는 채널이에요' });
+  const ch = db.prepare('SELECT name, kind FROM chat_channels WHERE id = ?').get(channel) as
+    | { name: string; kind: string | null }
+    | undefined;
+  if (ch?.kind === 'call')
+    return res.status(400).json({ error: '통화 채널에는 공유할 수 없어요' });
+
+  let text = '';
+  let fileJson: string | null = null;
+  if (f.type === 'file') {
+    // 업로드 파일 — 채팅 파일 카드 (클라가 file JSON 있으면 카드 렌더, 다운로드 경로는 토큰 쿼리 인증)
+    fileJson = JSON.stringify({
+      name: f.name,
+      size: f.size ?? 0,
+      url: `/api/meetings/${r.meeting.code}/files/${f.id}/download`,
+    });
+  } else {
+    text = `📄 "${f.name}" 문서를 공유했어요 — 공동편집에서 열어보세요`;
+  }
+  db.prepare(
+    'INSERT INTO messages (meeting_id, user_id, text, file, channel_id) VALUES (?, ?, ?, ?, ?)',
+  ).run(r.meeting.id, req.userId!, text, fileJson, channel);
+  // 실시간 방송 — sfu chat:send와 동일 페이로드로 chat:CODE 룸에 (허브 채팅이 즉시 수신)
+  const io = getIo();
+  if (io) {
+    const u = db.prepare('SELECT avatar FROM users WHERE id = ?').get(req.userId!) as
+      | { avatar: string | null }
+      | undefined;
+    io.to(`chat:${r.meeting.code.toUpperCase()}`).emit('chat:message', {
+      code: r.meeting.code.toUpperCase(),
+      from: req.username,
+      avatar: u?.avatar ?? null,
+      text,
+      file: fileJson ? JSON.parse(fileJson) : undefined,
+      channelId: channel,
+      ts: Date.now(),
+    });
+  }
+  res.json({ ok: true, channelId: channel, channelName: ch?.name ?? '일반' });
 });
 
 /* ── 그룹 간 문서 배포 — 본사에서 개정한 SOP를 공장 그룹으로 (사본 생성 + 선택 시 회람).

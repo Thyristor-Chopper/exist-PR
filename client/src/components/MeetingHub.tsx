@@ -188,6 +188,13 @@ function formatBytes(n: number): string {
 function sameDay(a: number, b: number): boolean {
   return new Date(a).toDateString() === new Date(b).toDateString();
 }
+/** 채팅 파일 카드 URL — 그룹 파일 다운로드 경로(채널 공유 카드)는 토큰 쿼리 인증 필요.
+ * 워크스페이스 업로드(/api/workspaces/uploads)는 공개라 그대로 */
+function chatFileHref(url: string): string {
+  if (!url.startsWith('/api/meetings/')) return url;
+  const token = useAuthStore.getState().token;
+  return `${url}?token=${encodeURIComponent(token ?? '')}`;
+}
 function chatTime(ts: number): string {
   const d = new Date(ts);
   const ampm = d.getHours() < 12 ? '오전' : '오후';
@@ -2329,13 +2336,13 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             {m.file ? (
                               <a
                                 className="chat-file"
-                                href={m.file.url}
+                                href={chatFileHref(m.file.url)}
                                 target="_blank"
                                 rel="noreferrer"
                                 download={m.file.name}
                               >
                                 {/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(m.file.name) ? (
-                                  <img className="chat-file-img" src={m.file.url} alt={m.file.name} />
+                                  <img className="chat-file-img" src={chatFileHref(m.file.url)} alt={m.file.name} />
                                 ) : (
                                   <span className="chat-file-card">
                                     <span className="chat-file-ic">📎</span>

@@ -12,6 +12,11 @@ export function initNotifier(server: Server) {
   io = server;
 }
 
+/** 주입된 io — HTTP 라우트에서 룸 방송이 필요할 때 (파일 채널 공유의 chat:CODE 방송 등) */
+export function getIo(): Server | null {
+  return io;
+}
+
 export interface NotifyPayload {
   from: string;
   text: string;
