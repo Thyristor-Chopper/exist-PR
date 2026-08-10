@@ -13359,6 +13359,9 @@ button.cf-home-fold {
 .cf-icon-trash {
   color: var(--red); /* 사이드바 휴지통과 같은 빨강 — 장소 정체성 통일 */
 }
+.cf-icon-home {
+  color: var(--green); /* 사이드바 홈과 같은 초록 */
+}
 .cf-details-trashicon svg {
   color: var(--red); /* 세부정보 휴지통 카드도 동일 */
 }

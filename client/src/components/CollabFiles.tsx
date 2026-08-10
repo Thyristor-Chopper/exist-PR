@@ -3754,6 +3754,40 @@ export default function CollabFiles({
               />
             </form>
           )}
+          {/* 홈 — 루트에 놓인 시스템 항목 (사이드바 계층 루트 › 홈과 일치). 더블클릭 열기 */}
+          {cwd === null && !search.trim() && (
+            <div
+              className="cf-entry cf-entry-home"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearSel();
+              }}
+              onDoubleClick={() => {
+                clearSel();
+                setTrashOpen(false);
+                setHomeOpen(true);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              title="홈 — 고정·확인·최근 모아보기"
+            >
+              <span className="cf-entry-icon cf-icon cf-icon-home">
+                <HomeIcon size={view === 'grid' ? 28 : 16} />
+              </span>
+              <span className="cf-entry-name">홈</span>
+              {view === 'list' && (
+                <>
+                  <span className="cf-entry-date" />
+                  <span className="cf-entry-type" />
+                  <span className="cf-entry-size" />
+                  <span className="cf-entry-author" />
+                  <span className="cf-entry-online" />
+                </>
+              )}
+            </div>
+          )}
           {/* 휴지통 — 루트에 파일처럼 놓인 항목 (윈도우 바탕화면식). 더블클릭 열기, 끌어다 놓으면 삭제 */}
           {cwd === null && !search.trim() && (
             <div
