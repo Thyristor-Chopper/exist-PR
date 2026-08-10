@@ -358,6 +358,7 @@ export default function CollabFiles({
   // 휴지통 패널
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashSel, setTrashSel] = useState(false); // 루트의 휴지통 항목이 단일 선택된 상태
+  const [homeSel, setHomeSel] = useState(false); // 루트의 홈 항목이 단일 선택된 상태 (같은 문법)
   // 문서 열람 서명 (회람 사인) — 선택 파일의 서명 현황 + SignPad 대상
   const [ackStatus, setAckStatus] = useState<FileAckStatus | null>(null);
   const [ackSignFor, setAckSignFor] = useState<number | null>(null);
@@ -833,6 +834,7 @@ export default function CollabFiles({
   function clearSel() {
     setSelectedIds(new Set());
     setTrashSel(false);
+    setHomeSel(false);
     anchorRef.current = null;
   }
 
@@ -844,7 +846,8 @@ export default function CollabFiles({
 
   /** 클릭 선택 — 윈도우식 (Ctrl 토글, Shift 범위, 그냥 클릭은 단일) */
   function clickSelect(f: CollabFile, e: React.MouseEvent) {
-    setTrashSel(false); // 파일 선택이 시작되면 휴지통 선택은 해제 (세부정보 패널 중복 방지)
+    setTrashSel(false); // 파일 선택이 시작되면 휴지통·홈 선택은 해제 (세부정보 패널 중복 방지)
+    setHomeSel(false);
     if (e.ctrlKey || e.metaKey) {
       setSelectedIds((prev) => {
         const next = new Set(prev);
@@ -3757,10 +3760,11 @@ export default function CollabFiles({
           {/* 홈 — 루트에 놓인 시스템 항목 (사이드바 계층 루트 › 홈과 일치). 더블클릭 열기 */}
           {cwd === null && !search.trim() && (
             <div
-              className="cf-entry cf-entry-home"
+              className={`cf-entry cf-entry-home${homeSel ? ' selected' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
                 clearSel();
+                setHomeSel(true);
               }}
               onDoubleClick={() => {
                 clearSel();
@@ -4090,8 +4094,8 @@ export default function CollabFiles({
           className={`cf-slidewrap cf-slide-r${detailsOn && !ackOpen ? ' open' : ''}`}
           aria-hidden={!detailsOn || ackOpen}
         >
-        {/* 홈 — 선택이 없을 때만 홈 요약 카드 (선택하면 본문과 같은 파일 상세가 뜬다) */}
-        {homeOpen && selCount === 0 && (
+        {/* 홈 — 홈 뷰(선택 없음) 또는 루트에서 홈 항목을 선택했을 때 요약 카드 (휴지통 카드와 같은 문법) */}
+        {((homeOpen && selCount === 0) || (!homeOpen && homeSel && selCount === 0)) && (
           <aside className="cf-details">
             <div className="cf-details-icon cf-icon file">
               <HomeIcon size={38} />
@@ -4112,6 +4116,18 @@ export default function CollabFiles({
                 <b>{recent.length}개</b>
               </div>
             </div>
+            {!homeOpen && (
+              <button
+                className="cf-details-open"
+                onClick={() => {
+                  clearSel();
+                  setTrashOpen(false);
+                  setHomeOpen(true);
+                }}
+              >
+                홈 열기
+              </button>
+            )}
           </aside>
         )}
         {((trashOpen && trashSelList.length === 0) || (!trashOpen && trashSel && selCount === 0)) && (
