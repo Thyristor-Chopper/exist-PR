@@ -13032,35 +13032,34 @@ input:focus {
 .cf-share-x:hover {
   background: var(--surface-2);
 }
-/* 세그먼트 탭 — 3등분 (채널 | 사람 | 다른 그룹) */
+/* 탭 — 홈 하단 탭과 같은 알약 문법 (활성 = 초록 틴트 알약) */
 .cf-share-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
   gap: 4px;
   margin: 10px 12px 0;
-  padding: 4px;
-  background: var(--surface-2);
-  border-radius: 10px;
 }
 .cf-share-tabs button {
-  border: none;
-  background: none;
-  border-radius: 8px;
-  padding: 7px 4px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-sub);
-  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+.cf-share-tabs button:hover {
+  background: var(--surface-2);
 }
 .cf-share-tabs button.on {
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 700;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: rgba(33, 200, 24, 0.12);
+  color: var(--green);
+}
+.cf-share-tabs button.on:hover {
+  background: rgba(33, 200, 24, 0.16);
 }
 /* 탭 본문 — 최소 높이 고정(탭 전환 때 모달이 출렁이지 않게) */
 .cf-share-body {
