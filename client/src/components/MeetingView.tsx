@@ -33,8 +33,11 @@ interface ProducerInfo {
 
 export interface ChatFile {
   name: string;
-  url: string;
-  size: number;
+  /** 다운로드 경로 — 공동편집 문서 카드(열기 전용)는 없음 */
+  url?: string;
+  size?: number;
+  /** 공동편집 파일 id — 있으면 카드 클릭 = 그룹 탭→공동편집→해당 문서로 착지 */
+  fileId?: number;
 }
 export interface ChatMessage {
   code?: string;

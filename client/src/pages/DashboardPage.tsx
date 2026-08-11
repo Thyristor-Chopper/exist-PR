@@ -121,7 +121,19 @@ export default function DashboardPage() {
     setTabletDrawer(false); // 태블릿 드로어: 그룹 고르면 닫기
   }, []);
 
-  // 파일 딥링크 착지 — /?g=CODE&file=N (공유 링크): 그룹 탭 열고 공동편집에서 그 파일까지 연다
+  // 파일 딥링크 착지 — 그룹 탭 열고 공동편집에서 그 파일까지 연다.
+  // 진입 2경로: ① URL /?g=CODE&file=N (공유 링크) ② 앱 내부 exist:deeplink 이벤트 (채팅·DM 카드 클릭)
+  const openFileDeepLink = useCallback(
+    (g: string, fid: number) => {
+      openMeetingTab(g, g, 'files'); // 제목은 코드로 임시 — 허브가 로드되면 메타로 바뀐다
+      setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent('exist:open-file', { detail: { code: g, fileId: fid } }),
+        );
+      }, 900);
+    },
+    [openMeetingTab],
+  );
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const g = sp.get('g')?.toUpperCase();
@@ -132,12 +144,17 @@ export default function DashboardPage() {
     url.searchParams.delete('g');
     url.searchParams.delete('file');
     history.replaceState(null, '', url.toString());
-    openMeetingTab(g, g, 'files'); // 제목은 코드로 임시 — 허브가 로드되면 메타로 바뀐다
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('exist:open-file', { detail: { code: g, fileId: fid } }));
-    }, 900);
+    openFileDeepLink(g, fid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    function onDeepLink(e: Event) {
+      const d = (e as CustomEvent).detail as { code?: string; fileId?: number } | undefined;
+      if (d?.code && d.fileId) openFileDeepLink(d.code.toUpperCase(), d.fileId);
+    }
+    window.addEventListener('exist:deeplink', onDeepLink);
+    return () => window.removeEventListener('exist:deeplink', onDeepLink);
+  }, [openFileDeepLink]);
 
   const toggleSidebar = useCallback(() => {
     // 태블릿에선 접기 대신 드로어 토글

@@ -1191,12 +1191,13 @@ router.post('/:fileId/dm', (req: AuthedRequest, res) => {
   const title = db.prepare('SELECT title FROM meetings WHERE id = ?').get(r.meeting.id) as
     | { title: string }
     | undefined;
+  // 딥링크 포함 — 받은 쪽이 누르면 그룹 탭→공동편집→이 문서로 바로 착지 (클라가 내부 링크로 가로챔)
   sendDmCore(
     null,
     req.userId!,
     req.username ?? '',
     to,
-    `📄 "${f.name}" 파일을 공유했어요 — "${title?.title ?? r.meeting.code}" 그룹의 공동편집에서 열 수 있어요`,
+    `📄 "${f.name}" 파일을 공유했어요 — "${title?.title ?? r.meeting.code}" 그룹의 공동편집에서 열 수 있어요\n/?g=${r.meeting.code.toUpperCase()}&file=${f.id}`,
   );
   res.json({ ok: true });
 });
@@ -1232,13 +1233,16 @@ router.post('/:fileId/share-channel', (req: AuthedRequest, res) => {
   let text = '';
   let fileJson: string | null = null;
   if (f.type === 'file') {
-    // 업로드 파일 — 채팅 파일 카드 (클라가 file JSON 있으면 카드 렌더, 다운로드 경로는 토큰 쿼리 인증)
+    // 업로드 파일 — 채팅 파일 카드. fileId가 있으면 클라가 카드 클릭 = 공동편집에서 열기
     fileJson = JSON.stringify({
       name: f.name,
       size: f.size ?? 0,
       url: `/api/meetings/${r.meeting.code}/files/${f.id}/download`,
+      fileId: f.id,
     });
   } else {
+    // 공동편집 문서 — url 없는 카드 (클릭 = 열기). 텍스트 폴백도 남긴다 (구 클라 대비)
+    fileJson = JSON.stringify({ name: f.name, fileId: f.id });
     text = `📄 "${f.name}" 문서를 공유했어요 — 공동편집에서 열어보세요`;
   }
   db.prepare(

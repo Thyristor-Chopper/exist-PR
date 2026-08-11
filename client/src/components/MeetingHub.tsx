@@ -2336,21 +2336,52 @@ function MeetingHub({ code, expanded, onToggleExpand, gotoTab, visible = true }:
                             {m.file ? (
                               <a
                                 className="chat-file"
-                                href={chatFileHref(m.file.url)}
-                                target="_blank"
+                                href={m.file.url ? chatFileHref(m.file.url) : '#'}
+                                target={m.file.url ? '_blank' : undefined}
                                 rel="noreferrer"
-                                download={m.file.name}
+                                download={m.file.url ? m.file.name : undefined}
+                                onClick={(e) => {
+                                  // 공동편집 파일 카드 — 클릭 = 그 문서로 착지 (다운로드는 ⬇가 담당)
+                                  if (m.file!.fileId) {
+                                    e.preventDefault();
+                                    window.dispatchEvent(
+                                      new CustomEvent('exist:deeplink', {
+                                        detail: { code, fileId: m.file!.fileId },
+                                      }),
+                                    );
+                                  }
+                                }}
                               >
-                                {/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(m.file.name) ? (
+                                {m.file.url && /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(m.file.name) ? (
                                   <img className="chat-file-img" src={chatFileHref(m.file.url)} alt={m.file.name} />
                                 ) : (
                                   <span className="chat-file-card">
-                                    <span className="chat-file-ic">📎</span>
+                                    <span className="chat-file-ic">{m.file.url ? '📎' : '📄'}</span>
                                     <span className="chat-file-meta">
                                       <span className="chat-file-name">{m.file.name}</span>
-                                      <span className="chat-file-size">{formatBytes(m.file.size)}</span>
+                                      <span className="chat-file-size">
+                                        {m.file.url ? formatBytes(m.file.size ?? 0) : '공동편집 문서'}
+                                      </span>
                                     </span>
-                                    <span className="chat-file-dl">⬇</span>
+                                    {m.file.url ? (
+                                      m.file.fileId ? (
+                                        /* 열기(카드)와 다운로드(⬇)를 분리 — ⬇는 전파 차단 후 기본 다운로드 */
+                                        <a
+                                          className="chat-file-dl"
+                                          href={chatFileHref(m.file.url)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          download={m.file.name}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          ⬇
+                                        </a>
+                                      ) : (
+                                        <span className="chat-file-dl">⬇</span>
+                                      )
+                                    ) : (
+                                      <span className="chat-file-dl">열기</span>
+                                    )}
                                   </span>
                                 )}
                                 {m.text && <span className="chat-file-text">{m.text}</span>}

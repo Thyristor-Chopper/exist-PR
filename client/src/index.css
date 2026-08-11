@@ -4030,6 +4030,20 @@ input:focus {
   color: var(--text-sub);
   font-weight: 600;
 }
+/* 파일 공유 DM의 [문서 바로 열기] — 눌러서 그룹 탭→공동편집→문서 착지 */
+.dm-open-file {
+  display: block;
+  margin-top: 7px;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 12px;
+  background: var(--green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* 취소 후 [다시 기록]까지 마친 상태 칩 */
 .chat-decision-done {
   display: inline-flex;

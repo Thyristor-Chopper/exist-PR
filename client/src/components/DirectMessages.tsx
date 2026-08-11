@@ -52,6 +52,29 @@ interface IncomingDm {
   ts: number;
 }
 
+/** 파일 공유 DM — 꼬리의 딥링크(/?g=CODE&file=N)를 "문서 바로 열기" 버튼으로 렌더 */
+function renderDmText(text: string): React.ReactNode {
+  const m = text.match(/\n\/\?g=([A-Za-z0-9]+)&file=(\d+)\s*$/);
+  if (!m) return text;
+  const code = m[1].toUpperCase();
+  const fileId = Number(m[2]);
+  return (
+    <>
+      {text.slice(0, m.index)}
+      <button
+        className="dm-open-file"
+        onClick={() =>
+          window.dispatchEvent(
+            new CustomEvent('exist:deeplink', { detail: { code, fileId } }),
+          )
+        }
+      >
+        📄 문서 바로 열기
+      </button>
+    </>
+  );
+}
+
 function sameDay(a: number, b: number): boolean {
   return new Date(a).toDateString() === new Date(b).toDateString();
 }
@@ -295,7 +318,7 @@ export function DmWindow({
                 <div className="chat-content">
                   <div className="chat-line">
                     {m.mine && <span className="chat-time">{chatTime(m.ts)}</span>}
-                    <div className="chat-bubble">{m.text}</div>
+                    <div className="chat-bubble">{renderDmText(m.text)}</div>
                     {!m.mine && <span className="chat-time">{chatTime(m.ts)}</span>}
                   </div>
                 </div>
