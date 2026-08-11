@@ -447,6 +447,8 @@ export default function CollabFiles({
   const versionInputRef = useRef<HTMLInputElement | null>(null);
   // 통합 공유 모달 — 채널 게시·DM·다른 그룹 배포·링크 복사를 한 곳에 (단일 파일만, 폴더는 즉시 링크 복사)
   const [shareFor, setShareFor] = useState<CollabFile | null>(null);
+  // 공유 모달 세그먼트 탭 — 채널(그룹 안 공지) | 사람(DM) | 다른 그룹(배포)
+  const [shareTab, setShareTab] = useState<'channel' | 'dm' | 'group'>('channel');
   // 이 그룹 채널 목록 — 통화 채널(kind='call')은 로드 시점에 제외
   const [shareChannels, setShareChannels] = useState<
     { id: number; name: string; kind?: string | null }[] | null
@@ -5055,76 +5057,127 @@ export default function CollabFiles({
       {shareFor && (
         <div className="cf-move-overlay" onClick={() => setShareFor(null)}>
           <div className="cf-move-modal cf-share-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="cf-move-title">"{shareFor.name}" 공유</div>
-            <div className="cf-move-tree">
-              {/* ① 이 그룹 채널로 — 클릭 즉시 게시 (통화 채널은 로드 시 제외) */}
-              <div className="cf-share-label">이 그룹 채널로</div>
-              {shareChannels === null && <div className="cf-move-empty">불러오는 중…</div>}
-              {shareChannels?.length === 0 && (
-                <div className="cf-move-empty">공유할 채널이 없어요</div>
-              )}
-              {shareChannels?.map((c) => (
-                <button key={c.id} disabled={shareBusy} onClick={() => void shareToChannel(c)}>
-                  <span className="cf-share-hash">#</span> {c.name}
-                </button>
-              ))}
-              {/* ② 사람에게 — DM으로 콕 집어 보내기 */}
-              <div className="cf-share-label">사람에게 (DM)</div>
-              {dmMembers === null && <div className="cf-move-empty">불러오는 중…</div>}
-              {dmMembers?.length === 0 && (
-                <div className="cf-move-empty">보낼 사람이 없어요 — 그룹에 다른 멤버가 없어요</div>
-              )}
-              {dmMembers?.map((m) => (
-                <button key={m.id} disabled={shareBusy} onClick={() => void sendFileDm(m.id)}>
-                  <Avatar value={m.avatar} className="cf-dm-avatar" /> {dn(m.username)}
-                </button>
-              ))}
-              {/* ③ 다른 그룹으로 배포 — 사본 + 선택 시 회람 (그룹 선택 시에만 옵션·버튼 노출) */}
-              <div className="cf-share-label">다른 그룹으로 배포</div>
-              {distGroups === null && <div className="cf-move-empty">불러오는 중…</div>}
-              {distGroups?.length === 0 && (
-                <div className="cf-move-empty">
-                  배포할 그룹이 없어요 — 다른 그룹에 참가하고 있어야 해요
-                </div>
-              )}
-              {distGroups?.map((g) => (
-                <button
-                  key={g.id}
-                  className={distTarget === g.code ? 'cf-dist-on' : undefined}
-                  onClick={() => setDistTarget(distTarget === g.code ? null : g.code)}
-                >
-                  <UsersIcon size={14} /> {g.title || g.code}
-                  {distTarget === g.code && <CheckMarkIcon size={12} />}
-                </button>
-              ))}
-              {distTarget && (
+            {/* 헤더 — 파일 정체 + 닫기 */}
+            <div className="cf-share-head">
+              <span className={`cf-share-head-ic cf-icon ${shareFor.type}`}>
+                <TypeIcon type={shareFor.type} size={22} name={shareFor.name} />
+              </span>
+              <span className="cf-share-head-txt">
+                <b>{shareFor.name}</b>
+                <span>공유 — 어디로 보내든 흔적이 남아요</span>
+              </span>
+              <button className="cf-share-x" title="닫기" onClick={() => setShareFor(null)}>
+                ✕
+              </button>
+            </div>
+            {/* 세그먼트 탭 — 채널 | 사람 | 다른 그룹 */}
+            <div className="cf-share-tabs" role="tablist">
+              <button
+                role="tab"
+                aria-selected={shareTab === 'channel'}
+                className={shareTab === 'channel' ? 'on' : undefined}
+                onClick={() => setShareTab('channel')}
+              >
+                <span className="cf-share-hash">#</span> 채널
+              </button>
+              <button
+                role="tab"
+                aria-selected={shareTab === 'dm'}
+                className={shareTab === 'dm' ? 'on' : undefined}
+                onClick={() => setShareTab('dm')}
+              >
+                <UsersIcon size={13} /> 사람
+              </button>
+              <button
+                role="tab"
+                aria-selected={shareTab === 'group'}
+                className={shareTab === 'group' ? 'on' : undefined}
+                onClick={() => setShareTab('group')}
+              >
+                ⇄ 다른 그룹
+              </button>
+            </div>
+            <div className="cf-move-tree cf-share-body">
+              {shareTab === 'channel' && (
                 <>
-                  <label className="cf-dist-ack cf-share-ack">
-                    <input
-                      type="checkbox"
-                      checked={distAck}
-                      onChange={(e) => setDistAck(e.target.checked)}
-                    />
-                    열람 서명 요청 걸기 — 대상 그룹 전원에게 회람돼요
-                  </label>
-                  <button
-                    className="cf-share-dist-go"
-                    disabled={distBusy}
-                    onClick={() => void distributeNow()}
-                  >
-                    {distBusy ? '배포 중…' : '배포'}
-                  </button>
+                  <div className="cf-share-hint">채팅 채널에 파일 카드로 게시돼요 — 클릭 즉시 공유</div>
+                  {shareChannels === null && <div className="cf-move-empty">불러오는 중…</div>}
+                  {shareChannels?.length === 0 && (
+                    <div className="cf-move-empty">공유할 채널이 없어요</div>
+                  )}
+                  {shareChannels?.map((c) => (
+                    <button key={c.id} disabled={shareBusy} onClick={() => void shareToChannel(c)}>
+                      <span className="cf-share-hash">#</span> {c.name}
+                    </button>
+                  ))}
+                </>
+              )}
+              {shareTab === 'dm' && (
+                <>
+                  <div className="cf-share-hint">1:1 메시지로 콕 집어 보내요 — 클릭 즉시 전송</div>
+                  {dmMembers === null && <div className="cf-move-empty">불러오는 중…</div>}
+                  {dmMembers?.length === 0 && (
+                    <div className="cf-move-empty">보낼 사람이 없어요 — 그룹에 다른 멤버가 없어요</div>
+                  )}
+                  {dmMembers?.map((m) => (
+                    <button key={m.id} disabled={shareBusy} onClick={() => void sendFileDm(m.id)}>
+                      <Avatar value={m.avatar} className="cf-dm-avatar" /> {dn(m.username)}
+                    </button>
+                  ))}
+                </>
+              )}
+              {shareTab === 'group' && (
+                <>
+                  <div className="cf-share-hint">
+                    사본이 대상 그룹으로 전달돼요 — 서명을 걸면 전원 회람
+                  </div>
+                  {distGroups === null && <div className="cf-move-empty">불러오는 중…</div>}
+                  {distGroups?.length === 0 && (
+                    <div className="cf-move-empty">
+                      배포할 그룹이 없어요 — 다른 그룹에 참가하고 있어야 해요
+                    </div>
+                  )}
+                  {distGroups?.map((g) => (
+                    <button
+                      key={g.id}
+                      className={distTarget === g.code ? 'cf-dist-on' : undefined}
+                      onClick={() => setDistTarget(distTarget === g.code ? null : g.code)}
+                    >
+                      <UsersIcon size={14} /> {g.title || g.code}
+                      {distTarget === g.code && <CheckMarkIcon size={12} />}
+                    </button>
+                  ))}
+                  {distTarget && (
+                    <>
+                      <label className="cf-dist-ack cf-share-ack">
+                        <input
+                          type="checkbox"
+                          checked={distAck}
+                          onChange={(e) => setDistAck(e.target.checked)}
+                        />
+                        열람 서명 요청 걸기 — 대상 그룹 전원에게 회람돼요
+                      </label>
+                      <button
+                        className="cf-share-dist-go"
+                        disabled={distBusy}
+                        onClick={() => void distributeNow()}
+                      >
+                        {distBusy ? '배포 중…' : '배포'}
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>
-            {/* 하단 보조 — 파일 딥링크 복사(열면 이 문서가 바로 뜸) + 닫기 */}
-            <div className="cf-dist-acts">
-              <button className="cf-move-cancel cf-share-link" onClick={() => share(shareFor)}>
-                🔗 파일 링크 복사
-              </button>
-              <button className="cf-move-cancel" onClick={() => setShareFor(null)}>
-                닫기
-              </button>
+            {/* 링크 줄 — exist 밖(카톡·메일)으로 던질 때. 열면 이 문서가 바로 뜬다 */}
+            <div className="cf-share-linkrow">
+              <input
+                readOnly
+                value={`${location.origin}/?g=${code}&file=${shareFor.id}`}
+                onFocus={(e) => e.currentTarget.select()}
+                aria-label="파일 링크"
+              />
+              <button onClick={() => share(shareFor)}>링크 복사</button>
             </div>
           </div>
         </div>
