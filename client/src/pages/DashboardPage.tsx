@@ -121,6 +121,24 @@ export default function DashboardPage() {
     setTabletDrawer(false); // 태블릿 드로어: 그룹 고르면 닫기
   }, []);
 
+  // 파일 딥링크 착지 — /?g=CODE&file=N (공유 링크): 그룹 탭 열고 공동편집에서 그 파일까지 연다
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const g = sp.get('g')?.toUpperCase();
+    const fid = Number(sp.get('file'));
+    if (!g || !Number.isFinite(fid) || fid <= 0) return;
+    // 파라미터는 소비 후 제거 — 새로고침 때 재실행 방지
+    const url = new URL(window.location.href);
+    url.searchParams.delete('g');
+    url.searchParams.delete('file');
+    history.replaceState(null, '', url.toString());
+    openMeetingTab(g, g, 'files'); // 제목은 코드로 임시 — 허브가 로드되면 메타로 바뀐다
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('exist:open-file', { detail: { code: g, fileId: fid } }));
+    }, 900);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleSidebar = useCallback(() => {
     // 태블릿에선 접기 대신 드로어 토글
     if (window.matchMedia(TABLET_MQ).matches) {

@@ -2132,11 +2132,16 @@ export default function CollabFiles({
   }, [sortMenu, viewMenu, moreMenu, filterMenu, typeMenuFor]);
 
   // 이름만 쓰므로 휴지통 항목도 그대로 공유 가능 (클라 전용 — 그룹 링크 복사)
-  function share(f: { name: string }) {
-    const link = `${location.origin}/meeting/${code}`;
+  /** 링크 복사 — id가 있으면 그 파일이 바로 열리는 딥링크(?file=), 없으면(폴더·휴지통) 그룹 링크 */
+  function share(f: { name: string; id?: number; type?: FileType }) {
+    const deep = f.id != null && f.type !== 'folder';
+    // 딥링크는 대시보드(/)가 소비 — /meeting/:code는 통화 입장 페이지라 착지가 다르다
+    const link = deep
+      ? `${location.origin}/?g=${code}&file=${f.id}`
+      : `${location.origin}/meeting/${code}`;
     void navigator.clipboard
       .writeText(`[exist] ${f.name} — ${link}`)
-      .then(() => toast('그룹 링크를 복사했어요'))
+      .then(() => toast(deep ? '파일 링크를 복사했어요 — 열면 이 문서가 바로 떠요' : '그룹 링크를 복사했어요'))
       .catch(() => toast('클립보드 복사에 실패했어요', 'error'));
   }
 
@@ -2581,7 +2586,8 @@ export default function CollabFiles({
               disabled={trashOpen ? trashSelList.length !== 1 : !selected}
               onClick={() =>
                 trashOpen
-                  ? trashSelList.length === 1 && share(trashSelList[0])
+                  ? // 휴지통 항목은 딥링크가 못 열리니 그룹 링크만 (이름만 전달)
+                    trashSelList.length === 1 && share({ name: trashSelList[0].name })
                   : selected && openShare(selected)
               }
             >
@@ -5111,10 +5117,10 @@ export default function CollabFiles({
                 </>
               )}
             </div>
-            {/* 하단 보조 — 그룹 링크 복사 + 닫기 */}
+            {/* 하단 보조 — 파일 딥링크 복사(열면 이 문서가 바로 뜸) + 닫기 */}
             <div className="cf-dist-acts">
               <button className="cf-move-cancel cf-share-link" onClick={() => share(shareFor)}>
-                🔗 그룹 링크 복사
+                🔗 파일 링크 복사
               </button>
               <button className="cf-move-cancel" onClick={() => setShareFor(null)}>
                 닫기
