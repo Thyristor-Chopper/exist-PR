@@ -147,12 +147,12 @@ router.post('/reset', (req, res) => {
       }
     | undefined;
   if (!user || !user.recovery_hash || !user.recovery_salt) {
-    return res.status(401).json({ error: '아이디 또는 복구 코드가 올바르지 않습니다' });
+    return res.status(400).json({ error: '아이디 또는 복구 코드가 올바르지 않습니다' });
   }
   const normalized = String(recoveryCode).toUpperCase().replace(/[^A-Z0-9]/g, '');
   const grouped = normalized.match(/.{1,4}/g)?.join('-') ?? '';
   if (hashPassword(grouped, user.recovery_salt) !== user.recovery_hash) {
-    return res.status(401).json({ error: '아이디 또는 복구 코드가 올바르지 않습니다' });
+    return res.status(400).json({ error: '아이디 또는 복구 코드가 올바르지 않습니다' });
   }
 
   // 새 비밀번호 + 새 복구 코드 (기존 코드는 1회용)
@@ -186,7 +186,7 @@ router.post('/login', (req, res) => {
     | { id: number; username: string; pw_hash: string; pw_salt: string; name: string | null }
     | undefined;
   if (!user || hashPassword(typeof password === 'string' ? password : '', user.pw_salt) !== user.pw_hash) {
-    return res.status(401).json({ error: '아이디 또는 비밀번호가 틀렸습니다' });
+    return res.status(400).json({ error: '아이디 또는 비밀번호가 틀렸습니다' });
   }
   attempts.delete(key); // 성공 시 카운터 리셋
   const token = crypto.randomUUID();
@@ -319,7 +319,7 @@ router.post('/password', requireAuth, (req: AuthedRequest, res) => {
     pw_salt: string;
   };
   if (hashPassword(currentPassword, user.pw_salt) !== user.pw_hash) {
-    return res.status(401).json({ error: '현재 비밀번호가 올바르지 않습니다' });
+    return res.status(400).json({ error: '현재 비밀번호가 올바르지 않습니다' });
   }
   const salt = crypto.randomBytes(16).toString('hex');
   db.prepare('UPDATE users SET pw_hash = ?, pw_salt = ? WHERE id = ?').run(
