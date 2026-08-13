@@ -305,6 +305,8 @@ export default function MeetingView({
   peerAvatars,
   mentionCandidates,
 }: MeetingViewProps) {
+  const rtcSupported = (typeof RTCPeerConnection !== 'undefined' && navigator.mediaDevices);
+
   const user = useAuthStore((s) => s.user);
   const dn = useDisplayName();
 
@@ -526,11 +528,12 @@ export default function MeetingView({
       })
       .catch(() => {});
   }, []);
-  useEffect(() => {
-    refreshDevices();
-    navigator.mediaDevices.addEventListener?.('devicechange', refreshDevices);
-    return () => navigator.mediaDevices.removeEventListener?.('devicechange', refreshDevices);
-  }, [refreshDevices]);
+  if(rtcSupported)
+    useEffect(() => {
+      refreshDevices();
+      navigator.mediaDevices.addEventListener?.('devicechange', refreshDevices);
+      return () => navigator.mediaDevices.removeEventListener?.('devicechange', refreshDevices);
+    }, [refreshDevices]);
 
   // 입장 전 디바이스 프리뷰 — 로컬 미리보기만(서버로 송출하지 않음). 장치를 바꾸면 다시 잡는다
   useEffect(() => {
@@ -1409,6 +1412,51 @@ export default function MeetingView({
 
   // 입장 전 디바이스 프리뷰 게이트 (카메라/마이크 미리 확인 후 입장)
   if (phase === 'preview') {
+    if(!rtcSupported)
+      return (
+        <div
+          className={`meeting-room${embedded ? ' embedded' : ''}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            /* 배경은 .meeting-room 공통 규칙 — 라이트 테마 얕은 회색 포함 */
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              borderRadius: 16,
+              padding: 24,
+              width: 440,
+              maxWidth: '92%',
+              textAlign: 'center',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+            }}
+          >
+            <h2 style={{ margin: '0 0 4px', fontSize: 18, color: 'var(--text)' }}>
+              {title || '회의'}에 입장
+            </h2>
+            <div style={{ fontSize: 12, color: 'var(--text-sub)', marginBottom: 6 }}>사용 중인 브라우저에서 WebRTC가 비활성화되어있거나 지원되지 않습니다.</div>
+            <button
+              onClick={() => onLeave?.('')}
+              style={{
+                width: '100%',
+                padding: '12px 0',
+                background: '#00000010',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 15,
+                cursor: 'pointer',
+              }}
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      );
+
     return (
       <div
         className={`meeting-room${embedded ? ' embedded' : ''}`}
