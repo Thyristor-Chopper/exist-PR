@@ -13836,7 +13836,8 @@ button.cf-home-fold {
 .cf-main.list .cf-entry-online {
   padding-left: 8px;
 }
-.cf-main.list .cf-entry-name {
+.cf-main.list .cf-entry-name,
+.cf-main.list .cf-entry > .cf-entry-icon + form {
   /* 윈도우식 — 이름도 고정폭 컬럼(직접 리사이즈). 다른 컬럼을 늘려도 이름은 안 줄고
    * 행이 가로 스크롤로 밀린다 */
   flex: none;
