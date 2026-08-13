@@ -528,12 +528,14 @@ export default function MeetingView({
       })
       .catch(() => {});
   }, []);
-  if(rtcSupported)
-    useEffect(() => {
-      refreshDevices();
-      navigator.mediaDevices.addEventListener?.('devicechange', refreshDevices);
-      return () => navigator.mediaDevices.removeEventListener?.('devicechange', refreshDevices);
-    }, [refreshDevices]);
+  useEffect(() => {
+    // WebRTC 미지원 브라우저 가드 — 훅은 조건 없이 항상 호출하고 안에서 분기 (훅 규칙)
+    if (!rtcSupported) return;
+    refreshDevices();
+    navigator.mediaDevices.addEventListener?.('devicechange', refreshDevices);
+    return () => navigator.mediaDevices.removeEventListener?.('devicechange', refreshDevices);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshDevices]);
 
   // 입장 전 디바이스 프리뷰 — 로컬 미리보기만(서버로 송출하지 않음). 장치를 바꾸면 다시 잡는다
   useEffect(() => {
@@ -1443,8 +1445,8 @@ export default function MeetingView({
               style={{
                 width: '100%',
                 padding: '12px 0',
-                background: '#00000010',
-                color: '#fff',
+                background: 'var(--surface-2)',
+                color: 'var(--text)', // 라이트 테마에서 흰 글자가 안 보이던 것 — 테마 변수로
                 border: 'none',
                 borderRadius: 10,
                 fontSize: 15,
